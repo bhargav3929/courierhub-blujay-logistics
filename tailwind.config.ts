@@ -47,6 +47,17 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        blujay: {
+          dark: "hsl(var(--blujay-dark))",
+          light: "hsl(var(--blujay-light))",
+          accent: "hsl(var(--blujay-accent))",
+        },
+        status: {
+          delivered: "hsl(var(--status-delivered))",
+          transit: "hsl(var(--status-transit))",
+          pending: "hsl(var(--status-pending))",
+          cancelled: "hsl(var(--status-cancelled))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
