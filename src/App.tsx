@@ -7,10 +7,12 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Shipments from "./pages/Shipments";
-import Couriers from "./pages/Couriers";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import ClientDashboard from "./pages/ClientDashboard";
+import ClientShipments from "./pages/ClientShipments";
+import ClientSettings from "./pages/ClientSettings";
+import ClientIntegrations from "./pages/ClientIntegrations";
+import AddShipment from "./pages/AddShipment";
 
 const queryClient = new QueryClient();
 
@@ -21,15 +23,13 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/shipments" element={<Shipments />} />
-          <Route path="/couriers" element={<Couriers />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/" element={<Login />} />
+          <Route path="/admin-dashboard" element={<Dashboard />} />
+          <Route path="/client-dashboard" element={<ClientDashboard />} />
+          <Route path="/client-shipments" element={<ClientShipments />} />
+          <Route path="/client-settings" element={<ClientSettings />} />
+          <Route path="/client-integrations" element={<ClientIntegrations />} />
+          <Route path="/add-shipment" element={<AddShipment />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

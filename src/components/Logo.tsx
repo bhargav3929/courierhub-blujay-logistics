@@ -16,10 +16,7 @@ export const Logo = ({ variant = "light", showTagline = true, className = "" }: 
         <Package className={`h-8 w-8 ${variant === "light" ? "text-white" : "text-primary"}`} />
       </div>
       <div className="flex flex-col">
-        <h1 className={`text-2xl font-bold ${textColor}`}>CourierHub</h1>
-        {showTagline && (
-          <p className={`text-xs ${taglineColor}`}>Powered by Blujay Logistics</p>
-        )}
+        <h1 className={`text-2xl font-bold ${textColor}`}>Blujay Logistics</h1>
       </div>
     </div>
   );

@@ -75,17 +75,31 @@ const Login = () => {
               </div>
             </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-gradient-to-r from-blujay-dark to-blujay-light hover:from-primary hover:to-secondary text-white shadow-lg transition-all duration-300"
-              size="lg"
-            >
-              Sign In
-            </Button>
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+                className="bg-gradient-to-r from-blujay-dark to-blujay-light hover:opacity-90 text-white shadow-lg transition-all duration-300"
+                size="lg"
+              >
+                Admin Portal
+              </Button>
+              <Button
+                type="button"
+                onClick={() => navigate("/client-dashboard")}
+                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white shadow-lg transition-all duration-300"
+                size="lg"
+              >
+                Client Portal
+              </Button>
+            </div>
           </form>
 
           {/* Footer */}
           <div className="mt-8 text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-2">
+              Select Your Access Level
+            </p>
             <p className="text-xs text-muted-foreground">
               Trusted by <span className="font-semibold text-primary">500+ businesses</span> across India
             </p>
