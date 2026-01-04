@@ -1,13 +1,89 @@
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Settings as SettingsIcon, User, Bell, Shield, Database } from "lucide-react";
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Key } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { getAllCouriers, updateCourierAPI, addCourierAPI } from "@/services/courierService";
+import { useAuth } from "@/contexts/AuthContext";
+import { CourierAPI } from "@/types/types";
 
 const Settings = () => {
+  const { currentUser } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [courierConfigs, setCourierConfigs] = useState<CourierAPI[]>([]);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  // Hardcoded list of supported couriers to ensure we have fields for them
+  const supportedCouriers = [
+    { name: "dtdc", displayName: "DTDC" },
+    { name: "bluedart", displayName: "Blue Dart" },
+    { name: "delhivery", displayName: "Delhivery" },
+    { name: "indiapost", displayName: "India Post" },
+    { name: "ecomexpress", displayName: "Ecom Express" },
+    { name: "shadowfax", displayName: "Shadowfax" }
+  ];
+
+  useEffect(() => {
+    fetchCourierConfigs();
+  }, []);
+
+  const fetchCourierConfigs = async () => {
+    try {
+      setLoading(true);
+      const configs = await getAllCouriers();
+      setCourierConfigs(configs);
+    } catch (error) {
+      console.error("Error fetching courier configs:", error);
+      toast.error("Failed to load courier configurations");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateApiKey = async (courierName: string, apiKey: string, apiSecret: string) => {
+    try {
+      setSaving(courierName);
+
+      const existingConfig = courierConfigs.find(c => c.name === courierName);
+
+      if (existingConfig) {
+        await updateCourierAPI(existingConfig.id, {
+          apiKey,
+          apiSecret,
+          isConnected: !!(apiKey && apiSecret),
+          status: (apiKey && apiSecret) ? "active" : "inactive"
+        });
+      } else {
+        const courierInfo = supportedCouriers.find(c => c.name === courierName);
+        await addCourierAPI({
+          name: courierName,
+          displayName: courierInfo?.displayName || courierName,
+          status: (apiKey && apiSecret) ? "active" : "inactive",
+          isConnected: !!(apiKey && apiSecret),
+          apiKey,
+          apiSecret
+        });
+      }
+
+      toast.success(`${courierName.toUpperCase()} configuration saved`);
+      await fetchCourierConfigs();
+    } catch (error) {
+      console.error("Error saving API configuration:", error);
+      toast.error("Failed to save configuration");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const getCourierConfig = (name: string) => {
+    return courierConfigs.find(c => c.name === name);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -24,69 +100,114 @@ const Settings = () => {
               <User className="h-5 w-5 text-primary" />
               Profile Settings
             </CardTitle>
-            <CardDescription>Update your personal information and profile details</CardDescription>
+            <CardDescription>Update your personal information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="full-name">Full Name</Label>
-                <Input id="full-name" defaultValue="Super Admin" className="focus-visible:ring-primary" />
+                <Input id="full-name" defaultValue={currentUser?.name || "Admin"} className="focus-visible:ring-primary" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email-setting">Email</Label>
-                <Input id="email-setting" type="email" defaultValue="admin@courierhub.com" className="focus-visible:ring-primary" />
+                <Input id="email-setting" type="email" defaultValue={currentUser?.email || ""} disabled className="bg-muted" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="phone-setting">Phone</Label>
-                <Input id="phone-setting" defaultValue="+91-9876543210" className="focus-visible:ring-primary" />
+                <Input id="phone-setting" defaultValue={currentUser?.phone || ""} className="focus-visible:ring-primary" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
-                <Input id="role" defaultValue="Administrator" disabled />
+                <Input id="role" defaultValue={currentUser?.role || "Admin"} disabled className="bg-muted" />
               </div>
             </div>
             <Separator className="my-4" />
             <Button className="bg-gradient-to-r from-blujay-dark to-blujay-light hover:from-primary hover:to-secondary">
-              Save Changes
+              Save Profile Changes
             </Button>
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* Courier API Keys */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              Notification Preferences
+              <Key className="h-5 w-5 text-primary" />
+              Courier API Configuration
             </CardTitle>
-            <CardDescription>Manage how you receive notifications</CardDescription>
+            <CardDescription>Manage API credentials for shipping providers</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="font-medium">Email Notifications</p>
-                <p className="text-sm text-muted-foreground">Receive shipment updates via email</p>
+          <CardContent className="space-y-6">
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
               </div>
-              <Switch defaultChecked className="data-[state=checked]:bg-primary" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="font-medium">New Client Alerts</p>
-                <p className="text-sm text-muted-foreground">Get notified when new clients register</p>
-              </div>
-              <Switch defaultChecked className="data-[state=checked]:bg-primary" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="font-medium">Weekly Reports</p>
-                <p className="text-sm text-muted-foreground">Receive weekly performance summaries</p>
-              </div>
-              <Switch className="data-[state=checked]:bg-primary" />
-            </div>
+            ) : (
+              supportedCouriers.map((courier) => {
+                const config = getCourierConfig(courier.name);
+                return (
+                  <div key={courier.name} className="p-4 border rounded-lg bg-muted/10">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{courier.displayName}</span>
+                        {config?.isConnected && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+                            Connected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        handleUpdateApiKey(
+                          courier.name,
+                          formData.get('apiKey') as string,
+                          formData.get('apiSecret') as string
+                        );
+                      }}
+                      className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor={`key-${courier.name}`}>API Key</Label>
+                        <Input
+                          id={`key-${courier.name}`}
+                          name="apiKey"
+                          defaultValue={config?.apiKey || ""}
+                          type="password"
+                          placeholder="Enter API Key"
+                          className="focus-visible:ring-primary"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`secret-${courier.name}`}>API Secret / Token</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id={`secret-${courier.name}`}
+                            name="apiSecret"
+                            defaultValue={config?.apiSecret || ""}
+                            type="password"
+                            placeholder="Enter API Secret"
+                            className="focus-visible:ring-primary"
+                          />
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={saving === courier.name}
+                            className="bg-primary hover:bg-primary/90"
+                          >
+                            {saving === courier.name ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
 
@@ -137,14 +258,6 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">Enable AI-based courier selection</p>
               </div>
               <Switch defaultChecked className="data-[state=checked]:bg-primary" />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="font-medium">Multi-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Add extra security to your account</p>
-              </div>
-              <Switch className="data-[state=checked]:bg-primary" />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
