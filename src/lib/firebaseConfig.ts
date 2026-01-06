@@ -1,93 +1,109 @@
 // Firebase configuration and initialization
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { Analytics, getAnalytics } from 'firebase/analytics';
 
-/**
- * Validates that all required Firebase environment variables are present
- * @throws Error if any required variable is missing
- */
-const validateFirebaseConfig = (): void => {
+// Exported error state to be checked by AuthContext
+export let initializationError: string | null = null;
+export let app: FirebaseApp | undefined;
+export let auth: Auth; // Will be cast to any if initialization fails to avoid type errors in imports
+export let db: Firestore;
+export let storage: FirebaseStorage;
+export let analytics: Analytics | null = null;
+
+const validateFirebaseConfig = () => {
     const requiredVars = {
-        VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
-        VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
+        NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+        NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
     };
 
     const missingVars = Object.entries(requiredVars)
-        .filter(([_, value]) => !value)
+        .filter(([key, value]) => {
+            // Check if missing
+            if (!value) return true;
+
+            // Check for common placeholders from .env.example
+            const placeholders = [
+                'your-project-id',
+                'your_api_key',
+                'AIzaSyXXX', // Partial match for placeholder
+                '123456789012',
+                'G-XXXXXXXXXX'
+            ];
+
+            // If value matches any placeholder pattern or still contains "your-" (common in examples)
+            if (placeholders.some(p => value.includes(p)) || value.includes('your-')) {
+                return true;
+            }
+
+            return false;
+        })
         .map(([key]) => key);
 
     if (missingVars.length > 0) {
-        const errorMessage = `
-🔥 Firebase Configuration Error 🔥
-
-Missing required environment variables:
-${missingVars.map(v => `  - ${v}`).join('\n')}
-
-Please follow these steps:
-1. Copy .env.example to .env.local
-2. Fill in your Firebase configuration values from Firebase Console
-3. Restart the development server
-
-For detailed setup instructions, see FIREBASE_SETUP.md
-        `.trim();
-
-        console.error(errorMessage);
-        throw new Error(`Missing Firebase environment variables: ${missingVars.join(', ')}`);
+        return `Invalid or Missing Firebase keys (detected placeholders): ${missingVars.join(', ')}`;
     }
+    return null;
 };
 
-// Validate configuration before initialization
-validateFirebaseConfig();
+// Check configuration
+const configError = validateFirebaseConfig();
 
-// Firebase configuration from environment variables
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
+if (configError) {
+    console.error(`🔥 Firebase Configuration Error 🔥\n${configError}`);
+    initializationError = configError;
 
-// Initialize Firebase with error handling
-let app;
-try {
-    app = initializeApp(firebaseConfig);
-    console.log('✅ Firebase initialized successfully');
-} catch (error: any) {
-    console.error('❌ Firebase initialization failed:', error);
-    throw new Error(`Firebase initialization failed: ${error.message}`);
+    // Export potentially dangerous nulls/dummies to prevent import crashes, 
+    // but the app should check initializationError before using them.
+    app = undefined;
+    // We cast to any here to satisfy strict TS exports while allowing the app to load
+    // so we can show the error screen.
+    auth = {} as Auth;
+    db = {} as Firestore;
+    storage = {} as FirebaseStorage;
+} else {
+    // valid config
+    const firebaseConfig = {
+        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+        measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    };
+
+    try {
+        console.log('[FirebaseConfig] Loading with Project ID:', firebaseConfig.projectId);
+        console.log('[FirebaseConfig] API Key present:', !!firebaseConfig.apiKey, 'Starts with:', firebaseConfig.apiKey?.substring(0, 5));
+
+        app = initializeApp(firebaseConfig);
+        console.log('✅ Firebase initialized successfully');
+
+        auth = getAuth(app);
+
+        // Initialize Firestore with simplified settings (removed persistence to fix SST errors)
+        db = getFirestore(app);
+
+        storage = getStorage(app);
+
+        // Initialize Analytics (Safe check)
+        if (typeof window !== 'undefined') {
+            getAnalytics(app);
+        }
+    } catch (error: any) {
+        console.error('❌ Firebase initialization failed:', error);
+        initializationError = `Firebase initialization failed: ${error.message}`;
+        auth = {} as Auth;
+        db = {} as Firestore;
+        storage = {} as FirebaseStorage;
+    }
 }
-
-// Initialize Firebase services
-export const auth = getAuth(app);
-
-// Initialize Firestore with settings for better connectivity
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
-
-export const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-    }),
-    experimentalAutoDetectLongPolling: true // Expert Fix: Helps with "client offline" issues in restricted networks
-});
-
-export const storage = getStorage(app);
-
-// Initialize Analytics (Safe check)
-let analytics = null;
-if (typeof window !== 'undefined') {
-    import('firebase/analytics').then(({ getAnalytics }) => {
-        analytics = getAnalytics(app);
-    }).catch(err => console.log("Analytics failed to load", err));
-}
-export { analytics };
 
 export default app;

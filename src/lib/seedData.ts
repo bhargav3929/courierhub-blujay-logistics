@@ -2,7 +2,7 @@
 // Run this script once to add sample data to your Firebase Firestore
 // Usage: Create an admin user in Firebase Auth first, then call this function
 
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebaseConfig';
 
 /**
@@ -205,7 +205,7 @@ export const seedShipments = async (clientDocs: any[]) => {
             const courierCharge = Math.floor(Math.random() * 300) + 100;
             const marginAmount = Math.floor(Math.random() * 50) + 20;
 
-            const shipment = {
+            const shipment: any = {
                 clientId: client.id,
                 clientName: client.name,
                 clientType: client.type,

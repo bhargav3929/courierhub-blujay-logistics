@@ -63,10 +63,18 @@ export const getShipmentById = async (shipmentId: string): Promise<Shipment | nu
  */
 export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipment[]> => {
     try {
-        let q = query(collection(db, SHIPMENTS_COLLECTION), orderBy('createdAt', 'desc'));
+        // IMPORTANT: Ordering by createdAt + filtering by clientId requires a composite index
+        // To avoid index requirement, we order ONLY when not filtering by clientId
+        // OR we fetch all and sort client-side
+
+        let q;
 
         if (filters?.clientId) {
-            q = query(q, where('clientId', '==', filters.clientId));
+            // When filtering by client, skip ordering to avoid index requirement
+            q = query(collection(db, SHIPMENTS_COLLECTION), where('clientId', '==', filters.clientId));
+        } else {
+            // When NOT filtering by client, we can order
+            q = query(collection(db, SHIPMENTS_COLLECTION), orderBy('createdAt', 'desc'));
         }
 
         if (filters?.status) {
@@ -92,6 +100,15 @@ export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipme
             id: doc.id,
             ...doc.data()
         } as Shipment));
+
+        // Client-side sorting when we filtered by clientId (since we couldn't order server-side)
+        if (filters?.clientId) {
+            shipments.sort((a, b) => {
+                const aTime = a.createdAt?.toMillis?.() || 0;
+                const bTime = b.createdAt?.toMillis?.() || 0;
+                return bTime - aTime; // Descending order
+            });
+        }
 
         // Apply search filter (Client-side, as Firestore lacks full-text search)
         if (filters?.searchQuery) {

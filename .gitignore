@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Test and debug files
+*.cjs
+firebase-diagnostic.js
+BLUEDART_*.md
+*_Failure.xlsx
+
+# Temporary files
+0

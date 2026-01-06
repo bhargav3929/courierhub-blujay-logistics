@@ -1,6 +1,6 @@
 // Protected Route Component
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
@@ -9,7 +9,20 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-    const { isAuthenticated, loading, currentUser } = useAuth(); // Ensure currentUser is available
+    const { isAuthenticated, loading, currentUser } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!loading && !isAuthenticated) {
+            router.push('/');
+        } else if (!loading && isAuthenticated && allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
+            if (currentUser.role === 'admin') {
+                router.push('/admin-dashboard');
+            } else {
+                router.push('/client-dashboard');
+            }
+        }
+    }, [isAuthenticated, loading, currentUser, allowedRoles, router]);
 
     if (loading) {
         return (
@@ -22,19 +35,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
         );
     }
 
-    if (!isAuthenticated) {
-        return <Navigate to="/" replace />;
-    }
+    if (!isAuthenticated) return null; // Logic handled in useEffect
 
-    // Role-based access control
-    if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
-        // Redirect to appropriate dashboard based on role
-        if (currentUser.role === 'admin') {
-            return <Navigate to="/admin-dashboard" replace />;
-        } else {
-            return <Navigate to="/client-dashboard" replace />;
-        }
-    }
+    if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) return null;
 
     return <>{children}</>;
 };

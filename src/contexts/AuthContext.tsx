@@ -8,7 +8,7 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'firebase/auth';
-import { auth, db } from '@/lib/firebaseConfig';
+import { auth, db, initializationError } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { User } from '@/types/types';
 import { handleFirebaseError, isNetworkError } from '@/lib/firebaseErrorHandler';
@@ -58,6 +58,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             return null;
         } catch (error: any) {
+            // DETAILED DEBUG LOGGING
+            console.error('[Fetch User Data - RAW ERROR]', error);
+            console.error('[Fetch User Data - ERROR TYPE]', typeof error);
+            console.error('[Fetch User Data - ERROR CODE]', error?.code);
+            console.error('[Fetch User Data - ERROR MESSAGE]', error?.message);
+            console.error('[Fetch User Data - ERROR NAME]', error?.name);
+            console.error('[Fetch User Data - ERROR STACK]', error?.stack);
+
             // Handle timeout explicitly
             if (error.message === 'timeout') {
                 error = { code: 'timeout', message: 'Database connection timed out.' };
@@ -102,7 +110,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (!userData) {
                 await signOut(auth);
-                throw new Error('User profile not found. Please contact administrator.');
+                const error: any = new Error('User profile not found.');
+                error.code = 'auth/profile-not-found'; // Custom code for handling
+                throw error;
             }
 
             if (!userData.isActive) {
@@ -158,6 +168,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen to auth state changes
     useEffect(() => {
+        if (initializationError) return; // Prevent crash if auth is invalid
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             try {
                 if (user) {
@@ -205,6 +217,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         retryAuth,
         isAuthenticated: !!currentUser
     };
+
+    // Check for initialization error
+    if (initializationError) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-900 p-4">
+                <div className="max-w-xl w-full bg-white rounded-xl shadow-2xl overflow-hidden border border-red-100">
+                    <div className="bg-red-600 p-6 text-white text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <h1 className="text-3xl font-bold">Configuration Error</h1>
+                    </div>
+                    <div className="p-8 space-y-6">
+                        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
+                            <p className="font-medium text-red-800">Application could not start</p>
+                            <p className="text-red-700 mt-1 text-sm">{initializationError}</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h3 className="font-semibold text-lg text-slate-800 border-b pb-2">How to Fix</h3>
+                            <ol className="list-decimal list-inside space-y-3 text-slate-600 text-sm">
+                                <li>
+                                    <span className="font-medium text-slate-900">Create Environment File</span>
+                                    <p className="ml-5 mt-1">Copy <code className="bg-slate-100 px-1 py-0.5 rounded text-xs select-all">.env.example</code> to <code className="bg-slate-100 px-1 py-0.5 rounded text-xs select-all">.env.local</code> in the project root.</p>
+                                </li>
+                                <li>
+                                    <span className="font-medium text-slate-900">Add Firebase Keys</span>
+                                    <p className="ml-5 mt-1">Get your configuration from the Firebase Console (Project Settings) and paste them into the file.</p>
+                                </li>
+                                <li>
+                                    <span className="font-medium text-slate-900">Restart Server</span>
+                                    <p className="ml-5 mt-1">Stop the current server and run <code className="bg-slate-100 px-1 py-0.5 rounded text-xs select-all">npm run dev</code> again.</p>
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div className="pt-4 text-center">
+                            <a
+                                href="/FIREBASE_SETUP.md"
+                                target="_blank"
+                                className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                View Detailed Setup Guide
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <AuthContext.Provider value={value}>

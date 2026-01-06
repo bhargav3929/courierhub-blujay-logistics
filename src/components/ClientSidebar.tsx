@@ -1,4 +1,7 @@
-import { NavLink } from "react-router-dom";
+'use client';
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
     Package,
@@ -22,6 +25,8 @@ const navItems = [
 
 export const ClientSidebar = () => {
     const { balance, addMoney } = useWallet();
+    const pathname = usePathname();
+
     return (
         <aside className="fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-blujay-dark to-blujay-light shadow-xl">
             <div className="flex flex-col h-full">
@@ -51,22 +56,23 @@ export const ClientSidebar = () => {
 
                 {/* Navigation */}
                 <nav className="flex-1 px-4 py-2 space-y-2">
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) =>
-                                cn(
+                    {navItems.map((item) => {
+                        const isActive = pathname === item.path;
+                        return (
+                            <Link
+                                key={item.path}
+                                href={item.path}
+                                className={cn(
                                     "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
                                     "text-white/80 hover:text-white hover:bg-white/10",
                                     isActive && "bg-white/20 text-white font-medium shadow-lg"
-                                )
-                            }
-                        >
-                            <item.icon className="h-5 w-5" />
-                            <span>{item.label}</span>
-                        </NavLink>
-                    ))}
+                                )}
+                            >
+                                <item.icon className="h-5 w-5" />
+                                <span>{item.label}</span>
+                            </Link>
+                        );
+                    })}
                 </nav>
 
                 {/* User Profile */}
@@ -80,15 +86,16 @@ export const ClientSidebar = () => {
                             <p className="text-white/60 text-xs text-ellipsis overflow-hidden whitespace-nowrap">partner@example.com</p>
                         </div>
                     </div>
-                    <NavLink
-                        to="/login"
+                    <Link
+                        href="/"
                         className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all duration-200"
                     >
                         <LogOut className="h-4 w-4" />
                         <span className="text-sm">Logout</span>
-                    </NavLink>
+                    </Link>
                 </div>
             </div>
         </aside>
     );
 };
+

@@ -75,12 +75,16 @@ export interface Shipment {
         state?: string;
         pincode: string;
         address?: string;
+        phone?: string;
+        name?: string;
     };
     destination: {
         city: string;
         state?: string;
         pincode: string;
         address?: string;
+        phone?: string;
+        name?: string;
     };
 
     // Package details
@@ -103,6 +107,53 @@ export interface Shipment {
 
     // Additional info
     notes?: string;
+
+    // ========== BlueDart Excel Export Fields ==========
+    // Reference & Billing
+    referenceNo?: string;           // Auto-generated ORDER-1, ORDER-2, etc.
+    billingArea?: string;           // Pre-filled: "HYD"
+    billingCustomerCode?: string;   // Pre-filled from config
+
+    // Pickup Details
+    pickupDate?: string;            // Format: M/D/YY
+    pickupTime?: string;            // Format: 2000 (24hr)
+    shipperName?: string;           // Pre-filled: "RK"
+    pickupAddress?: string;         // Pre-filled: "CAPITAL PARK MADHAPUR HYD"
+    pickupPincode?: string;         // Pre-filled: "500081"
+
+    // Receiver Details
+    companyName?: string;           // Receiver company name
+    receiverName?: string;          // Receiver contact name
+    receiverMobile?: string;        // Receiver mobile number
+    receiverTelephone?: string;     // Receiver landline
+
+    // Sender Details
+    senderName?: string;            // Sender name
+    senderMobile?: string;          // Sender mobile
+
+    // Product Details
+    productCode?: string;           // "D" for Domestic
+    productType?: string;           // "NDOX" (Non-Document Express)
+    packType?: string;              // Package type
+    pieceCount?: number;            // Number of pieces
+    actualWeight?: number;          // Actual weight in kg
+    declaredValue?: number;         // Declared value in INR
+
+    // Commodity Details
+    commodityDetail1?: string;      // Commodity description 1
+    commodityDetail2?: string;      // Commodity description 2
+    commodityDetail3?: string;      // Commodity description 3
+
+    // Additional References
+    referenceNo2?: string;          // Reference No 2
+    referenceNo3?: string;          // Reference No 3
+
+    // Delivery Options
+    registerPickup?: boolean;       // Register for pickup
+    toPayCustomer?: boolean;        // To pay customer (COD)
+    otpBasedDelivery?: boolean;     // OTP based delivery
+    specialInstruction?: string;    // Special instructions
+    officeClosureTime?: string;     // Office closure time format: 2100
 }
 
 // Courier API Configuration

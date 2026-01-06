@@ -28,12 +28,12 @@ const CLIENTS_COLLECTION = 'clients';
 // Helper to create a user without logging out the current admin
 const createAuthUser = async (email: string, password: string): Promise<string> => {
     const firebaseConfig = {
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID,
+        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
     };
 
     const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
@@ -258,5 +258,56 @@ export const getActiveClientsCount = async (): Promise<number> => {
     } catch (error) {
         console.error('Error getting active clients count:', error);
         return 0;
+    }
+};
+
+// ==================== DEFAULT PICKUP ADDRESS ====================
+
+interface PickupAddress {
+    name: string;
+    phone: string;
+    pincode: string;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+}
+
+/**
+ * Save default pickup address for a client
+ * This persists the pickup address so they don't have to re-enter it every time
+ */
+export const saveDefaultPickupAddress = async (
+    clientId: string,
+    pickupAddress: PickupAddress
+): Promise<void> => {
+    try {
+        await updateDoc(doc(db, CLIENTS_COLLECTION, clientId), {
+            defaultPickupAddress: pickupAddress,
+            updatedAt: Timestamp.now()
+        });
+    } catch (error) {
+        console.error('Error saving default pickup address:', error);
+        throw new Error('Failed to save default pickup address');
+    }
+};
+
+/**
+ * Get default pickup address for a client
+ * Returns null if no default is set
+ */
+export const getDefaultPickupAddress = async (
+    clientId: string
+): Promise<PickupAddress | null> => {
+    try {
+        const clientDoc = await getDoc(doc(db, CLIENTS_COLLECTION, clientId));
+        if (clientDoc.exists()) {
+            const data = clientDoc.data();
+            return data.defaultPickupAddress || null;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting default pickup address:', error);
+        return null;
     }
 };

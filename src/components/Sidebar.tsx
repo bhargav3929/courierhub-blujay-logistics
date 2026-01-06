@@ -1,10 +1,11 @@
-import { NavLink } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Package, 
-  Truck, 
-  BarChart3, 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  Truck,
+  BarChart3,
   Settings,
   LogOut,
   User
@@ -13,7 +14,7 @@ import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/admin-dashboard" },
   { icon: Users, label: "Clients", path: "/clients" },
   { icon: Package, label: "Shipments", path: "/shipments" },
   { icon: Truck, label: "Courier Settings", path: "/couriers" },
@@ -22,6 +23,7 @@ const navItems = [
 ];
 
 export const Sidebar = () => {
+  const pathname = usePathname();
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-blujay-dark to-blujay-light shadow-xl">
       <div className="flex flex-col h-full">
@@ -32,22 +34,23 @@ export const Sidebar = () => {
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
+          {navItems.map((item) => {
+            const isActive = pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
                   "text-white/80 hover:text-white hover:bg-white/10",
                   isActive && "bg-white/20 text-white font-medium shadow-lg"
-                )
-              }
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         {/* User Profile */}

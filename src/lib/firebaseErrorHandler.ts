@@ -109,13 +109,13 @@ export const logError = (context: string, error: any, additionalInfo?: any): voi
     };
 
     // In development, log to console
-    if (import.meta.env.DEV) {
+    if (process.env.NODE_ENV === 'development') {
         console.error(`[${context}]`, errorInfo);
     }
 
     // In production, you would send this to an error tracking service
     // Example: Sentry, LogRocket, etc.
-    // if (import.meta.env.PROD) {
+    // if (process.env.NODE_ENV === 'production') {
     //     sendToErrorTracking(errorInfo);
     // }
 };
