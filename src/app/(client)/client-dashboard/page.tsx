@@ -80,14 +80,6 @@ const ClientDashboard = () => {
             color: "text-primary"
         },
         {
-            title: "Wallet Balance",
-            value: `₹${balance.toLocaleString()}`,
-            subtitle: "Instant credit available",
-            icon: Wallet,
-            color: "text-blujay-dark",
-            action: true
-        },
-        {
             title: "In Transit",
             value: loading ? "..." : stats.inTransit.toString(),
             change: "Active now",
@@ -109,17 +101,11 @@ const ClientDashboard = () => {
             <div className="bg-gradient-to-r from-primary via-blujay-dark to-blujay-light rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
                 <div className="relative z-10">
                     <h1 className="text-4xl font-extrabold mb-2 tracking-tight">Merchant Dashboard</h1>
-                    <p className="text-white/80 text-lg max-w-2xl">Overview of your shipping performance and wallet transactions.</p>
+                    <p className="text-white/80 text-lg max-w-2xl">Overview of your shipping performance.</p>
                     <div className="mt-6 flex flex-wrap gap-4">
                         <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-lg border border-white/30 text-sm font-medium">
                             Active Tier: <span className="text-secondary font-bold">Gold Merchant</span>
                         </div>
-                        <button
-                            onClick={() => addMoney(5000)}
-                            className="bg-secondary text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:scale-105 transition-all text-sm flex items-center gap-2"
-                        >
-                            <Plus className="h-4 w-4" /> Quick Recharge ₹5000
-                        </button>
                     </div>
                 </div>
                 {/* Abstract background shapes */}
@@ -147,18 +133,7 @@ const ClientDashboard = () => {
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">{stat.title}</p>
                                     <h3 className="text-2xl font-bold">{stat.value}</h3>
-                                    {stat.subtitle && (
-                                        <p className="text-xs text-muted-foreground mt-1 italic">{stat.subtitle}</p>
-                                    )}
                                 </div>
-                                {stat.action && (
-                                    <button
-                                        onClick={() => addMoney(1000)}
-                                        className="mt-3 text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
-                                    >
-                                        <Plus className="h-3 w-3" /> Add ₹1000
-                                    </button>
-                                )}
                             </div>
                             <div className="absolute bottom-0 right-0 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-300">
                                 <stat.icon className="h-20 w-20 -mr-4 -mb-4" />
@@ -199,7 +174,6 @@ const ClientDashboard = () => {
                                         <th className="px-6 py-4 font-bold">Courier</th>
                                         <th className="px-6 py-4 font-bold">Status</th>
                                         <th className="px-6 py-4 font-bold">Details</th>
-                                        <th className="px-6 py-4 font-bold text-right">Cost</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border/50">
@@ -223,9 +197,6 @@ const ClientDashboard = () => {
                                             </td>
                                             <td className="px-6 py-4 text-xs text-muted-foreground">
                                                 {shp.weight}kg | {shp.courier}
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-bold text-foreground">
-                                                ₹{shp.chargedAmount || 0}
                                             </td>
                                         </tr>
                                     ))}

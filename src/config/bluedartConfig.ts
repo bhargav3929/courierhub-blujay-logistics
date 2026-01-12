@@ -2,24 +2,24 @@
 // These values will be auto-filled in shipments and Excel exports
 
 export const BLUEDART_PREDEFINED = {
-    // Billing & Pickup Location
-    billingArea: "HYD",
-    billingCustomerCode: "101183",
+    // Billing & Pickup Location - From Environment Variables
+    billingArea: process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD",
+    billingCustomerCode: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "101183",
 
-    // Shipper Details
-    shipperName: "RK",
+    // Shipper Details - Hardcoded default can be overridden or updated to env
+    shipperName: "ROAST AND KRUNCH CAFE", // Updated to match Customer Name
     pickupAddress: "CAPITAL PARK MADHAPUR HYD",
-    pickupPincode: "500081",
-    senderName: "RK",
-    senderMobile: "9381816882",
+    pickupPincode: "500081", // Updated to match Customer Pincode
+    senderName: "ROAST AND KRUNCH CAFE",
+    senderMobile: "9876543210", // Should ideally be dynamic
 
     // Product Configuration
     productCode: "D",           // D = Domestic
     productType: "NDOX",        // NDOX = Non-Document Express
 
     // Default Times
-    pickupTime: "2000",         // 8:00 PM in 24hr format
-    officeClosureTime: "2100",  // 9:00 PM
+    pickupTime: "1600",         // 4:00 PM (Safest default)
+    officeClosureTime: "1800",  // 6:00 PM
 
     // Default Package Settings
     defaultPieceCount: 1,

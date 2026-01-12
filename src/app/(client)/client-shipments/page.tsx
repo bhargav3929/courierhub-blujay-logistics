@@ -11,6 +11,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { BlueDartLabel } from "@/components/shipments/BlueDartLabel";
+import { Printer } from "lucide-react";
 import { getAllShipments } from "@/services/shipmentService";
 import { Shipment } from "@/types/types";
 import { toast } from "sonner";
@@ -32,6 +35,7 @@ const ClientShipments = () => {
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
 
     useEffect(() => {
         if (currentUser?.id) {
@@ -164,7 +168,10 @@ const ClientShipments = () => {
                                                             <DropdownMenuItem className="flex items-center gap-2 cursor-pointer p-3 rounded-lg">
                                                                 <ExternalLink className="h-4 w-4" /> Track Package
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer p-3 rounded-lg">
+                                                            <DropdownMenuItem
+                                                                className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
+                                                                onClick={() => setSelectedShipmentForLabel(shp)}
+                                                            >
                                                                 <Download className="h-4 w-4" /> Invoice
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
@@ -184,6 +191,24 @@ const ClientShipments = () => {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Print Label Dialog */}
+            <Dialog open={!!selectedShipmentForLabel} onOpenChange={(open) => !open && setSelectedShipmentForLabel(null)}>
+                <DialogContent className="max-w-md bg-white p-0 overflow-hidden">
+                    <div className="p-4 border-b flex justify-between items-center bg-muted/20">
+                        <h2 className="font-bold">Shipping Label</h2>
+                        <button
+                            onClick={() => window.print()}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
+                        >
+                            <Printer className="h-4 w-4" /> Print Label
+                        </button>
+                    </div>
+                    <div className="p-8 flex justify-center bg-gray-50">
+                        {selectedShipmentForLabel && <BlueDartLabel shipment={selectedShipmentForLabel} />}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

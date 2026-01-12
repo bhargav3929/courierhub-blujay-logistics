@@ -35,24 +35,7 @@ export const ClientSidebar = () => {
                     <Logo variant="light" />
                 </div>
 
-                {/* Wallet Info (Simplified for Client) */}
-                <div className="px-6 py-4">
-                    <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
-                        <div className="flex items-center gap-2 mb-1 text-white/60 text-xs uppercase tracking-wider font-semibold">
-                            <Wallet className="h-3 w-3" />
-                            <span>Wallet Balance</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <p className="text-xl font-bold text-white">₹{balance.toLocaleString()}</p>
-                            <button
-                                onClick={() => addMoney(1000)}
-                                className="text-[10px] bg-secondary text-white px-2 py-1 rounded font-bold hover:bg-secondary/80 transition-colors"
-                            >
-                                + TOP UP
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                {/* Wallet Info Hidden for Client */}
 
                 {/* Navigation */}
                 <nav className="flex-1 px-4 py-2 space-y-2">

@@ -154,6 +154,13 @@ export interface Shipment {
     otpBasedDelivery?: boolean;     // OTP based delivery
     specialInstruction?: string;    // Special instructions
     officeClosureTime?: string;     // Office closure time format: 2100
+
+    // ========== API Response Fields ==========
+    awbNo?: string;                 // Generated AWB Number
+    blueDartStatus?: string;        // Status returned by Blue Dart API
+    tokenNumber?: string;           // Pickup Token Number
+    destinationArea?: string;       // Destination Area Code
+    destinationLocation?: string;   // Destination Location Code
 }
 
 // Courier API Configuration

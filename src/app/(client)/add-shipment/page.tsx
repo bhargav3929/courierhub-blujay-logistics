@@ -26,6 +26,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useAuth } from "@/contexts/AuthContext";
 import { createShipment } from "@/services/shipmentService";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
+import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED } from "@/config/bluedartConfig";
 
 const PremiumInput = ({ label, icon: Icon, placeholder, value, onChange, type = "text" }: any) => (
@@ -143,6 +144,17 @@ const AddShipment = () => {
         setStep(2);
     };
 
+    // Helper: Format mobile number for Blue Dart (10-15 digits, numbers only)
+    const formatMobile = (phone: string) => {
+        // Remove all non-numeric characters
+        const cleaned = phone.replace(/\D/g, '');
+        // If it starts with 91 and is 12 digits, keep it.
+        // If it is 10 digits, keep it.
+        // If it has leading 0, strip it if total length > 10? Blue Dart handles 0 usually.
+        // Safest: strict 10-15 numeric string.
+        return cleaned;
+    };
+
     // STEP 2: Book directly (no partner selection needed)
     const handleBook = async () => {
         if (!weights.billable || weights.billable <= 0) {
@@ -154,10 +166,117 @@ const AddShipment = () => {
             return;
         }
 
+        // Validate Phone Numbers strictly before API Call
+        const cleanReceiverMobile = formatMobile(delivery.phone);
+        const cleanSenderMobile = formatMobile(pickup.phone);
+
+        if (cleanReceiverMobile.length < 10 || cleanReceiverMobile.length > 15) {
+            toast.error("Receiver Phone must be 10-15 digits");
+            return;
+        }
+        if (cleanSenderMobile.length < 10 || cleanSenderMobile.length > 15) {
+            toast.error("Sender Phone must be 10-15 digits");
+            return;
+        }
+
         setLoading(true);
         try {
             const referenceNo = `ORDER ${Date.now().toString().slice(-6)}`;
 
+            // 1. Generate Blue Dart Waybill via API
+            toast.info("Generating Blue Dart Waybill...");
+
+            // Construct Blue Dart Payload
+            const blueDartPayload = {
+                Request: {
+                    Consignee: {
+                        ConsigneeName: delivery.name,
+                        ConsigneeAddress1: delivery.address.slice(0, 30), // Max 30 chars per line
+                        ConsigneeAddress2: delivery.address.slice(30, 60) || "",
+                        ConsigneeAddress3: delivery.city,
+                        ConsigneePincode: delivery.pincode,
+                        ConsigneeMobile: cleanReceiverMobile,
+                        ConsigneeTelephone: cleanReceiverMobile,
+                        ConsigneeAttention: delivery.name
+                    },
+                    Shipper: {
+                        CustomerName: BLUEDART_PREDEFINED.shipperName,
+                        CustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+                        CustomerAddress1: BLUEDART_PREDEFINED.pickupAddress.slice(0, 30),
+                        CustomerAddress2: BLUEDART_PREDEFINED.pickupAddress.slice(30, 60) || "",
+                        CustomerAddress3: "HYD",
+                        CustomerPincode: BLUEDART_PREDEFINED.pickupPincode,
+                        CustomerMobile: BLUEDART_PREDEFINED.senderMobile, // Keep billing contact as is (or strict format it too?)
+                        CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
+                        OriginArea: BLUEDART_PREDEFINED.billingArea,
+                        Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
+                        IsToPayCustomer: false
+                    },
+                    Services: {
+                        ProductCode: BLUEDART_PREDEFINED.productCode,
+                        // SubProductCode removed entirely for Domestic
+                        ProductType: 0,
+                        PieceCount: "1",
+                        PackType: "", // Empty for default (or 'P' if required)
+                        ActualWeight: weights.actual.toString(),
+                        Dimensions: [
+                            {
+                                Length: dimensions.length,
+                                Breadth: dimensions.width,
+                                Height: dimensions.height,
+                                Count: "1"
+                            }
+                        ],
+                        CollectableAmount: 0,
+                        DeclaredValue: parseFloat(commodity.value) || 200,
+                        CreditReferenceNo: referenceNo,
+                        PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`, // Tomorrow
+                        PickupTime: BLUEDART_PREDEFINED.pickupTime,
+                        PDFOutputNotRequired: false,
+                        Commodity: {
+                            CommodityDetail1: commodity.description
+                        }
+                    }
+                }
+            };
+
+            let awbNo = "";
+            let blueDartStatus = "Pending";
+            let destinationArea = "";
+            let destinationLocation = "";
+            let tokenNumber = "";
+
+            try {
+                // Call API via Client Service which wraps the API route
+                const apiResponse = await blueDartService.generateWaybill(blueDartPayload);
+
+                // Inspect Response structure carefully
+                const responseData = apiResponse?.GenerateWayBillResult || apiResponse;
+                const statusBlock = responseData?.Status?.[0] || {};
+
+                if (responseData?.IsError === false) {
+                    awbNo = responseData.AWBNo;
+                    destinationArea = responseData.DestinationArea || "";
+                    destinationLocation = responseData.DestinationLocation || "";
+                    tokenNumber = responseData.TokenNumber || "";
+                    blueDartStatus = "Generated";
+                    toast.success(`Waybill Generated: ${awbNo}`);
+                } else {
+                    // Handle Validation Errors
+                    const errorMessage = statusBlock.StatusInformation || "Unknown Blue Dart Error";
+                    console.error("Blue Dart Error:", responseData);
+                    throw new Error(`Blue Dart Error: ${errorMessage}`);
+                }
+            } catch (apiError: any) {
+                console.error("API Call Failed:", apiError);
+                // Extract detailed error if available
+                const detail = apiError.response?.data?.details || apiError.response?.data || apiError.message;
+                const detailString = typeof detail === 'object' ? JSON.stringify(detail) : detail;
+                console.error("Detailed API Error:", detail);
+                throw new Error("Blue Dart Booking Failed: " + detailString);
+            }
+
+            // 2. Save Shipment to Firestore
             await createShipment({
                 clientId: currentUser?.id || 'guest',
                 clientName: currentUser?.name || pickup.name,
@@ -165,6 +284,7 @@ const AddShipment = () => {
                 courier: 'Blue Dart',
                 status: 'pending',
 
+                // Origin details
                 origin: {
                     city: pickup.city,
                     state: pickup.state,
@@ -173,6 +293,8 @@ const AddShipment = () => {
                     phone: pickup.phone,
                     name: pickup.name,
                 },
+
+                // Destination details
                 destination: {
                     city: delivery.city,
                     state: delivery.state,
@@ -182,6 +304,7 @@ const AddShipment = () => {
                     name: delivery.name,
                 },
 
+                // Package details
                 weight: weights.billable,
                 dimensions: {
                     length: parseFloat(dimensions.length) || 0,
@@ -189,11 +312,12 @@ const AddShipment = () => {
                     height: parseFloat(dimensions.height) || 0,
                 },
 
+                // Financial
                 courierCharge: estimatedPrice,
                 chargedAmount: estimatedPrice,
                 marginAmount: 0,
 
-                // BlueDart Excel Fields (all auto-filled from config)
+                // BlueDart Excel Fields - Pre-filled
                 referenceNo,
                 billingArea: BLUEDART_PREDEFINED.billingArea,
                 billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
@@ -202,26 +326,40 @@ const AddShipment = () => {
                 pickupAddress: pickup.address,
                 pickupPincode: pickup.pincode,
 
+                // Receiver details
                 companyName: delivery.name,
                 receiverName: delivery.name,
                 receiverMobile: delivery.phone,
 
+                // Sender details
                 senderName: pickup.name,
                 senderMobile: pickup.phone,
 
+                // Product details
                 productCode: BLUEDART_PREDEFINED.productCode,
                 productType: BLUEDART_PREDEFINED.productType,
                 pieceCount: BLUEDART_PREDEFINED.defaultPieceCount,
                 actualWeight: weights.actual,
                 declaredValue: parseFloat(commodity.value) || BLUEDART_PREDEFINED.defaultDeclaredValue,
+
+                // Commodity
                 commodityDetail1: commodity.description,
+
+                // Times
                 officeClosureTime: BLUEDART_PREDEFINED.officeClosureTime,
+
+                // Generated Fields
+                awbNo: awbNo,
+                blueDartStatus: blueDartStatus,
+                destinationArea: destinationArea,
+                destinationLocation: destinationLocation,
+                tokenNumber: tokenNumber,
             });
 
             deductMoney(estimatedPrice);
 
             toast.success("Shipment Booked Successfully!", {
-                description: `Reference: ${referenceNo}`,
+                description: `Reference: ${referenceNo} | AWB: ${awbNo}`,
             });
 
             setTimeout(() => router.push("/client-shipments"), 1500);
@@ -344,89 +482,58 @@ const AddShipment = () => {
                                     <p className="text-muted-foreground text-sm mt-1">Enter weight and commodity details</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    {/* Left: Package inputs */}
-                                    <div className="space-y-6">
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="space-y-2 text-left">
-                                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Length (cm)</Label>
-                                                <Input type="number" value={dimensions.length} onChange={(e) => setDimensions({ ...dimensions, length: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
-                                            </div>
-                                            <div className="space-y-2 text-left">
-                                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Width (cm)</Label>
-                                                <Input type="number" value={dimensions.width} onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
-                                            </div>
-                                            <div className="space-y-2 text-left">
-                                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Height (cm)</Label>
-                                                <Input type="number" value={dimensions.height} onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2 text-left">
-                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                                <Package className="h-3 w-3" /> Actual Weight (kg) *
-                                            </Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="e.g. 0.5"
-                                                value={actualWeight}
-                                                onChange={(e) => setActualWeight(e.target.value)}
-                                                className="h-14 text-xl font-bold rounded-xl border-2 pl-5"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="space-y-2 text-left">
-                                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Commodity</Label>
-                                                <Input
-                                                    placeholder="e.g. Electronics"
-                                                    value={commodity.description}
-                                                    onChange={(e) => setCommodity({ ...commodity, description: e.target.value })}
-                                                    className="h-12 rounded-xl border-2"
-                                                />
-                                            </div>
-                                            <div className="space-y-2 text-left">
-                                                <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                                    <Info className="h-3 w-3" /> Value (₹) *
-                                                </Label>
-                                                <Input
-                                                    type="number"
-                                                    placeholder="e.g. 500"
-                                                    value={commodity.value}
-                                                    onChange={(e) => setCommodity({ ...commodity, value: e.target.value })}
-                                                    className="h-12 rounded-xl border-2"
-                                                />
-                                            </div>
-                                        </div>
+                            </div>
+                            {/* Left: Package inputs */}
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-2 text-left">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Length (cm)</Label>
+                                        <Input type="number" value={dimensions.length} onChange={(e) => setDimensions({ ...dimensions, length: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
                                     </div>
+                                    <div className="space-y-2 text-left">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Width (cm)</Label>
+                                        <Input type="number" value={dimensions.width} onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                    </div>
+                                    <div className="space-y-2 text-left">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Height (cm)</Label>
+                                        <Input type="number" value={dimensions.height} onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                    </div>
+                                </div>
 
-                                    {/* Right: Summary */}
-                                    <div className="space-y-4">
-                                        <div className="p-6 rounded-2xl bg-gradient-to-br from-primary to-blujay-dark text-white">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <Calculator className="h-5 w-5 opacity-70" />
-                                                <span className="text-xs font-bold uppercase tracking-widest opacity-70">Billable Weight</span>
-                                            </div>
-                                            <div className="text-5xl font-black">{weights.billable} <span className="text-xl opacity-60">kg</span></div>
-                                            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                                                <div className="bg-white/10 rounded-lg px-3 py-2">
-                                                    <span className="opacity-70">Volumetric:</span> {weights.volumetric} kg
-                                                </div>
-                                                <div className="bg-white/10 rounded-lg px-3 py-2">
-                                                    <span className="opacity-70">Actual:</span> {weights.actual} kg
-                                                </div>
-                                            </div>
-                                        </div>
+                                <div className="space-y-2 text-left">
+                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                                        <Package className="h-3 w-3" /> Actual Weight (kg) *
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="e.g. 0.5"
+                                        value={actualWeight}
+                                        onChange={(e) => setActualWeight(e.target.value)}
+                                        className="h-14 text-xl font-bold rounded-xl border-2 pl-5"
+                                    />
+                                </div>
 
-                                        <div className="p-6 rounded-2xl border-2 border-primary/20 bg-primary/5">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <Wallet className="h-5 w-5 text-primary" />
-                                                    <span className="font-bold text-muted-foreground">Estimated Cost</span>
-                                                </div>
-                                                <span className="text-4xl font-black text-primary">₹{estimatedPrice}</span>
-                                            </div>
-                                        </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2 text-left">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Commodity</Label>
+                                        <Input
+                                            placeholder="e.g. Electronics"
+                                            value={commodity.description}
+                                            onChange={(e) => setCommodity({ ...commodity, description: e.target.value })}
+                                            className="h-12 rounded-xl border-2"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 text-left">
+                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                                            <Info className="h-3 w-3" /> Value (₹) *
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            placeholder="e.g. 500"
+                                            value={commodity.value}
+                                            onChange={(e) => setCommodity({ ...commodity, value: e.target.value })}
+                                            className="h-12 rounded-xl border-2"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -446,13 +553,13 @@ const AddShipment = () => {
                         ) : (
                             <Button onClick={handleBook} disabled={loading} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
                                 {loading ? <Loader2 className="animate-spin" /> : <Truck className="h-5 w-5" />}
-                                Book Shipment • ₹{estimatedPrice}
+                                Book Shipment
                             </Button>
                         )}
                     </div>
-                </CardContent>
-            </Card>
-        </div>
+                </CardContent >
+            </Card >
+        </div >
     );
 };
 

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 
-// Determine base URL based on environment
+// Determine base URL based on environment - Default to Sandbox for testing
 const IS_PRODUCTION = process.env.NEXT_PUBLIC_BLUEDART_ENV?.toLowerCase() === 'production';
 const BLUEDART_BASE_URL = IS_PRODUCTION
     ? 'https://apigateway.bluedart.com/in/transportation'
@@ -25,18 +25,22 @@ async function getAuthToken(): Promise<string> {
 
     try {
         console.log(`[API] Authenticating with Blue Dart (${IS_PRODUCTION ? 'PROD' : 'SANDBOX'})...`);
+
+        // CRITICAL FIX: Blue Dart requires ClientID and clientSecret as HEADERS, not query params
         const response = await axios.get(
             `${BLUEDART_BASE_URL}/token/v1/login`,
             {
-                params: {
-                    clientID: CLIENT_ID,
-                    clientSecret: CLIENT_SECRET
+                headers: {
+                    'accept': 'application/json',
+                    'ClientID': CLIENT_ID,      // Header name is ClientID (capital C, capital ID)
+                    'clientSecret': CLIENT_SECRET  // Header name is clientSecret (camelCase)
                 }
             }
         );
 
         cachedToken = response.data.JWTToken || response.data.token;
         tokenExpiry = new Date(Date.now() + 23 * 60 * 60 * 1000); // 23h expiry
+        console.log(`[API] Token obtained successfully`);
         return cachedToken!;
     } catch (error: any) {
         console.error('[API] Blue Dart authentication failed:', error.response?.data || error.message);
@@ -50,6 +54,12 @@ export async function POST(request: NextRequest) {
         const token = await getAuthToken();
 
         console.log('[API] Generating Waybill...');
+        console.log('[API] Request has Profile:', !!body.Profile);
+        if (body.Profile) {
+            console.log('[API] Profile LoginID:', body.Profile.LoginID);
+        } else {
+            console.warn('[API] Warning: No Profile block in request body!');
+        }
 
         const response = await axios.post(
             `${BLUEDART_BASE_URL}/waybill/v1/GenerateWayBill`,
