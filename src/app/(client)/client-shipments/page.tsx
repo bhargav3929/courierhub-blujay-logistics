@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { BlueDartLabel } from "@/components/shipments/BlueDartLabel";
+import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
 import { Printer } from "lucide-react";
 import { getAllShipments } from "@/services/shipmentService";
 import { Shipment } from "@/types/types";
@@ -198,7 +198,7 @@ const ClientShipments = () => {
                     <div className="p-4 border-b flex justify-between items-center bg-muted/20">
                         <h2 className="font-bold">Shipping Label</h2>
                         <button
-                            onClick={() => window.print()}
+                            onClick={printBlueDartLabel}
                             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
                         >
                             <Printer className="h-4 w-4" /> Print Label
