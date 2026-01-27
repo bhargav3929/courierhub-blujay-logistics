@@ -6,14 +6,22 @@ import {
     LayoutDashboard,
     Package,
     PlusCircle,
-    Wallet,
-    LogOut,
     Settings,
-    Puzzle
+    Puzzle,
+    User,
+    LogOut
 } from "lucide-react";
-import { Logo } from "./Logo";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { useWallet } from "@/hooks/useWallet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { motion } from "framer-motion";
 
 const navItems = [
     { icon: LayoutDashboard, label: "Home", path: "/client-dashboard" },
@@ -24,59 +32,78 @@ const navItems = [
 ];
 
 export const ClientSidebar = () => {
-    const { balance, addMoney } = useWallet();
     const pathname = usePathname();
 
     return (
-        <aside className="fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-blujay-dark to-blujay-light shadow-xl">
-            <div className="flex flex-col h-full">
-                {/* Logo */}
-                <div className="p-6 border-b border-white/10">
-                    <Logo variant="light" />
-                </div>
+        <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0B1120] border-r border-[#1E293B] shadow-2xl flex flex-col items-center py-6 z-50">
+            {/* Logo */}
+            <div className="mb-8 w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-900/20 ring-1 ring-white/10">
+                <span className="text-white font-bold text-lg">B</span>
+            </div>
 
-                {/* Wallet Info Hidden for Client */}
-
-                {/* Navigation */}
-                <nav className="flex-1 px-4 py-2 space-y-2">
+            {/* Navigation */}
+            <nav className="flex-1 flex flex-col gap-4 w-full px-3">
+                <TooltipProvider delayDuration={0}>
                     {navItems.map((item) => {
                         const isActive = pathname === item.path;
                         return (
-                            <Link
-                                key={item.path}
-                                href={item.path}
-                                className={cn(
-                                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-                                    "text-white/80 hover:text-white hover:bg-white/10",
-                                    isActive && "bg-white/20 text-white font-medium shadow-lg"
-                                )}
-                            >
-                                <item.icon className="h-5 w-5" />
-                                <span>{item.label}</span>
+                            <Link key={item.path} href={item.path} className="w-full flex justify-center">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="relative group">
+                                            {isActive && (
+                                                <motion.div
+                                                    layoutId="client-active-nav"
+                                                    className="absolute inset-0 bg-blue-600/10 rounded-xl border border-blue-500/20 shadow-[0_0_12px_-3px_rgba(37,99,235,0.4)]"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                />
+                                            )}
+                                            <div className={cn(
+                                                "relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200",
+                                                isActive ? "text-blue-400" : "text-slate-400 group-hover:text-slate-100 group-hover:bg-white/5"
+                                            )}>
+                                                <item.icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                                            </div>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="bg-[#1E293B] border-[#0F172A] text-slate-200 font-medium ml-2 shadow-xl">
+                                        {item.label}
+                                    </TooltipContent>
+                                </Tooltip>
                             </Link>
                         );
                     })}
-                </nav>
+                </TooltipProvider>
+            </nav>
 
-                {/* User Profile */}
-                <div className="p-4 border-t border-white/10">
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white/10">
-                        <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/30 text-white font-bold">
-                            C
+            {/* User Footer */}
+            <div className="mt-auto pt-4 border-t border-white/5 w-full flex justify-center pb-2">
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center border-2 border-[#0B1120] ring-2 ring-white/10 hover:ring-white/20 transition-all cursor-pointer">
+                            <User className="h-5 w-5 text-white" />
                         </div>
-                        <div className="flex-1">
-                            <p className="text-white font-medium text-sm">Blujay Partner</p>
-                            <p className="text-white/60 text-xs text-ellipsis overflow-hidden whitespace-nowrap">partner@example.com</p>
-                        </div>
-                    </div>
-                    <Link
-                        href="/"
-                        className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all duration-200"
-                    >
-                        <LogOut className="h-4 w-4" />
-                        <span className="text-sm">Logout</span>
-                    </Link>
-                </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="right" className="w-56 bg-slate-900 border-slate-800 text-white ml-2">
+                        <DropdownMenuLabel>
+                            <div className="flex flex-col space-y-1">
+                                <p className="text-sm font-medium leading-none text-white">Client Partner</p>
+                                <p className="text-xs leading-none text-slate-400">partner@example.com</p>
+                            </div>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator className="bg-slate-800" />
+                        <DropdownMenuItem className="text-slate-200 focus:bg-slate-800 focus:text-white cursor-pointer">
+                            <User className="mr-2 h-4 w-4" />
+                            <span>Profile</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-400 focus:bg-red-900/10 focus:text-red-400 cursor-pointer">
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Log out</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </aside>
     );

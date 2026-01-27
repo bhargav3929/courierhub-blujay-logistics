@@ -14,7 +14,8 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
 import { Printer } from "lucide-react";
-import { getAllShipments } from "@/services/shipmentService";
+import { getAllShipments, updateShipmentStatus } from "@/services/shipmentService";
+import { blueDartService } from "@/services/blueDartService";
 import { Shipment } from "@/types/types";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +37,7 @@ const ClientShipments = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
+    const [cancellingId, setCancellingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (currentUser?.id) {
@@ -53,6 +55,39 @@ const ClientShipments = () => {
             toast.error("Failed to load shipments");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCancelShipment = async (shipment: Shipment) => {
+        if (!shipment.id || !shipment.courierTrackingId) {
+            toast.error("Invalid shipment data for cancellation");
+            return;
+        }
+
+        if (!confirm("Are you sure you want to cancel this shipment? This action cannot be undone.")) {
+            return;
+        }
+
+        setCancellingId(shipment.id);
+        const toastId = toast.loading("Cancelling shipment...");
+
+        try {
+            // 1. Cancel via Blue Dart API
+            await blueDartService.cancelWaybill(shipment.courierTrackingId);
+
+            // 2. Update status in Firestore
+            await updateShipmentStatus(shipment.id, 'cancelled');
+
+            toast.success("Shipment cancelled successfully", { id: toastId });
+
+            // 3. Refresh list
+            fetchShipments();
+        } catch (error: any) {
+            console.error("Cancellation failed:", error);
+            const errorMsg = error.response?.data?.error || error.message || "Failed to cancel shipment";
+            toast.error(`Cancellation failed: ${errorMsg}`, { id: toastId });
+        } finally {
+            setCancellingId(null);
         }
     };
 
@@ -174,6 +209,18 @@ const ClientShipments = () => {
                                                             >
                                                                 <Download className="h-4 w-4" /> Invoice
                                                             </DropdownMenuItem>
+                                                            {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
+                                                                <DropdownMenuItem
+                                                                    className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
+                                                                    onClick={() => handleCancelShipment(shp)}
+                                                                    disabled={cancellingId === shp.id}
+                                                                >
+                                                                    <div className="flex items-center w-full gap-2">
+                                                                        <span className="text-lg">×</span>
+                                                                        {cancellingId === shp.id ? 'Cancelling...' : 'Cancel Shipment'}
+                                                                    </div>
+                                                                </DropdownMenuItem>
+                                                            )}
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </td>

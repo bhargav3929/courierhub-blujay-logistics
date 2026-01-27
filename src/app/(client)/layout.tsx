@@ -11,11 +11,11 @@ export default function ClientLayout({
 }) {
     return (
         <ProtectedRoute allowedRoles={['franchise', 'shopify']}>
-            <div className="flex min-h-screen w-full bg-muted/30">
+            <div className="flex min-h-screen w-full bg-slate-50">
                 <ClientSidebar />
-                <div className="flex-1 flex flex-col ml-64">
+                <div className="flex-1 flex flex-col pl-20 min-h-screen w-full">
                     <Header />
-                    <main className="flex-1 p-6">
+                    <main className="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full">
                         {children}
                     </main>
                 </div>

@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ShopifyConnect } from "@/components/integrations/ShopifyConnect";
+import { useAuth } from "@/contexts/AuthContext";
 import {
     ShoppingBag,
     Globe,
@@ -75,7 +78,30 @@ const platforms = [
 ];
 
 const ClientIntegrations = () => {
+    const { currentUser, retryAuth } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
+    const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
+
+    // Check for success param
+    // We use window.location because Next.js useSearchParams might need Suspense boundary wrapper
+    // which is annoying to refactor right now.
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('shopifySuccess') === 'true') {
+                toast.success("Shopify Connected Successfully!", {
+                    description: "Your store orders will now sync automatically."
+                });
+                // Force refresh profile to ensure latest config is loaded
+                retryAuth();
+
+                // Clean URL
+                window.history.replaceState({}, '', '/client-integrations');
+            }
+        }
+    }, [retryAuth]);
+
+    const isShopifyConnected = currentUser?.shopifyConfig?.isConnected;
 
     const handleConnect = (appName: string) => {
         toast.info(`Initializing ${appName} Connection`, {
@@ -103,6 +129,17 @@ const ClientIntegrations = () => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
+                    {/* Shopify Modal */}
+                    <Dialog open={isShopifyModalOpen} onOpenChange={setIsShopifyModalOpen}>
+                        <DialogContent className="sm:max-w-[500px] border-none bg-white dark:bg-slate-900 shadow-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Connect Shopify</DialogTitle>
+                            </DialogHeader>
+                            <div className="mt-2">
+                                <ShopifyConnect />
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             </div>
 

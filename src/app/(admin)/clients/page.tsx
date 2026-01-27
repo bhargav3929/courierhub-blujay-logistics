@@ -195,10 +195,11 @@ const Clients = () => {
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex items-center justify-between">
-                <div className="bg-gradient-to-r from-blujay-dark to-blujay-light rounded-xl p-6 text-white shadow-lg flex-1 mr-4">
-                    <h1 className="text-3xl font-bold mb-2">Client Management</h1>
-                    <p className="text-white/80">Manage your franchise partners and Shopify merchants</p>
+            {/* Page Header */}
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Clients</h2>
+                    <p className="text-muted-foreground text-sm">Manage franchises and merchants</p>
                 </div>
 
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

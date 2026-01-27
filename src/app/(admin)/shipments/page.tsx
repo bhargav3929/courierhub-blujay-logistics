@@ -272,10 +272,11 @@ const Shipments = () => {
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="bg-gradient-to-r from-blujay-dark to-blujay-light rounded-xl p-6 text-white shadow-lg flex-1">
-                    <h1 className="text-3xl font-bold mb-2">Shipment Management</h1>
-                    <p className="text-white/80">Track and manage all shipments across your network</p>
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Shipments</h2>
+                    <p className="text-muted-foreground text-sm">Track and manage all shipments across your network</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" className="bg-white" onClick={() => fetchShipments()}>

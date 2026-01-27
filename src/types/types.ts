@@ -36,6 +36,12 @@ export interface User {
     isActive: boolean;
     // Optional: Link to client record if this is a client user
     clientId?: string;
+    shopifyConfig?: {
+        shopUrl: string;
+        accessToken: string;
+        isConnected: boolean;
+        updatedAt: string;
+    };
 }
 
 // Client Interface (Franchise Partners & Shopify Merchants)

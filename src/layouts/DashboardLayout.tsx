@@ -10,7 +10,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   return (
     <div className="flex min-h-screen w-full bg-muted/30">
       <Sidebar />
-      <div className="flex-1 flex flex-col ml-64">
+      <div className="flex-1 flex flex-col ml-20 transition-all duration-300">
         <Header />
         <main className="flex-1 p-6">
           {children}

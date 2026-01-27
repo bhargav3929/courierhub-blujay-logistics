@@ -244,7 +244,25 @@ class BlueDartService {
             throw error;
         }
     }
+
+    /**
+     * cancelWaybill
+     * Step 3.7: Cancel Waybill
+     */
+    public async cancelWaybill(awbNumber: string) {
+        try {
+            console.log(`Cancelling shipment ${awbNumber}...`);
+            const response = await axios.post('/api/bluedart/cancel-shipment', {
+                awb: awbNumber
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Cancellation failed:', error);
+            throw error;
+        }
+    }
 }
+
 
 // Export a singleton or factory
 export const createBlueDartService = () => {
