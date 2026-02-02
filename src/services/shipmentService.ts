@@ -85,14 +85,15 @@ export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipme
             q = query(q, where('courier', '==', filters.courier));
         }
 
-        // EXPERT FIX: Server-side Date Filtering
-        if (filters?.startDate) {
-            // Note: Mixing 'where' on createdAt with other fields might require Composite Index
-            q = query(q, where('createdAt', '>=', Timestamp.fromDate(filters.startDate)));
-        }
-
-        if (filters?.endDate) {
-            q = query(q, where('createdAt', '<=', Timestamp.fromDate(filters.endDate)));
+        // Date filtering: only apply server-side when NOT filtering by clientId
+        // (combining clientId + createdAt range requires a composite index)
+        if (!filters?.clientId) {
+            if (filters?.startDate) {
+                q = query(q, where('createdAt', '>=', Timestamp.fromDate(filters.startDate)));
+            }
+            if (filters?.endDate) {
+                q = query(q, where('createdAt', '<=', Timestamp.fromDate(filters.endDate)));
+            }
         }
 
         const querySnapshot = await getDocs(q);
@@ -101,12 +102,26 @@ export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipme
             ...doc.data()
         } as Shipment));
 
-        // Client-side sorting when we filtered by clientId (since we couldn't order server-side)
+        // Client-side date filtering when clientId is set (to avoid composite index requirement)
         if (filters?.clientId) {
+            if (filters.startDate) {
+                const startMs = filters.startDate.getTime();
+                shipments = shipments.filter(s => {
+                    const t = s.createdAt?.toMillis?.() || 0;
+                    return t >= startMs;
+                });
+            }
+            if (filters.endDate) {
+                const endMs = filters.endDate.getTime();
+                shipments = shipments.filter(s => {
+                    const t = s.createdAt?.toMillis?.() || 0;
+                    return t <= endMs;
+                });
+            }
             shipments.sort((a, b) => {
                 const aTime = a.createdAt?.toMillis?.() || 0;
                 const bTime = b.createdAt?.toMillis?.() || 0;
-                return bTime - aTime; // Descending order
+                return bTime - aTime;
             });
         }
 

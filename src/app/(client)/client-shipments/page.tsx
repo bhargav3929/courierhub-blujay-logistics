@@ -22,16 +22,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 
-const getStatusStyle = (status: string) => {
-    switch (status) {
-        case "delivered": return "bg-status-delivered/10 text-status-delivered border-status-delivered/20";
-        case "transit": return "bg-status-transit/10 text-status-transit border-status-transit/20";
-        case "pending": return "bg-status-pending/10 text-status-pending border-status-pending/20";
-        case "cancelled": return "bg-status-cancelled/10 text-status-cancelled border-status-cancelled/20";
-        default: return "bg-muted text-muted-foreground";
-    }
-};
-
 const ClientShipments = () => {
     const { currentUser } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -163,7 +153,6 @@ const ClientShipments = () => {
                                             <th className="px-6 py-4">Receiver</th>
                                             <th className="px-6 py-4">Destination</th>
                                             <th className="px-6 py-4">Courier</th>
-                                            <th className="px-6 py-4">Status</th>
                                             <th className="px-6 py-4 text-right">Action</th>
                                         </tr>
                                     </thead>
@@ -190,11 +179,6 @@ const ClientShipments = () => {
                                                 <td className="px-6 py-5 text-sm">{shp.destination?.city}, {shp.destination?.state}</td>
                                                 <td className="px-6 py-5">
                                                     <span className="text-sm font-semibold">{shp.courier}</span>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${getStatusStyle(shp.status)}`}>
-                                                        {shp.status}
-                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-5 text-right">
                                                     <DropdownMenu>
