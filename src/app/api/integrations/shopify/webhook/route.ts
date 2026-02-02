@@ -72,7 +72,9 @@ export async function POST(request: Request) {
             clientType: 'shopify',
 
             courier: 'Optimization Pending',
-            status: 'pending',
+            status: 'shopify_pending',
+            shopifyOrderId: order.id?.toString(),
+            shopifyOrderNumber: order.order_number?.toString(),
 
             origin: {
                 city: originCity,

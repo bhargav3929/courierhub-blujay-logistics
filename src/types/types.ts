@@ -76,7 +76,9 @@ export interface Shipment {
     // Shipment details
     courier: string;
     courierTrackingId?: string;
-    status: 'pending' | 'transit' | 'delivered' | 'cancelled';
+    status: 'pending' | 'transit' | 'delivered' | 'cancelled' | 'shopify_pending' | 'declined';
+    shopifyOrderId?: string;
+    shopifyOrderNumber?: string;
 
     // Origin and Destination
     origin: {

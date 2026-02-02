@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, Download, ExternalLink, MoreVertical, Plus } from "lucide-react";
@@ -23,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 
 const ClientShipments = () => {
+    const router = useRouter();
     const { currentUser } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
@@ -80,6 +82,21 @@ const ClientShipments = () => {
             toast.error(`Cancellation failed: ${errorMsg}`, { id: toastId });
         } finally {
             setCancellingId(null);
+        }
+    };
+
+    const handleProceedShopify = (shipment: Shipment) => {
+        router.push(`/add-shipment?shopifyShipmentId=${shipment.id}`);
+    };
+
+    const handleDeclineShopify = async (shipment: Shipment) => {
+        if (!confirm("Decline this Shopify order? It will be marked as declined.")) return;
+        try {
+            await updateShipmentStatus(shipment.id!, 'declined');
+            toast.success("Shopify order declined");
+            fetchShipments();
+        } catch {
+            toast.error("Failed to decline order");
         }
     };
 
@@ -158,15 +175,20 @@ const ClientShipments = () => {
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {filteredShipments.map((shp) => (
-                                            <tr key={shp.id} className="hover:bg-primary/[0.02] transition-colors group">
+                                            <tr key={shp.id} className={`hover:bg-primary/[0.02] transition-colors group ${shp.status === 'shopify_pending' ? 'border-2 border-[#95BF47] bg-[#95BF47]/5' : ''}`}>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex flex-col">
+                                                    <div className="flex flex-col gap-1">
                                                         <span className="font-mono text-sm text-primary font-bold">
                                                             {shp.courierTrackingId || shp.id?.substring(0, 12).toUpperCase()}
                                                         </span>
                                                         <span className="text-[10px] text-muted-foreground uppercase">
                                                             {shp.weight}kg | Express
                                                         </span>
+                                                        {shp.status === 'shopify_pending' && (
+                                                            <span className="text-[9px] px-1.5 py-0.5 bg-[#95BF47]/20 text-[#5e8e3e] rounded font-bold w-fit">
+                                                                SHOPIFY
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 text-sm font-medium">
@@ -181,40 +203,57 @@ const ClientShipments = () => {
                                                     <span className="text-sm font-semibold">{shp.courier}</span>
                                                 </td>
                                                 <td className="px-6 py-5 text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger className="p-2 hover:bg-muted rounded-lg transition-colors">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
-                                                            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer p-3 rounded-lg">
-                                                                <ExternalLink className="h-4 w-4" /> Track Package
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
-                                                                onClick={() => setSelectedShipmentForLabel(shp)}
+                                                    {shp.status === 'shopify_pending' ? (
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handleProceedShopify(shp)}
+                                                                className="px-4 py-2 bg-[#95BF47] text-white rounded-lg text-xs font-bold hover:bg-[#7ea33d] transition-colors"
                                                             >
-                                                                <Download className="h-4 w-4" /> Invoice
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
-                                                                onClick={() => setSelectedShipmentForManifest(shp)}
+                                                                Proceed
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeclineShopify(shp)}
+                                                                className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
                                                             >
-                                                                <FileTextIcon className="h-4 w-4" /> Manifest
-                                                            </DropdownMenuItem>
-                                                            {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
-                                                                <DropdownMenuItem
-                                                                    className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
-                                                                    onClick={() => handleCancelShipment(shp)}
-                                                                    disabled={cancellingId === shp.id}
-                                                                >
-                                                                    <div className="flex items-center w-full gap-2">
-                                                                        <span className="text-lg">×</span>
-                                                                        {cancellingId === shp.id ? 'Cancelling...' : 'Cancel Shipment'}
-                                                                    </div>
+                                                                Decline
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger className="p-2 hover:bg-muted rounded-lg transition-colors">
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
+                                                                <DropdownMenuItem className="flex items-center gap-2 cursor-pointer p-3 rounded-lg">
+                                                                    <ExternalLink className="h-4 w-4" /> Track Package
                                                                 </DropdownMenuItem>
-                                                            )}
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                                <DropdownMenuItem
+                                                                    className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
+                                                                    onClick={() => setSelectedShipmentForLabel(shp)}
+                                                                >
+                                                                    <Download className="h-4 w-4" /> Invoice
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
+                                                                    onClick={() => setSelectedShipmentForManifest(shp)}
+                                                                >
+                                                                    <FileTextIcon className="h-4 w-4" /> Manifest
+                                                                </DropdownMenuItem>
+                                                                {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
+                                                                    <DropdownMenuItem
+                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
+                                                                        onClick={() => handleCancelShipment(shp)}
+                                                                        disabled={cancellingId === shp.id}
+                                                                    >
+                                                                        <div className="flex items-center w-full gap-2">
+                                                                            <span className="text-lg">×</span>
+                                                                            {cancellingId === shp.id ? 'Cancelling...' : 'Cancel Shipment'}
+                                                                        </div>
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ import {
 import { toast } from "sonner";
 import { useWallet } from "@/hooks/useWallet";
 import { useAuth } from "@/contexts/AuthContext";
-import { createShipment } from "@/services/shipmentService";
+import { createShipment, getShipmentById, updateShipment } from "@/services/shipmentService";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
 import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED } from "@/config/bluedartConfig";
@@ -67,6 +67,9 @@ const AddShipment = () => {
     const [commodity, setCommodity] = useState({ description: "", value: "" });
 
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const shopifyShipmentId = searchParams.get('shopifyShipmentId');
+    const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
     const { deductMoney } = useWallet();
     const { currentUser } = useAuth();
 
@@ -82,6 +85,52 @@ const AddShipment = () => {
         };
         loadDefaultPickup();
     }, [currentUser?.id]);
+
+    // Load Shopify order data if coming from Proceed button
+    useEffect(() => {
+        const loadShopifyOrder = async () => {
+            if (!shopifyShipmentId) return;
+            const shipment = await getShipmentById(shopifyShipmentId);
+            if (!shipment || shipment.status !== 'shopify_pending') return;
+
+            setShopifySourceId(shipment.id);
+
+            setPickup({
+                name: shipment.origin?.name || "",
+                phone: shipment.origin?.phone || "",
+                pincode: shipment.origin?.pincode || "",
+                address: shipment.origin?.address || "",
+                city: shipment.origin?.city || "",
+                state: shipment.origin?.state || "",
+                country: "India",
+            });
+
+            setDelivery({
+                name: shipment.destination?.name || "",
+                phone: shipment.destination?.phone || "",
+                pincode: shipment.destination?.pincode || "",
+                address: shipment.destination?.address || "",
+                city: shipment.destination?.city || "",
+                state: shipment.destination?.state || "",
+                country: "India",
+            });
+
+            if (shipment.weight) setActualWeight(shipment.weight.toString());
+
+            if (shipment.dimensions) {
+                setDimensions({
+                    length: shipment.dimensions.length?.toString() || "10",
+                    width: shipment.dimensions.width?.toString() || "10",
+                    height: shipment.dimensions.height?.toString() || "10",
+                });
+            }
+
+            if (shipment.declaredValue) {
+                setCommodity(prev => ({ ...prev, value: shipment.declaredValue!.toString() }));
+            }
+        };
+        loadShopifyOrder();
+    }, [shopifyShipmentId]);
 
     // Save pickup address as default
     const handleSetAsDefault = async () => {
@@ -277,12 +326,12 @@ const AddShipment = () => {
             }
 
             // 2. Save Shipment to Firestore
-            await createShipment({
+            const shipmentData = {
                 clientId: currentUser?.id || 'guest',
                 clientName: currentUser?.name || pickup.name,
-                clientType: 'franchise',
+                clientType: shopifySourceId ? 'shopify' as const : 'franchise' as const,
                 courier: 'Blue Dart',
-                status: 'pending',
+                status: 'pending' as const,
 
                 // Origin details
                 origin: {
@@ -354,7 +403,14 @@ const AddShipment = () => {
                 destinationArea: destinationArea,
                 destinationLocation: destinationLocation,
                 tokenNumber: tokenNumber,
-            });
+            };
+
+            if (shopifySourceId) {
+                // Update the existing Shopify shipment record
+                await updateShipment(shopifySourceId, shipmentData);
+            } else {
+                await createShipment(shipmentData);
+            }
 
             deductMoney(estimatedPrice);
 
@@ -386,6 +442,14 @@ const AddShipment = () => {
                 </h1>
                 <p className="text-muted-foreground font-medium">Simple 2-step booking</p>
             </div>
+
+            {shopifyShipmentId && (
+                <div className="bg-[#95BF47]/10 border border-[#95BF47] rounded-xl p-4 text-center">
+                    <p className="text-sm font-bold text-[#5e8e3e]">
+                        Pre-filled from Shopify Order — review details and fill any missing fields before booking.
+                    </p>
+                </div>
+            )}
 
             {/* 2-Step Progress */}
             <div className="flex justify-center items-center gap-8 max-w-md mx-auto">
