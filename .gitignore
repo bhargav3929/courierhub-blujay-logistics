@@ -37,3 +37,5 @@ BLUEDART_*.md
 
 # Temporary files
 0
+.vercel
+.env*.local
