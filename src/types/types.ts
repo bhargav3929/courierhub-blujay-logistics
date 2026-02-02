@@ -41,6 +41,9 @@ export interface User {
         accessToken: string;
         isConnected: boolean;
         updatedAt: string;
+        scopes?: string;
+        webhookStatus?: 'active' | 'failed';
+        webhookError?: string;
     };
 }
 

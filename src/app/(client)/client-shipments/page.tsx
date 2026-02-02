@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
-import { Printer } from "lucide-react";
+import { ShipmentManifest, printManifest } from "@/components/shipments/ShipmentManifest";
+import { Printer, FileText as FileTextIcon } from "lucide-react";
 import { getAllShipments, updateShipmentStatus } from "@/services/shipmentService";
 import { blueDartService } from "@/services/blueDartService";
 import { Shipment } from "@/types/types";
@@ -37,6 +38,7 @@ const ClientShipments = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
+    const [selectedShipmentForManifest, setSelectedShipmentForManifest] = useState<Shipment | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -209,6 +211,12 @@ const ClientShipments = () => {
                                                             >
                                                                 <Download className="h-4 w-4" /> Invoice
                                                             </DropdownMenuItem>
+                                                            <DropdownMenuItem
+                                                                className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
+                                                                onClick={() => setSelectedShipmentForManifest(shp)}
+                                                            >
+                                                                <FileTextIcon className="h-4 w-4" /> Manifest
+                                                            </DropdownMenuItem>
                                                             {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
                                                                 <DropdownMenuItem
                                                                     className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -253,6 +261,24 @@ const ClientShipments = () => {
                     </div>
                     <div className="p-8 flex justify-center bg-gray-50">
                         {selectedShipmentForLabel && <BlueDartLabel shipment={selectedShipmentForLabel} />}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Manifest Dialog */}
+            <Dialog open={!!selectedShipmentForManifest} onOpenChange={(open) => !open && setSelectedShipmentForManifest(null)}>
+                <DialogContent className="max-w-4xl bg-white p-0 overflow-hidden">
+                    <div className="p-4 border-b flex justify-between items-center bg-muted/20">
+                        <h2 className="font-bold">Shipment Manifest</h2>
+                        <button
+                            onClick={printManifest}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
+                        >
+                            <Printer className="h-4 w-4" /> Print Manifest
+                        </button>
+                    </div>
+                    <div className="max-h-[75vh] overflow-auto bg-gray-50 p-4">
+                        {selectedShipmentForManifest && <ShipmentManifest shipments={[selectedShipmentForManifest]} />}
                     </div>
                 </DialogContent>
             </Dialog>

@@ -9,7 +9,8 @@ import {
     Settings,
     Puzzle,
     User,
-    LogOut
+    LogOut,
+    FileBarChart
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -22,17 +23,20 @@ import {
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
     { icon: LayoutDashboard, label: "Home", path: "/client-dashboard" },
     { icon: Package, label: "My Shipments", path: "/client-shipments" },
     { icon: PlusCircle, label: "Book Shipment", path: "/add-shipment" },
+    { icon: FileBarChart, label: "Reports", path: "/client-reports" },
     { icon: Puzzle, label: "Store Integrations", path: "/client-integrations" },
     { icon: Settings, label: "Portal Settings", path: "/client-settings" },
 ];
 
 export const ClientSidebar = () => {
     const pathname = usePathname();
+    const { currentUser } = useAuth();
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0B1120] border-r border-[#1E293B] shadow-2xl flex flex-col items-center py-6 z-50">
@@ -89,8 +93,8 @@ export const ClientSidebar = () => {
                     <DropdownMenuContent side="right" className="w-56 bg-slate-900 border-slate-800 text-white ml-2">
                         <DropdownMenuLabel>
                             <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none text-white">Client Partner</p>
-                                <p className="text-xs leading-none text-slate-400">partner@example.com</p>
+                                <p className="text-sm font-medium leading-none text-white">{currentUser?.name || "Client"}</p>
+                                <p className="text-xs leading-none text-slate-400">{currentUser?.email || ""}</p>
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-slate-800" />

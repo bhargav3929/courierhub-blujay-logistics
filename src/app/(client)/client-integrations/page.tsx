@@ -92,10 +92,23 @@ const ClientIntegrations = () => {
                 toast.success("Shopify Connected Successfully!", {
                     description: "Your store orders will now sync automatically."
                 });
-                // Force refresh profile to ensure latest config is loaded
                 retryAuth();
-
-                // Clean URL
+                window.history.replaceState({}, '', '/client-integrations');
+            }
+            const shopifyError = params.get('shopifyError');
+            if (shopifyError) {
+                const errorMessages: Record<string, string> = {
+                    missing_params: 'Missing parameters from Shopify. Please try again.',
+                    server_error: 'Server configuration error. Contact support.',
+                    invalid_signature: 'Security verification failed. Please try again.',
+                    invalid_state: 'Session expired or invalid. Please try connecting again.',
+                    token_exchange_failed: 'Failed to authenticate with Shopify. Please try again.',
+                    no_token: 'Shopify did not return an access token. Please try again.',
+                    callback_failed: 'Connection failed. Please try again.',
+                };
+                toast.error("Shopify Connection Failed", {
+                    description: errorMessages[shopifyError] || 'An unknown error occurred.'
+                });
                 window.history.replaceState({}, '', '/client-integrations');
             }
         }
@@ -103,9 +116,13 @@ const ClientIntegrations = () => {
 
     const isShopifyConnected = currentUser?.shopifyConfig?.isConnected;
 
-    const handleConnect = (appName: string) => {
-        toast.info(`Initializing ${appName} Connection`, {
-            description: "Redirecting to authentication portal..."
+    const handleConnect = (platformId: string, appName: string) => {
+        if (platformId === 'shopify') {
+            setIsShopifyModalOpen(true);
+            return;
+        }
+        toast.info(`${appName} Coming Soon`, {
+            description: "This integration is not yet available. Stay tuned!"
         });
     };
 
@@ -154,8 +171,11 @@ const ClientIntegrations = () => {
                         <p className="text-white/80 text-lg font-medium max-w-2xl">
                             Connect your Shopify store today and get **Flat 10% Off** on all Air Express shipments for the first 30 days.
                         </p>
-                        <Button className="h-14 px-8 rounded-2xl bg-white text-primary font-black uppercase tracking-widest hover:bg-secondary hover:text-white transition-all">
-                            Setup Shopify Now
+                        <Button
+                            onClick={() => isShopifyConnected ? toast.info('Shopify is already connected!') : setIsShopifyModalOpen(true)}
+                            className="h-14 px-8 rounded-2xl bg-white text-primary font-black uppercase tracking-widest hover:bg-secondary hover:text-white transition-all"
+                        >
+                            {isShopifyConnected ? 'Shopify Connected' : 'Setup Shopify Now'}
                         </Button>
                     </div>
                 </CardContent>
@@ -185,16 +205,16 @@ const ClientIntegrations = () => {
                                 {platform.description}
                             </p>
                             <div className="pt-4 border-t border-muted/30">
-                                {platform.status === 'connected' ? (
+                                {(platform.id === 'shopify' && isShopifyConnected) ? (
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-emerald-500 font-bold text-sm">
                                             <CheckCircle2 className="h-4 w-4" /> Active
                                         </div>
-                                        <Button variant="ghost" size="sm" className="font-bold underline text-xs">Manage</Button>
+                                        <Button variant="ghost" size="sm" className="font-bold underline text-xs" onClick={() => setIsShopifyModalOpen(true)}>Manage</Button>
                                     </div>
                                 ) : platform.status === 'available' ? (
                                     <Button
-                                        onClick={() => handleConnect(platform.name)}
+                                        onClick={() => handleConnect(platform.id, platform.name)}
                                         className="w-full h-12 rounded-xl font-black uppercase tracking-widest group-hover:bg-primary transition-all"
                                     >
                                         Connect <Plus className="h-4 w-4 ml-2" />

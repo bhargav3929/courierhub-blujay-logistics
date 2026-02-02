@@ -4,26 +4,61 @@ import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
 
+export const dynamic = 'force-dynamic';
+
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+// Verify and extract userId from base64url-encoded signed state
+function verifySignedState(stateParam: string): string | null {
+    try {
+        const decoded = Buffer.from(stateParam, 'base64url').toString('utf8');
+        const parts = decoded.split(':');
+        if (parts.length !== 3) return null;
+
+        const [userId, nonce, signature] = parts;
+        const payload = `${userId}:${nonce}`;
+        const expectedSignature = crypto
+            .createHmac('sha256', SHOPIFY_API_SECRET!)
+            .update(payload)
+            .digest('hex');
+
+        if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+            return null;
+        }
+        return userId;
+    } catch {
+        return null;
+    }
+}
+
+// Encrypt access token before storing
+function encryptToken(token: string): string {
+    const iv = crypto.randomBytes(16);
+    const key = crypto.createHash('sha256').update(SHOPIFY_API_SECRET!).digest();
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(token, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return `${iv.toString('hex')}:${encrypted}`;
+}
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const shop = searchParams.get('shop');
     const code = searchParams.get('code');
-    const state = searchParams.get('state'); // This is our userId
+    const state = searchParams.get('state');
     const hmac = searchParams.get('hmac');
 
     if (!shop || !code || !hmac || !state) {
-        return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+        return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=missing_params`);
     }
 
-    if (!SHOPIFY_API_SECRET) {
-        return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    if (!SHOPIFY_API_SECRET || !SHOPIFY_API_KEY) {
+        return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=server_error`);
     }
 
-    // 1. Verify HMAC
+    // 1. Verify HMAC from Shopify
     const map = Object.fromEntries(searchParams.entries());
     delete map['hmac'];
     const message = Object.keys(map)
@@ -37,10 +72,16 @@ export async function GET(request: Request) {
         .digest('hex');
 
     if (generatedHmac !== hmac) {
-        return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 400 });
+        return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=invalid_signature`);
     }
 
-    // 2. Exchange access code for access token
+    // 2. Verify signed state and extract userId
+    const userId = verifySignedState(state);
+    if (!userId) {
+        return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=invalid_state`);
+    }
+
+    // 3. Exchange authorization code for access token
     try {
         const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
             method: 'POST',
@@ -54,40 +95,55 @@ export async function GET(request: Request) {
             }),
         });
 
+        if (!accessTokenResponse.ok) {
+            console.error('Shopify token exchange failed:', accessTokenResponse.status);
+            return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=token_exchange_failed`);
+        }
+
         const tokenData = await accessTokenResponse.json();
 
         if (!tokenData.access_token) {
-            throw new Error('Failed to retrieve access token');
+            return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=no_token`);
         }
 
         const accessToken = tokenData.access_token;
 
-        // 3. Save to Firestore
-        // state contains the userId
-        const userId = state;
-
+        // 4. Save encrypted token to Firestore
         await updateDoc(doc(db, 'users', userId), {
             shopifyConfig: {
                 shopUrl: shop,
-                accessToken: accessToken, // Note: In production, encrypt this!
+                accessToken: encryptToken(accessToken),
                 isConnected: true,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                scopes: tokenData.scope || 'read_orders,read_customers'
             }
         });
 
-        // 4. Register Webhook (Order Creation) - Auto setup
-        await registerWebhook(shop, accessToken);
+        // 5. Register Webhook for order creation
+        const webhookResult = await registerWebhook(shop, accessToken);
+        if (!webhookResult.success) {
+            console.error('Webhook registration failed:', webhookResult.error);
+            // Still mark as connected, but note the webhook issue
+            await updateDoc(doc(db, 'users', userId), {
+                'shopifyConfig.webhookStatus': 'failed',
+                'shopifyConfig.webhookError': webhookResult.error
+            });
+        } else {
+            await updateDoc(doc(db, 'users', userId), {
+                'shopifyConfig.webhookStatus': 'active'
+            });
+        }
 
-        // 5. Redirect back to dashboard
+        // 6. Redirect back to dashboard with success
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifySuccess=true`);
 
     } catch (error: any) {
         console.error('Shopify Callback Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=callback_failed`);
     }
 }
 
-async function registerWebhook(shop: string, accessToken: string) {
+async function registerWebhook(shop: string, accessToken: string): Promise<{ success: boolean; error?: string }> {
     const webhookUrl = `${APP_URL}/api/integrations/shopify/webhook`;
 
     const query = `
@@ -123,11 +179,15 @@ async function registerWebhook(shop: string, accessToken: string) {
         });
 
         const result = await response.json();
-        console.log('Webhook Registration Result:', JSON.stringify(result));
 
-    } catch (error) {
-        console.error('Failed to register webhook:', error);
-        // Don't fail the whole request flow if webhook fails, just log it. 
-        // User is still "connected".
+        if (result.data?.webhookSubscriptionCreate?.userErrors?.length > 0) {
+            return { success: false, error: result.data.webhookSubscriptionCreate.userErrors[0].message };
+        }
+
+        console.log('Webhook registered successfully:', result.data?.webhookSubscriptionCreate?.webhookSubscription?.id);
+        return { success: true };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
     }
 }

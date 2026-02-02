@@ -36,7 +36,9 @@ import {
     MoreHorizontal,
     RefreshCw,
     FileSpreadsheet,
-    Trash2
+    Trash2,
+    FileText,
+    Printer
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -47,11 +49,14 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { getAllShipments, deleteShipment } from "@/services/shipmentService";
 import { getAllClients } from "@/services/clientService";
 import { Shipment, Client } from "@/types/types";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ShipmentManifest, printManifest } from "@/components/shipments/ShipmentManifest";
+import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
 
 const Shipments = () => {
     const [loading, setLoading] = useState(true);
@@ -65,6 +70,10 @@ const Shipments = () => {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // Label & Manifest dialog state
+    const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
+    const [selectedShipmentForManifest, setSelectedShipmentForManifest] = useState<Shipment | null>(null);
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -446,8 +455,14 @@ const Shipments = () => {
                                                             View Details
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="cursor-pointer">Download Label</DropdownMenuItem>
-                                                        <DropdownMenuItem className="cursor-pointer">Track Shipment</DropdownMenuItem>
+                                                        <DropdownMenuItem className="cursor-pointer" onClick={() => setSelectedShipmentForLabel(shipment)}>
+                                                            <Printer className="mr-2 h-4 w-4" />
+                                                            Download Label
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem className="cursor-pointer" onClick={() => setSelectedShipmentForManifest(shipment)}>
+                                                            <FileText className="mr-2 h-4 w-4" />
+                                                            Download Manifest
+                                                        </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
                                                             className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -497,6 +512,42 @@ const Shipments = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Print Label Dialog */}
+            <Dialog open={!!selectedShipmentForLabel} onOpenChange={(open) => !open && setSelectedShipmentForLabel(null)}>
+                <DialogContent className="max-w-md bg-white p-0 overflow-hidden">
+                    <div className="p-4 border-b flex justify-between items-center bg-muted/20">
+                        <h2 className="font-bold">Shipping Label</h2>
+                        <button
+                            onClick={printBlueDartLabel}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
+                        >
+                            <Printer className="h-4 w-4" /> Print Label
+                        </button>
+                    </div>
+                    <div className="p-8 flex justify-center bg-gray-50 max-h-[70vh] overflow-auto">
+                        {selectedShipmentForLabel && <BlueDartLabel shipment={selectedShipmentForLabel} />}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Manifest Dialog */}
+            <Dialog open={!!selectedShipmentForManifest} onOpenChange={(open) => !open && setSelectedShipmentForManifest(null)}>
+                <DialogContent className="max-w-4xl bg-white p-0 overflow-hidden">
+                    <div className="p-4 border-b flex justify-between items-center bg-muted/20">
+                        <h2 className="font-bold">Shipment Manifest</h2>
+                        <button
+                            onClick={printManifest}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
+                        >
+                            <Printer className="h-4 w-4" /> Print Manifest
+                        </button>
+                    </div>
+                    <div className="max-h-[75vh] overflow-auto bg-gray-50 p-4">
+                        {selectedShipmentForManifest && <ShipmentManifest shipments={[selectedShipmentForManifest]} />}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

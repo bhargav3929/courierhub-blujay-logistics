@@ -7,16 +7,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, CheckCircle2, ShoppingBag } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ShoppingBag, Unlink } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { doc, updateDoc, deleteField } from 'firebase/firestore';
+import { db } from '@/lib/firebaseConfig';
+import { toast } from 'sonner';
 
 export function ShopifyConnect() {
-    const { currentUser } = useAuth();
+    const { currentUser, retryAuth } = useAuth();
     const [shopUrl, setShopUrl] = useState('');
     const [loading, setLoading] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
 
-    // Check if already connected
-    // Note: TypeScript might complain if types weren't picked up globally yet, but we updated types.ts
     const isConnected = currentUser?.shopifyConfig?.isConnected;
     const connectedShop = currentUser?.shopifyConfig?.shopUrl;
 
@@ -25,19 +27,31 @@ export function ShopifyConnect() {
 
         setLoading(true);
 
-        // Clean the URL to get just the subdomain or full myshopify domain
         let cleanShop = shopUrl.replace('https://', '').replace('http://', '').replace(/\/$/, '');
         if (!cleanShop.includes('.')) {
-            // Assume just store name given
             cleanShop = `${cleanShop}.myshopify.com`;
         }
 
-        // Redirect to our Install API
-        // Pass userId to map the installation back to this user
-        // In a real app, we might rely on cookie/session on the server, but explicit ID is robust for this flow
-        const installUrl = `/api/integrations/shopify/install?shop=${cleanShop}&userId=${currentUser?.id}`;
-
+        const installUrl = `/api/integrations/shopify/install?shop=${encodeURIComponent(cleanShop)}&userId=${currentUser?.id}`;
         window.location.href = installUrl;
+    };
+
+    const handleDisconnect = async () => {
+        if (!currentUser?.id) return;
+
+        setDisconnecting(true);
+        try {
+            await updateDoc(doc(db, 'users', currentUser.id), {
+                shopifyConfig: deleteField()
+            });
+            toast.success('Shopify disconnected successfully');
+            await retryAuth();
+        } catch (error) {
+            console.error('Failed to disconnect:', error);
+            toast.error('Failed to disconnect Shopify. Please try again.');
+        } finally {
+            setDisconnecting(false);
+        }
     };
 
     if (isConnected) {
@@ -51,7 +65,7 @@ export function ShopifyConnect() {
                         <CardTitle className="text-green-700">Shopify Connected</CardTitle>
                     </div>
                     <CardDescription>
-                        Your detailed orders are syncing automatically.
+                        Your orders are syncing automatically.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -60,9 +74,15 @@ export function ShopifyConnect() {
                         <span>Connected to: {connectedShop}</span>
                     </div>
                 </CardContent>
-                <CardFooter>
-                    <Button variant="outline" className="border-green-200 hover:bg-green-100 text-green-700">
-                        Manage Settings
+                <CardFooter className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        className="border-red-200 hover:bg-red-50 text-red-600"
+                        onClick={handleDisconnect}
+                        disabled={disconnecting}
+                    >
+                        <Unlink className="h-4 w-4 mr-2" />
+                        {disconnecting ? 'Disconnecting...' : 'Disconnect'}
                     </Button>
                 </CardFooter>
             </Card>
@@ -102,6 +122,7 @@ export function ShopifyConnect() {
                                 className="pl-16"
                                 value={shopUrl}
                                 onChange={(e) => setShopUrl(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
                             />
                         </div>
                     </div>

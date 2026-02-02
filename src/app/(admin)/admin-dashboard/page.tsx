@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getDashboardMetrics, getShipmentTrend, getTopClients } from "@/services/metricsService";
-import { getRecentShipments } from "@/services/shipmentService";
+import { getRecentShipments, getAllShipments } from "@/services/shipmentService";
 import { DashboardMetrics, ShipmentTrend, TopClient, Shipment } from "@/types/types";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -10,11 +10,12 @@ import { motion } from "framer-motion";
 // Components
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { ShipmentTrendChart } from "@/components/dashboard/ShipmentTrendChart";
-
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { TopClientsTable } from "@/components/dashboard/TopClientsTable";
 import { RecentShipmentsTable } from "@/components/dashboard/RecentShipmentsTable";
 import { CourierDistributionChart } from "@/components/dashboard/CourierDistributionChart";
+
+const COURIER_COLORS = ["hsl(var(--primary))", "#f59e0b", "#10b981", "#64748b", "#8b5cf6", "#ef4444", "#ec4899"];
 
 const Dashboard = () => {
     const [loading, setLoading] = useState(true);
@@ -23,7 +24,7 @@ const Dashboard = () => {
     const [topClients, setTopClients] = useState<TopClient[]>([]);
     const [recentShipments, setRecentShipments] = useState<Shipment[]>([]);
     const [revenueByType, setRevenueByType] = useState<any[]>([]);
-    const [statusData, setStatusData] = useState<any[]>([]);
+    const [courierData, setCourierData] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -34,12 +35,14 @@ const Dashboard = () => {
                     metricsData,
                     trendData,
                     topClientsData,
-                    recentShipmentsData
+                    recentShipmentsData,
+                    allShipments
                 ] = await Promise.all([
                     getDashboardMetrics(),
                     getShipmentTrend(7),
                     getTopClients(5),
-                    getRecentShipments(10)
+                    getRecentShipments(10),
+                    getAllShipments()
                 ]);
 
                 setMetrics(metricsData);
@@ -53,13 +56,20 @@ const Dashboard = () => {
                     { type: "Shopify", revenue: metricsData.revenueByType.shopify }
                 ]);
 
-                // Format status data for pie chart from metricsData
-                setStatusData([
-                    { name: "Delivered", value: metricsData.shipmentsByStatus.delivered, color: "hsl(var(--status-delivered))" },
-                    { name: "In Transit", value: metricsData.shipmentsByStatus.transit, color: "hsl(var(--status-transit))" },
-                    { name: "Pending", value: metricsData.shipmentsByStatus.pending, color: "hsl(var(--primary))" },
-                    { name: "Cancelled", value: metricsData.shipmentsByStatus.cancelled, color: "hsl(var(--status-cancelled))" }
-                ]);
+                // Build real courier distribution from shipments
+                const courierMap: Record<string, number> = {};
+                allShipments.forEach(s => {
+                    courierMap[s.courier] = (courierMap[s.courier] || 0) + 1;
+                });
+                setCourierData(
+                    Object.entries(courierMap)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([name, value], i) => ({
+                            name,
+                            value,
+                            color: COURIER_COLORS[i % COURIER_COLORS.length]
+                        }))
+                );
 
             } catch (error: any) {
                 console.error("Error fetching dashboard data:", error);
@@ -108,7 +118,7 @@ const Dashboard = () => {
                         <ShipmentTrendChart data={shipmentTrend} />
                     </div>
                     <div className="col-span-1">
-                        <CourierDistributionChart />
+                        <CourierDistributionChart data={courierData} />
                     </div>
                 </div>
 
@@ -126,4 +136,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

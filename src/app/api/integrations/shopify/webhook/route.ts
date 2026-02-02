@@ -34,13 +34,12 @@ export async function POST(request: Request) {
 
         // 3. Find User/Client by Shop URL
         const usersRef = collection(db, 'users');
-        // Query for users where shopifyConfig.shopUrl == shopDomain
         const q = query(usersRef, where('shopifyConfig.shopUrl', '==', shopDomain));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
             console.error(`Received webhook for unknown shop: ${shopDomain}`);
-            return NextResponse.json({ message: 'Shop not found' }, { status: 200 }); // Return 200 to stop retries if appropriate
+            return NextResponse.json({ message: 'Shop not found' }, { status: 200 });
         }
 
         const userDoc = querySnapshot.docs[0];
@@ -49,24 +48,38 @@ export async function POST(request: Request) {
 
         console.log(`Processing Order #${order.order_number} for User: ${userId}`);
 
-        // 4. Map to Shipment
-        // Helper to format address
+        // 4. Map to Shipment - use user profile for origin when available
         const shippingAddress = order.shipping_address || {};
 
-        // Default shipment object
+        // Use origin from user profile if available, otherwise use billing address from order
+        const userPickupAddress = userData.pickupAddress || userData.origin || {};
+        const billingAddress = order.billing_address || {};
+
+        const originCity = userPickupAddress.city || billingAddress.city || '';
+        const originPincode = userPickupAddress.pincode || billingAddress.zip || '';
+        const originAddress = userPickupAddress.address || [billingAddress.address1, billingAddress.address2].filter(Boolean).join(', ') || '';
+        const originPhone = userPickupAddress.phone || userData.phone || '';
+        const originName = userPickupAddress.name || userData.name || '';
+
+        // Determine if COD
+        const isCOD = order.financial_status === 'pending' ||
+            order.gateway === 'Cash on Delivery (COD)' ||
+            (order.payment_gateway_names || []).some((g: string) => g.toLowerCase().includes('cod'));
+
         const newShipment: Omit<Shipment, 'id'> = {
             clientId: userId,
             clientName: userData.name || 'Shopify Merchant',
             clientType: 'shopify',
 
-            courier: 'Optimization Pending', // To be assigned later
+            courier: 'Optimization Pending',
             status: 'pending',
 
             origin: {
-                // Ideally fetch from User Profile. Using defaults or placeholders if missing.
-                city: 'HYD', // Default for now, should come from User config
-                pincode: '500081',
-                address: 'Default Pickup Address'
+                city: originCity,
+                pincode: originPincode,
+                address: originAddress,
+                phone: originPhone,
+                name: originName
             },
 
             destination: {
@@ -78,30 +91,26 @@ export async function POST(request: Request) {
                 phone: shippingAddress.phone || ''
             },
 
-            weight: order.total_weight ? order.total_weight / 1000 : 0.5, // Shopify sends grams
+            weight: order.total_weight ? order.total_weight / 1000 : 0.5,
 
-            // Financials (Simplified)
             courierCharge: 0,
-            chargedAmount: parseFloat(order.total_price),
+            chargedAmount: parseFloat(order.total_price) || 0,
             marginAmount: 0,
 
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
 
-            // References
             referenceNo: `ORD-${order.order_number}`,
-            notes: `Shopify Order ID: ${order.id}`,
+            notes: `Shopify Order #${order.order_number} | ID: ${order.id}${isCOD ? ' | COD' : ' | Prepaid'}`,
 
-            // Product Defaults
             productCode: 'D',
             productType: 'NDOX',
-            pieceCount: 1,
+            pieceCount: order.line_items?.length || 1,
             actualWeight: order.total_weight ? order.total_weight / 1000 : 0.5,
-            declaredValue: parseFloat(order.total_price),
+            declaredValue: parseFloat(order.total_price) || 0,
 
-            // Extra
             registerPickup: true,
-            toPayCustomer: false // Prepaid usually, unless COD logic added
+            toPayCustomer: isCOD
         };
 
         // 5. Save to Firestore

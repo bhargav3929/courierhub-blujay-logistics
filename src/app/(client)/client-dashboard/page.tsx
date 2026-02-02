@@ -7,6 +7,7 @@ import { Shipment } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { format, subDays } from "date-fns";
 
 // Components
 import { ClientDashboardStats } from "@/components/dashboard/ClientDashboardStats";
@@ -38,32 +39,38 @@ const ClientDashboard = () => {
         }
     };
 
-    // Calculate real stats (No Status Dependence)
+    // Calculate real stats from actual shipment data
     const stats = {
         totalShipments: shipments.length,
         totalSpend: shipments.reduce((sum, s) => sum + (s.chargedAmount || 0), 0),
         walletBalance: balance,
-        totalWeight: shipments.reduce((sum, s) => sum + 0.5, 0), // Approx
+        totalWeight: shipments.reduce((sum, s) => sum + (s.weight || 0), 0),
     };
 
-    // Mock data for spend chart (since we just have raw shipments list)
-    // In production this would be aggregated by date
-    const spendData = [
-        { date: "Mon", spend: 0 },
-        { date: "Tue", spend: 0 },
-        { date: "Wed", spend: 0 },
-        { date: "Thu", spend: 0 },
-        { date: "Fri", spend: 0 },
-        { date: "Sat", spend: 0 },
-        { date: "Sun", spend: 0 },
-    ];
-
-    // Populate chart with recent shipment data roughly
-    shipments.slice(0, 7).forEach((shipment, index) => {
-        if (spendData[index]) {
-            spendData[index].spend = shipment.chargedAmount || 0;
+    // Build real spend chart data aggregated by day (last 7 days)
+    const spendData = (() => {
+        const dayMap: Record<string, number> = {};
+        // Initialize last 7 days
+        for (let i = 6; i >= 0; i--) {
+            const d = subDays(new Date(), i);
+            const key = format(d, "EEE");
+            dayMap[key] = 0;
         }
-    });
+        // Aggregate from real shipments
+        shipments.forEach(s => {
+            const d = s.createdAt?.toDate ? s.createdAt.toDate() : null;
+            if (!d) return;
+            const now = new Date();
+            const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays >= 0 && diffDays < 7) {
+                const key = format(d, "EEE");
+                if (key in dayMap) {
+                    dayMap[key] += (s.chargedAmount || 0);
+                }
+            }
+        });
+        return Object.entries(dayMap).map(([date, spend]) => ({ date, spend }));
+    })();
 
     const container = {
         hidden: { opacity: 0 },
@@ -85,7 +92,9 @@ const ClientDashboard = () => {
             >
                 {/* Header Section */}
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back, Partner</h2>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                        Welcome back{currentUser?.name ? `, ${currentUser.name}` : ""}
+                    </h2>
                     <p className="text-muted-foreground text-sm flex items-center gap-2">
                         <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
                         System Operational
