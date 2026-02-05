@@ -172,6 +172,16 @@ export interface Shipment {
     tokenNumber?: string;           // Pickup Token Number
     destinationArea?: string;       // Destination Area Code
     destinationLocation?: string;   // Destination Location Code
+
+    // ========== DTDC-specific Fields ==========
+    dtdcReferenceNumber?: string;           // AWB/reference from DTDC order upload
+    dtdcCustomerReferenceNumber?: string;   // Our internal reference sent to DTDC
+    dtdcServiceType?: string;               // Service type: B2C SMART EXPRESS, etc.
+    dtdcLoadType?: string;                  // DOCUMENT or NON-DOCUMENT
+    dtdcChargeableWeight?: number;          // Chargeable weight returned by DTDC
+    dtdcStatus?: string;                    // Status from DTDC tracking
+    dtdcCodAmount?: number;                 // COD amount if applicable
+    dtdcCommodityId?: string;               // Commodity type ID
 }
 
 // Courier API Configuration

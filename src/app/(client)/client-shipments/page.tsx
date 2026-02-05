@@ -14,10 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
+import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShipmentManifest, printManifest } from "@/components/shipments/ShipmentManifest";
 import { Printer, FileText as FileTextIcon } from "lucide-react";
 import { getAllShipments, updateShipmentStatus } from "@/services/shipmentService";
 import { blueDartService } from "@/services/blueDartService";
+import { dtdcService } from "@/services/dtdcService";
 import { Shipment } from "@/types/types";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -66,8 +68,12 @@ const ClientShipments = () => {
         const toastId = toast.loading("Cancelling shipment...");
 
         try {
-            // 1. Cancel via Blue Dart API
-            await blueDartService.cancelWaybill(shipment.courierTrackingId);
+            // 1. Cancel via courier API
+            if (shipment.courier === 'DTDC') {
+                await dtdcService.cancelShipment(shipment.courierTrackingId);
+            } else {
+                await blueDartService.cancelWaybill(shipment.courierTrackingId);
+            }
 
             // 2. Update status in Firestore
             await updateShipmentStatus(shipment.id, 'cancelled');
@@ -272,18 +278,30 @@ const ClientShipments = () => {
 
             {/* Print Label Dialog */}
             <Dialog open={!!selectedShipmentForLabel} onOpenChange={(open) => !open && setSelectedShipmentForLabel(null)}>
-                <DialogContent className="max-w-md bg-white p-0 overflow-hidden">
+                <DialogContent className={`${selectedShipmentForLabel?.courier === 'DTDC' ? 'max-w-2xl' : 'max-w-md'} bg-white p-0 overflow-hidden`}>
                     <div className="p-4 border-b flex justify-between items-center bg-muted/20">
-                        <h2 className="font-bold">Shipping Label</h2>
+                        <h2 className="font-bold">Shipping Label ({selectedShipmentForLabel?.courier})</h2>
                         <button
-                            onClick={printBlueDartLabel}
+                            onClick={() => {
+                                if (selectedShipmentForLabel?.courier === 'DTDC') {
+                                    printDTDCLabel();
+                                } else {
+                                    printBlueDartLabel();
+                                }
+                            }}
                             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
                         >
                             <Printer className="h-4 w-4" /> Print Label
                         </button>
                     </div>
                     <div className="p-8 flex justify-center bg-gray-50">
-                        {selectedShipmentForLabel && <BlueDartLabel shipment={selectedShipmentForLabel} />}
+                        {selectedShipmentForLabel && (
+                            selectedShipmentForLabel.courier === 'DTDC' ? (
+                                <DTDCLabel referenceNumber={selectedShipmentForLabel.courierTrackingId || selectedShipmentForLabel.dtdcReferenceNumber || ''} />
+                            ) : (
+                                <BlueDartLabel shipment={selectedShipmentForLabel} />
+                            )
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

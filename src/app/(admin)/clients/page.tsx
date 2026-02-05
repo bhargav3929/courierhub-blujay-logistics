@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Eye, Edit, Ban } from "lucide-react";
+import { Plus, Eye, Edit, Ban, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
@@ -14,6 +14,16 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,7 +36,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { getAllClients, addClient, toggleClientStatus } from "@/services/clientService";
+import { getAllClients, addClient, toggleClientStatus, deleteClient } from "@/services/clientService";
 import { Client } from "@/types/types";
 
 const Clients = () => {
@@ -34,6 +44,9 @@ const Clients = () => {
     const [loading, setLoading] = useState(true);
     const [franchiseClients, setFranchiseClients] = useState<Client[]>([]);
     const [shopifyClients, setShopifyClients] = useState<Client[]>([]);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -116,6 +129,35 @@ const Clients = () => {
         }));
     };
 
+    const handleDeleteClick = (client: Client) => {
+        setClientToDelete(client);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!clientToDelete) return;
+        try {
+            setIsDeleting(true);
+            await deleteClient(clientToDelete.id);
+
+            // Remove from local state
+            if (clientToDelete.type === 'franchise') {
+                setFranchiseClients(prev => prev.filter(c => c.id !== clientToDelete.id));
+            } else {
+                setShopifyClients(prev => prev.filter(c => c.id !== clientToDelete.id));
+            }
+
+            toast.success("Client deleted successfully");
+            setDeleteDialogOpen(false);
+            setClientToDelete(null);
+        } catch (error) {
+            console.error("Delete error:", error);
+            toast.error("Failed to delete client");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const ClientTable = ({ clients }: { clients: Client[] }) => {
         if (loading) {
             return (
@@ -181,6 +223,14 @@ const Clients = () => {
                                         </Button>
                                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:bg-muted">
                                             <Ban className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            onClick={() => handleDeleteClick(client)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </td>
@@ -356,6 +406,41 @@ const Clients = () => {
                     </Tabs>
                 </CardContent>
             </Card>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Client</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div>
+                                <p>
+                                    This client will be <span className="font-semibold text-red-600">permanently deleted</span> from the system.
+                                    This action cannot be undone.
+                                </p>
+                                {clientToDelete && (
+                                    <div className="mt-3 p-3 bg-muted rounded-md text-sm space-y-1">
+                                        <div><strong>Name:</strong> {clientToDelete.name}</div>
+                                        <div><strong>Email:</strong> {clientToDelete.email}</div>
+                                        <div><strong>Type:</strong> {clientToDelete.type === 'franchise' ? 'Franchise Partner' : 'Shopify Merchant'}</div>
+                                        <div><strong>Wallet Balance:</strong> ₹{clientToDelete.walletBalance.toLocaleString()}</div>
+                                    </div>
+                                )}
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                        >
+                            {isDeleting ? "Deleting..." : "Delete Permanently"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

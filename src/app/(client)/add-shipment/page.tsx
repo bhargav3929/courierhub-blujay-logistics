@@ -28,6 +28,8 @@ import { createShipment, getShipmentById, updateShipment } from "@/services/ship
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
 import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED } from "@/config/bluedartConfig";
+import { dtdcService } from "@/services/dtdcService";
+import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
 
 const PremiumInput = ({ label, icon: Icon, placeholder, value, onChange, type = "text" }: any) => (
     <div className="space-y-2 group text-left">
@@ -57,6 +59,7 @@ const AddShipment = () => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [savingDefault, setSavingDefault] = useState(false);
+    const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
 
     // Form States - Pickup starts empty (will load from saved default)
     const [pickup, setPickup] = useState({ name: "", phone: "", pincode: "", address: "", city: "", state: "", country: "India" });
@@ -204,7 +207,7 @@ const AddShipment = () => {
         return cleaned;
     };
 
-    // STEP 2: Book directly (no partner selection needed)
+    // STEP 2: Book directly
     const handleBook = async () => {
         if (!weights.billable || weights.billable <= 0) {
             toast.error("Please enter valid weight");
@@ -232,192 +235,13 @@ const AddShipment = () => {
         try {
             const referenceNo = `ORDER ${Date.now().toString().slice(-6)}`;
 
-            // 1. Generate Blue Dart Waybill via API
-            toast.info("Generating Blue Dart Waybill...");
-
-            // Construct Blue Dart Payload
-            const blueDartPayload = {
-                Request: {
-                    Consignee: {
-                        ConsigneeName: delivery.name,
-                        ConsigneeAddress1: delivery.address.slice(0, 30), // Max 30 chars per line
-                        ConsigneeAddress2: delivery.address.slice(30, 60) || "",
-                        ConsigneeAddress3: delivery.city,
-                        ConsigneePincode: delivery.pincode,
-                        ConsigneeMobile: cleanReceiverMobile,
-                        ConsigneeTelephone: cleanReceiverMobile,
-                        ConsigneeAttention: delivery.name
-                    },
-                    Shipper: {
-                        CustomerName: BLUEDART_PREDEFINED.shipperName,
-                        CustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
-                        CustomerAddress1: BLUEDART_PREDEFINED.pickupAddress.slice(0, 30),
-                        CustomerAddress2: BLUEDART_PREDEFINED.pickupAddress.slice(30, 60) || "",
-                        CustomerAddress3: "HYD",
-                        CustomerPincode: BLUEDART_PREDEFINED.pickupPincode,
-                        CustomerMobile: BLUEDART_PREDEFINED.senderMobile, // Keep billing contact as is (or strict format it too?)
-                        CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
-                        OriginArea: BLUEDART_PREDEFINED.billingArea,
-                        Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
-                        IsToPayCustomer: false
-                    },
-                    Services: {
-                        ProductCode: BLUEDART_PREDEFINED.productCode,
-                        // SubProductCode removed entirely for Domestic
-                        ProductType: 0,
-                        PieceCount: "1",
-                        PackType: "", // Empty for default (or 'P' if required)
-                        ActualWeight: weights.actual.toString(),
-                        Dimensions: [
-                            {
-                                Length: dimensions.length,
-                                Breadth: dimensions.width,
-                                Height: dimensions.height,
-                                Count: "1"
-                            }
-                        ],
-                        CollectableAmount: 0,
-                        DeclaredValue: parseFloat(commodity.value) || 200,
-                        CreditReferenceNo: referenceNo,
-                        PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`, // Tomorrow
-                        PickupTime: BLUEDART_PREDEFINED.pickupTime,
-                        PDFOutputNotRequired: false,
-                        Commodity: {
-                            CommodityDetail1: commodity.description
-                        }
-                    }
-                }
-            };
-
-            let awbNo = "";
-            let blueDartStatus = "Pending";
-            let destinationArea = "";
-            let destinationLocation = "";
-            let tokenNumber = "";
-
-            try {
-                // Call API via Client Service which wraps the API route
-                const apiResponse = await blueDartService.generateWaybill(blueDartPayload);
-
-                // Inspect Response structure carefully
-                const responseData = apiResponse?.GenerateWayBillResult || apiResponse;
-                const statusBlock = responseData?.Status?.[0] || {};
-
-                if (responseData?.IsError === false) {
-                    awbNo = responseData.AWBNo;
-                    destinationArea = responseData.DestinationArea || "";
-                    destinationLocation = responseData.DestinationLocation || "";
-                    tokenNumber = responseData.TokenNumber || "";
-                    blueDartStatus = "Generated";
-                    toast.success(`Waybill Generated: ${awbNo}`);
-                } else {
-                    // Handle Validation Errors
-                    const errorMessage = statusBlock.StatusInformation || "Unknown Blue Dart Error";
-                    console.error("Blue Dart Error:", responseData);
-                    throw new Error(`Blue Dart Error: ${errorMessage}`);
-                }
-            } catch (apiError: any) {
-                console.error("API Call Failed:", apiError);
-                // Extract detailed error if available
-                const detail = apiError.response?.data?.details || apiError.response?.data || apiError.message;
-                const detailString = typeof detail === 'object' ? JSON.stringify(detail) : detail;
-                console.error("Detailed API Error:", detail);
-                throw new Error("Blue Dart Booking Failed: " + detailString);
-            }
-
-            // 2. Save Shipment to Firestore
-            const shipmentData = {
-                clientId: currentUser?.id || 'guest',
-                clientName: currentUser?.name || pickup.name,
-                clientType: shopifySourceId ? 'shopify' as const : 'franchise' as const,
-                courier: 'Blue Dart',
-                status: 'pending' as const,
-
-                // Origin details
-                origin: {
-                    city: pickup.city,
-                    state: pickup.state,
-                    pincode: pickup.pincode,
-                    address: pickup.address,
-                    phone: pickup.phone,
-                    name: pickup.name,
-                },
-
-                // Destination details
-                destination: {
-                    city: delivery.city,
-                    state: delivery.state,
-                    pincode: delivery.pincode,
-                    address: delivery.address,
-                    phone: delivery.phone,
-                    name: delivery.name,
-                },
-
-                // Package details
-                weight: weights.billable,
-                dimensions: {
-                    length: parseFloat(dimensions.length) || 0,
-                    width: parseFloat(dimensions.width) || 0,
-                    height: parseFloat(dimensions.height) || 0,
-                },
-
-                // Financial
-                courierCharge: estimatedPrice,
-                chargedAmount: estimatedPrice,
-                marginAmount: 0,
-
-                // BlueDart Excel Fields - Pre-filled
-                referenceNo,
-                billingArea: BLUEDART_PREDEFINED.billingArea,
-                billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
-                pickupTime: BLUEDART_PREDEFINED.pickupTime,
-                shipperName: BLUEDART_PREDEFINED.shipperName,
-                pickupAddress: pickup.address,
-                pickupPincode: pickup.pincode,
-
-                // Receiver details
-                companyName: delivery.name,
-                receiverName: delivery.name,
-                receiverMobile: delivery.phone,
-
-                // Sender details
-                senderName: pickup.name,
-                senderMobile: pickup.phone,
-
-                // Product details
-                productCode: BLUEDART_PREDEFINED.productCode,
-                productType: BLUEDART_PREDEFINED.productType,
-                pieceCount: BLUEDART_PREDEFINED.defaultPieceCount,
-                actualWeight: weights.actual,
-                declaredValue: parseFloat(commodity.value) || BLUEDART_PREDEFINED.defaultDeclaredValue,
-
-                // Commodity
-                commodityDetail1: commodity.description,
-
-                // Times
-                officeClosureTime: BLUEDART_PREDEFINED.officeClosureTime,
-
-                // Generated Fields
-                awbNo: awbNo,
-                blueDartStatus: blueDartStatus,
-                destinationArea: destinationArea,
-                destinationLocation: destinationLocation,
-                tokenNumber: tokenNumber,
-            };
-
-            if (shopifySourceId) {
-                // Update the existing Shopify shipment record
-                await updateShipment(shopifySourceId, shipmentData);
+            if (selectedCourier === 'DTDC') {
+                await handleBookDTDC(referenceNo, cleanSenderMobile, cleanReceiverMobile);
             } else {
-                await createShipment(shipmentData);
+                await handleBookBlueDart(referenceNo, cleanSenderMobile, cleanReceiverMobile);
             }
 
             deductMoney(estimatedPrice);
-
-            toast.success("Shipment Booked Successfully!", {
-                description: `Reference: ${referenceNo} | AWB: ${awbNo}`,
-            });
-
             setTimeout(() => router.push("/client-shipments"), 1500);
 
         } catch (error: any) {
@@ -426,6 +250,239 @@ const AddShipment = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Book via Blue Dart
+    const handleBookBlueDart = async (referenceNo: string, cleanSenderMobile: string, cleanReceiverMobile: string) => {
+        toast.info("Generating Blue Dart Waybill...");
+
+        const blueDartPayload = {
+            Request: {
+                Consignee: {
+                    ConsigneeName: delivery.name,
+                    ConsigneeAddress1: delivery.address.slice(0, 30),
+                    ConsigneeAddress2: delivery.address.slice(30, 60) || "",
+                    ConsigneeAddress3: delivery.city,
+                    ConsigneePincode: delivery.pincode,
+                    ConsigneeMobile: cleanReceiverMobile,
+                    ConsigneeTelephone: cleanReceiverMobile,
+                    ConsigneeAttention: delivery.name
+                },
+                Shipper: {
+                    CustomerName: BLUEDART_PREDEFINED.shipperName,
+                    CustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+                    CustomerAddress1: BLUEDART_PREDEFINED.pickupAddress.slice(0, 30),
+                    CustomerAddress2: BLUEDART_PREDEFINED.pickupAddress.slice(30, 60) || "",
+                    CustomerAddress3: "HYD",
+                    CustomerPincode: BLUEDART_PREDEFINED.pickupPincode,
+                    CustomerMobile: BLUEDART_PREDEFINED.senderMobile,
+                    CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
+                    OriginArea: BLUEDART_PREDEFINED.billingArea,
+                    Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
+                    IsToPayCustomer: false
+                },
+                Services: {
+                    ProductCode: BLUEDART_PREDEFINED.productCode,
+                    ProductType: 0,
+                    PieceCount: "1",
+                    PackType: "",
+                    ActualWeight: weights.actual.toString(),
+                    Dimensions: [
+                        {
+                            Length: dimensions.length,
+                            Breadth: dimensions.width,
+                            Height: dimensions.height,
+                            Count: "1"
+                        }
+                    ],
+                    CollectableAmount: 0,
+                    DeclaredValue: parseFloat(commodity.value) || 200,
+                    CreditReferenceNo: referenceNo,
+                    PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`,
+                    PickupTime: BLUEDART_PREDEFINED.pickupTime,
+                    PDFOutputNotRequired: false,
+                    Commodity: {
+                        CommodityDetail1: commodity.description
+                    }
+                }
+            }
+        };
+
+        let awbNo = "";
+        let blueDartStatus = "Pending";
+        let destinationArea = "";
+        let destinationLocation = "";
+        let tokenNumber = "";
+
+        try {
+            const apiResponse = await blueDartService.generateWaybill(blueDartPayload);
+            const responseData = apiResponse?.GenerateWayBillResult || apiResponse;
+            const statusBlock = responseData?.Status?.[0] || {};
+
+            if (responseData?.IsError === false) {
+                awbNo = responseData.AWBNo;
+                destinationArea = responseData.DestinationArea || "";
+                destinationLocation = responseData.DestinationLocation || "";
+                tokenNumber = responseData.TokenNumber || "";
+                blueDartStatus = "Generated";
+                toast.success(`Waybill Generated: ${awbNo}`);
+            } else {
+                const errorMessage = statusBlock.StatusInformation || "Unknown Blue Dart Error";
+                throw new Error(`Blue Dart Error: ${errorMessage}`);
+            }
+        } catch (apiError: any) {
+            const detail = apiError.response?.data?.details || apiError.response?.data || apiError.message;
+            const detailString = typeof detail === 'object' ? JSON.stringify(detail) : detail;
+            throw new Error("Blue Dart Booking Failed: " + detailString);
+        }
+
+        const shipmentData = {
+            clientId: currentUser?.id || 'guest',
+            clientName: currentUser?.name || pickup.name,
+            clientType: shopifySourceId ? 'shopify' as const : 'franchise' as const,
+            courier: 'Blue Dart',
+            courierTrackingId: awbNo,
+            status: 'pending' as const,
+            origin: { city: pickup.city, state: pickup.state, pincode: pickup.pincode, address: pickup.address, phone: pickup.phone, name: pickup.name },
+            destination: { city: delivery.city, state: delivery.state, pincode: delivery.pincode, address: delivery.address, phone: delivery.phone, name: delivery.name },
+            weight: weights.billable,
+            dimensions: { length: parseFloat(dimensions.length) || 0, width: parseFloat(dimensions.width) || 0, height: parseFloat(dimensions.height) || 0 },
+            courierCharge: estimatedPrice,
+            chargedAmount: estimatedPrice,
+            marginAmount: 0,
+            referenceNo,
+            billingArea: BLUEDART_PREDEFINED.billingArea,
+            billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+            pickupTime: BLUEDART_PREDEFINED.pickupTime,
+            shipperName: BLUEDART_PREDEFINED.shipperName,
+            pickupAddress: pickup.address,
+            pickupPincode: pickup.pincode,
+            companyName: delivery.name,
+            receiverName: delivery.name,
+            receiverMobile: delivery.phone,
+            senderName: pickup.name,
+            senderMobile: pickup.phone,
+            productCode: BLUEDART_PREDEFINED.productCode,
+            productType: BLUEDART_PREDEFINED.productType,
+            pieceCount: BLUEDART_PREDEFINED.defaultPieceCount,
+            actualWeight: weights.actual,
+            declaredValue: parseFloat(commodity.value) || BLUEDART_PREDEFINED.defaultDeclaredValue,
+            commodityDetail1: commodity.description,
+            officeClosureTime: BLUEDART_PREDEFINED.officeClosureTime,
+            awbNo,
+            blueDartStatus,
+            destinationArea,
+            destinationLocation,
+            tokenNumber,
+        };
+
+        if (shopifySourceId) {
+            await updateShipment(shopifySourceId, shipmentData);
+        } else {
+            await createShipment(shipmentData);
+        }
+
+        toast.success("Shipment Booked Successfully!", {
+            description: `Reference: ${referenceNo} | AWB: ${awbNo}`,
+        });
+    };
+
+    // Book via DTDC
+    const handleBookDTDC = async (referenceNo: string, cleanSenderMobile: string, cleanReceiverMobile: string) => {
+        toast.info("Creating DTDC Order...");
+
+        const dtdcPayload = {
+            customer_code: DTDC_PREDEFINED.customerCode,
+            service_type_id: DTDC_PREDEFINED.serviceTypeId,
+            load_type: DTDC_PREDEFINED.loadType,
+            description: commodity.description || 'General Goods',
+            dimension_unit: DTDC_PREDEFINED.dimensionUnit,
+            length: dimensions.length,
+            width: dimensions.width,
+            height: dimensions.height,
+            weight_unit: DTDC_PREDEFINED.weightUnit,
+            weight: weights.actual.toString(),
+            declared_value: commodity.value || DTDC_PREDEFINED.defaultDeclaredValue,
+            num_pieces: DTDC_PREDEFINED.defaultPieceCount,
+            customer_reference_number: referenceNo,
+            commodity_id: DTDC_PREDEFINED.commodityId,
+            is_risk_surcharge_applicable: DTDC_PREDEFINED.isRiskSurchargeApplicable,
+            origin_details: {
+                name: pickup.name || DTDC_PREDEFINED.shipperName,
+                phone: cleanSenderMobile,
+                address_line_1: pickup.address || DTDC_PREDEFINED.pickupAddress1,
+                pincode: pickup.pincode || DTDC_PREDEFINED.pickupPincode,
+                city: pickup.city || DTDC_PREDEFINED.pickupCity,
+                state: pickup.state || DTDC_PREDEFINED.pickupState,
+            },
+            destination_details: {
+                name: delivery.name,
+                phone: cleanReceiverMobile,
+                address_line_1: delivery.address,
+                pincode: delivery.pincode,
+                city: delivery.city,
+                state: delivery.state,
+            },
+        };
+
+        let dtdcAwb = "";
+        let dtdcChargeableWeight = 0;
+
+        try {
+            const apiResponse = await dtdcService.createOrder(dtdcPayload);
+
+            if (apiResponse?.status === 'OK' && apiResponse?.data?.[0]?.success) {
+                dtdcAwb = apiResponse.data[0].reference_number;
+                dtdcChargeableWeight = apiResponse.data[0].chargeable_weight || 0;
+                toast.success(`DTDC Order Created: ${dtdcAwb}`);
+            } else {
+                const errorMsg = apiResponse?.data?.[0]?.message || apiResponse?.message || 'Unknown DTDC Error';
+                throw new Error(`DTDC Error: ${errorMsg}`);
+            }
+        } catch (apiError: any) {
+            const detail = apiError.response?.data?.details || apiError.response?.data || apiError.message;
+            const detailString = typeof detail === 'object' ? JSON.stringify(detail) : detail;
+            throw new Error("DTDC Booking Failed: " + detailString);
+        }
+
+        const shipmentData = {
+            clientId: currentUser?.id || 'guest',
+            clientName: currentUser?.name || pickup.name,
+            clientType: shopifySourceId ? 'shopify' as const : 'franchise' as const,
+            courier: 'DTDC',
+            courierTrackingId: dtdcAwb,
+            status: 'pending' as const,
+            origin: { city: pickup.city, state: pickup.state, pincode: pickup.pincode, address: pickup.address, phone: pickup.phone, name: pickup.name },
+            destination: { city: delivery.city, state: delivery.state, pincode: delivery.pincode, address: delivery.address, phone: delivery.phone, name: delivery.name },
+            weight: weights.billable,
+            dimensions: { length: parseFloat(dimensions.length) || 0, width: parseFloat(dimensions.width) || 0, height: parseFloat(dimensions.height) || 0 },
+            courierCharge: estimatedPrice,
+            chargedAmount: estimatedPrice,
+            marginAmount: 0,
+            receiverName: delivery.name,
+            receiverMobile: delivery.phone,
+            senderName: pickup.name,
+            senderMobile: pickup.phone,
+            declaredValue: parseFloat(commodity.value) || parseFloat(DTDC_PREDEFINED.defaultDeclaredValue),
+            // DTDC-specific fields
+            dtdcReferenceNumber: dtdcAwb,
+            dtdcCustomerReferenceNumber: referenceNo,
+            dtdcServiceType: DTDC_PREDEFINED.serviceTypeId,
+            dtdcLoadType: DTDC_PREDEFINED.loadType,
+            dtdcChargeableWeight: dtdcChargeableWeight,
+            dtdcStatus: 'Created',
+            dtdcCommodityId: DTDC_PREDEFINED.commodityId,
+        };
+
+        if (shopifySourceId) {
+            await updateShipment(shopifySourceId, shipmentData);
+        } else {
+            await createShipment(shipmentData);
+        }
+
+        toast.success("Shipment Booked Successfully!", {
+            description: `Reference: ${referenceNo} | AWB: ${dtdcAwb}`,
+        });
     };
 
     const handleBack = () => setStep(1);
@@ -543,11 +600,11 @@ const AddShipment = () => {
                             <div className="max-w-3xl mx-auto space-y-8">
                                 <div className="text-center">
                                     <h2 className="text-3xl font-black">Package Details</h2>
-                                    <p className="text-muted-foreground text-sm mt-1">Enter weight and commodity details</p>
+                                    <p className="text-muted-foreground text-sm mt-1">Enter weight, commodity and select courier</p>
                                 </div>
 
                             </div>
-                            {/* Left: Package inputs */}
+                            {/* Package inputs */}
                             <div className="space-y-6">
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="space-y-2 text-left">
@@ -600,6 +657,59 @@ const AddShipment = () => {
                                         />
                                     </div>
                                 </div>
+
+                                {/* Courier Selection */}
+                                <div className="space-y-3">
+                                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                        <Truck className="h-3 w-3" /> Select Courier Partner
+                                    </Label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedCourier('Blue Dart')}
+                                            className={`relative p-5 rounded-2xl border-2 transition-all text-left ${
+                                                selectedCourier === 'Blue Dart'
+                                                    ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-100'
+                                                    : 'border-muted hover:border-blue-200 bg-white'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md">BD</div>
+                                                <div>
+                                                    <div className="font-bold text-sm">Blue Dart</div>
+                                                    <div className="text-[10px] text-muted-foreground">Premium Express</div>
+                                                </div>
+                                            </div>
+                                            {selectedCourier === 'Blue Dart' && (
+                                                <div className="absolute top-2 right-2">
+                                                    <BadgeCheck className="h-5 w-5 text-blue-500" />
+                                                </div>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedCourier('DTDC')}
+                                            className={`relative p-5 rounded-2xl border-2 transition-all text-left ${
+                                                selectedCourier === 'DTDC'
+                                                    ? 'border-red-500 bg-red-50 shadow-lg shadow-red-100'
+                                                    : 'border-muted hover:border-red-200 bg-white'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-lg bg-red-600 flex items-center justify-center text-white font-bold text-xs shadow-md">DT</div>
+                                                <div>
+                                                    <div className="font-bold text-sm">DTDC</div>
+                                                    <div className="text-[10px] text-muted-foreground">Smart Express</div>
+                                                </div>
+                                            </div>
+                                            {selectedCourier === 'DTDC' && (
+                                                <div className="absolute top-2 right-2">
+                                                    <BadgeCheck className="h-5 w-5 text-red-500" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -617,7 +727,7 @@ const AddShipment = () => {
                         ) : (
                             <Button onClick={handleBook} disabled={loading} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
                                 {loading ? <Loader2 className="animate-spin" /> : <Truck className="h-5 w-5" />}
-                                Book Shipment
+                                Book via {selectedCourier}
                             </Button>
                         )}
                     </div>

@@ -26,7 +26,7 @@ const couriers: Courier[] = [
     {
         id: "dtdc",
         name: "DTDC",
-        status: "inactive",
+        status: "active",
         description: "Comprehensive logistics solutions network.",
         logoColor: "bg-red-600"
     },

@@ -43,7 +43,31 @@ const createAuthUser = async (email: string, password: string): Promise<string> 
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
         await signOut(secondaryAuth);
         return userCredential.user.uid;
-    } catch (error) {
+    } catch (error: any) {
+        // If email exists in Auth but not in Firestore (orphan), clean up and retry
+        if (error.code === 'auth/email-already-in-use') {
+            const clients = await getDocs(
+                query(collection(db, CLIENTS_COLLECTION), where('email', '==', email))
+            );
+            if (clients.empty) {
+                // Orphaned Auth account — delete via Admin SDK and retry
+                await fetch('/api/admin/delete-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+                // Retry with a fresh secondary app
+                const retryApp = initializeApp(firebaseConfig, "RetryApp");
+                const retryAuth = getAuth(retryApp);
+                try {
+                    const retryCredential = await createUserWithEmailAndPassword(retryAuth, email, password);
+                    await signOut(retryAuth);
+                    return retryCredential.user.uid;
+                } finally {
+                    await deleteApp(retryApp);
+                }
+            }
+        }
         throw error;
     } finally {
         await deleteApp(secondaryApp);
@@ -233,11 +257,27 @@ export const toggleClientStatus = async (
 };
 
 /**
- * Delete client
+ * Delete client (removes Firebase Auth account + both Firestore collections)
  */
 export const deleteClient = async (clientId: string): Promise<void> => {
     try {
-        await deleteDoc(doc(db, CLIENTS_COLLECTION, clientId));
+        // Delete Firebase Auth account via server-side Admin SDK
+        const res = await fetch('/api/admin/delete-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: clientId }),
+        });
+
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'Failed to delete auth account');
+        }
+
+        // Delete from both Firestore collections
+        await Promise.all([
+            deleteDoc(doc(db, CLIENTS_COLLECTION, clientId)),
+            deleteDoc(doc(db, 'users', clientId)),
+        ]);
     } catch (error) {
         console.error('Error deleting client:', error);
         throw new Error('Failed to delete client');
