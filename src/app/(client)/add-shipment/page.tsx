@@ -313,6 +313,7 @@ const AddShipment = () => {
                 Services: {
                     ProductCode: selectedService.code,
                     ProductType: 1,
+                    ...(enableCOD ? { SubProductCode: "C" } : {}),
                     PieceCount: "1",
                     PackType: "",
                     ActualWeight: weights.actual.toString(),
