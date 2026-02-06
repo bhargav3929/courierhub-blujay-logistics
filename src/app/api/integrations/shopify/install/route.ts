@@ -29,7 +29,10 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Server misconfiguration: Missing Shopify credentials' }, { status: 500 });
         }
 
-        const scopes = 'read_orders,read_customers';
+        // Ensure shop format
+        const shopUrl = shop.includes('.') ? shop : `${shop}.myshopify.com`;
+
+        const scopes = 'read_orders,read_customers,write_fulfillments';
         const redirectUri = `${APP_URL}/api/integrations/shopify/callback`;
 
         // Create signed state: base64-encode to avoid URL encoding issues
@@ -41,12 +44,9 @@ export async function GET(request: Request) {
             .digest('hex');
         const state = Buffer.from(`${payload}:${signature}`).toString('base64url');
 
-        // Ensure shop format
-        const shopUrl = shop.includes('.') ? shop : `${shop}.myshopify.com`;
-
         const installUrl = `https://${shopUrl}/admin/oauth/authorize?client_id=${SHOPIFY_API_KEY}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
-        console.log('[Shopify Install] Redirecting to:', installUrl);
+        console.log('[Shopify Install] Redirecting to OAuth URL');
 
         return NextResponse.redirect(installUrl, { status: 302 });
     } catch (error: any) {

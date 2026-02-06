@@ -65,7 +65,7 @@ export function ShopifyConnect() {
                         <CardTitle className="text-green-700">Shopify Connected</CardTitle>
                     </div>
                     <CardDescription>
-                        Your orders are syncing automatically.
+                        Your orders are syncing automatically. Tracking info syncs back to Shopify when shipments are booked.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -73,6 +73,12 @@ export function ShopifyConnect() {
                         <CheckCircle2 className="h-4 w-4" />
                         <span>Connected to: {connectedShop}</span>
                     </div>
+                    {currentUser?.shopifyConfig?.webhookStatus === 'failed' && (
+                        <div className="flex items-center gap-2 text-sm text-amber-600 font-medium mt-1">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>Webhook issue: Orders may not sync. Try reconnecting.</span>
+                        </div>
+                    )}
                 </CardContent>
                 <CardFooter className="flex gap-2">
                     <Button
@@ -105,9 +111,10 @@ export function ShopifyConnect() {
             <CardContent className="space-y-4">
                 <Alert className="bg-blue-50 border-blue-100 text-blue-800">
                     <AlertCircle className="h-4 w-4 text-blue-800" />
-                    <AlertTitle>One-Click Integration</AlertTitle>
+                    <AlertTitle>Connect Your Shopify Store</AlertTitle>
                     <AlertDescription>
-                        Enter your store URL below. You will be redirected to Shopify to approve the CourierHub app.
+                        Enter your store URL and you will be redirected to Shopify to authorize the Blujay Logistics app.
+                        New orders will sync automatically, and tracking info will be pushed back to Shopify when shipments are booked.
                     </AlertDescription>
                 </Alert>
 
@@ -127,7 +134,7 @@ export function ShopifyConnect() {
                         </div>
                     </div>
                     <p className="text-xs text-slate-500">
-                        Example: brand-name.myshopify.com
+                        Enter your myshopify.com domain (e.g., brand-name.myshopify.com)
                     </p>
                 </div>
             </CardContent>

@@ -1,6 +1,30 @@
 // BlueDart Pre-defined Configuration
 // These values will be auto-filled in shipments and Excel exports
 
+// Service Types available for Blue Dart
+export const BLUEDART_SERVICE_TYPES = {
+    STANDARD: {
+        code: 'D',
+        name: 'Standard',
+        displayName: 'Blue Dart Standard',
+        description: 'Ground express delivery (2-5 days)',
+    },
+    AIR: {
+        code: 'A',
+        name: 'Air',
+        displayName: 'Blue Dart Air Express',
+        description: 'Air express delivery (1-2 days)',
+    },
+    PLUS: {
+        code: 'E',
+        name: 'Plus',
+        displayName: 'Blue Dart Plus',
+        description: 'Priority express delivery with extra care',
+    },
+} as const;
+
+export type BlueDartServiceType = keyof typeof BLUEDART_SERVICE_TYPES;
+
 export const BLUEDART_PREDEFINED = {
     // Billing & Pickup Location - From Environment Variables
     billingArea: process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD",

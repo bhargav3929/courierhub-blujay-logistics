@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import Image from "next/image";
 import {
     Package,
     MapPin,
@@ -18,18 +19,17 @@ import {
     BadgeCheck,
     Loader2,
     Star,
-    Wallet,
-    Calculator
+    ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
-import { useWallet } from "@/hooks/useWallet";
 import { useAuth } from "@/contexts/AuthContext";
 import { createShipment, getShipmentById, updateShipment } from "@/services/shipmentService";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
 import { blueDartService } from "@/services/blueDartService";
-import { BLUEDART_PREDEFINED } from "@/config/bluedartConfig";
+import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
 import { dtdcService } from "@/services/dtdcService";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
+import { Switch } from "@/components/ui/switch";
 
 const PremiumInput = ({ label, icon: Icon, placeholder, value, onChange, type = "text" }: any) => (
     <div className="space-y-2 group text-left">
@@ -61,6 +61,11 @@ const AddShipment = () => {
     const [savingDefault, setSavingDefault] = useState(false);
     const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
 
+    // Blue Dart service options
+    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>('STANDARD');
+    const [enableCOD, setEnableCOD] = useState(false);
+    const [codAmount, setCodAmount] = useState("");
+
     // Form States - Pickup starts empty (will load from saved default)
     const [pickup, setPickup] = useState({ name: "", phone: "", pincode: "", address: "", city: "", state: "", country: "India" });
     // Delivery always starts empty
@@ -73,8 +78,31 @@ const AddShipment = () => {
     const searchParams = useSearchParams();
     const shopifyShipmentId = searchParams.get('shopifyShipmentId');
     const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
-    const { deductMoney } = useWallet();
     const { currentUser } = useAuth();
+
+    // Fire-and-forget call to sync fulfillment to Shopify after AWB is assigned
+    const triggerShopifyFulfillment = async (shipmentId: string) => {
+        try {
+            const response = await fetch('/api/integrations/shopify/fulfill', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shipmentId }),
+            });
+            if (response.ok) {
+                toast.success('Tracking synced to Shopify', {
+                    description: 'Customer will receive tracking notification from Shopify.'
+                });
+            } else {
+                const data = await response.json();
+                console.error('Shopify fulfillment sync failed:', data.error);
+                toast.warning('Shipment booked, but Shopify tracking sync failed', {
+                    description: data.error || 'You can manually fulfill in Shopify.'
+                });
+            }
+        } catch (error) {
+            console.error('Shopify fulfillment sync error:', error);
+        }
+    };
 
     // Load saved default pickup address on mount
     useEffect(() => {
@@ -207,15 +235,14 @@ const AddShipment = () => {
         return cleaned;
     };
 
-    // STEP 2: Book directly
+    // STEP 3: Book directly
     const handleBook = async () => {
-        if (!weights.billable || weights.billable <= 0) {
-            toast.error("Please enter valid weight");
-            return;
-        }
-        if (!commodity.value || parseFloat(commodity.value) <= 0) {
-            toast.error("Please enter commodity value");
-            return;
+        // Validate COD amount if COD is enabled (Blue Dart only)
+        if (selectedCourier === 'Blue Dart' && enableCOD) {
+            if (!codAmount || parseFloat(codAmount) <= 0) {
+                toast.error("Please enter COD amount");
+                return;
+            }
         }
 
         // Validate Phone Numbers strictly before API Call
@@ -241,7 +268,6 @@ const AddShipment = () => {
                 await handleBookBlueDart(referenceNo, cleanSenderMobile, cleanReceiverMobile);
             }
 
-            deductMoney(estimatedPrice);
             setTimeout(() => router.push("/client-shipments"), 1500);
 
         } catch (error: any) {
@@ -254,7 +280,10 @@ const AddShipment = () => {
 
     // Book via Blue Dart
     const handleBookBlueDart = async (referenceNo: string, cleanSenderMobile: string, cleanReceiverMobile: string) => {
-        toast.info("Generating Blue Dart Waybill...");
+        const selectedService = BLUEDART_SERVICE_TYPES[blueDartServiceType];
+        const codAmountValue = enableCOD ? parseFloat(codAmount) || 0 : 0;
+
+        toast.info(`Generating Blue Dart ${selectedService.displayName} Waybill...`);
 
         const blueDartPayload = {
             Request: {
@@ -279,10 +308,10 @@ const AddShipment = () => {
                     CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
                     OriginArea: BLUEDART_PREDEFINED.billingArea,
                     Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
-                    IsToPayCustomer: false
+                    IsToPayCustomer: enableCOD
                 },
                 Services: {
-                    ProductCode: BLUEDART_PREDEFINED.productCode,
+                    ProductCode: selectedService.code,
                     ProductType: 0,
                     PieceCount: "1",
                     PackType: "",
@@ -295,7 +324,7 @@ const AddShipment = () => {
                             Count: "1"
                         }
                     ],
-                    CollectableAmount: 0,
+                    CollectableAmount: codAmountValue,
                     DeclaredValue: parseFloat(commodity.value) || 200,
                     CreditReferenceNo: referenceNo,
                     PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`,
@@ -362,7 +391,7 @@ const AddShipment = () => {
             receiverMobile: delivery.phone,
             senderName: pickup.name,
             senderMobile: pickup.phone,
-            productCode: BLUEDART_PREDEFINED.productCode,
+            productCode: selectedService.code,
             productType: BLUEDART_PREDEFINED.productType,
             pieceCount: BLUEDART_PREDEFINED.defaultPieceCount,
             actualWeight: weights.actual,
@@ -374,10 +403,16 @@ const AddShipment = () => {
             destinationArea,
             destinationLocation,
             tokenNumber,
+            // Blue Dart service options
+            blueDartServiceType: selectedService.name,
+            blueDartServiceCode: selectedService.code,
+            toPayCustomer: enableCOD,
+            collectableAmount: codAmountValue,
         };
 
         if (shopifySourceId) {
             await updateShipment(shopifySourceId, shipmentData);
+            triggerShopifyFulfillment(shopifySourceId);
         } else {
             await createShipment(shipmentData);
         }
@@ -476,6 +511,7 @@ const AddShipment = () => {
 
         if (shopifySourceId) {
             await updateShipment(shopifySourceId, shipmentData);
+            triggerShopifyFulfillment(shopifySourceId);
         } else {
             await createShipment(shipmentData);
         }
@@ -485,7 +521,21 @@ const AddShipment = () => {
         });
     };
 
-    const handleBack = () => setStep(1);
+    // STEP 2: Validate package details and move to courier step
+    const handlePackageNext = () => {
+        if (!weights.billable || weights.billable <= 0) {
+            toast.error("Please enter valid weight");
+            return;
+        }
+        if (!commodity.value || parseFloat(commodity.value) <= 0) {
+            toast.error("Please enter commodity value");
+            return;
+        }
+        toast.success("Package details saved!");
+        setStep(3);
+    };
+
+    const handleBack = () => setStep(step - 1);
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
@@ -497,7 +547,7 @@ const AddShipment = () => {
                 <h1 className="text-4xl font-black tracking-tighter text-foreground">
                     Book <span className="text-primary">Shipment</span>
                 </h1>
-                <p className="text-muted-foreground font-medium">Simple 2-step booking</p>
+                <p className="text-muted-foreground font-medium">Simple 3-step booking</p>
             </div>
 
             {shopifyShipmentId && (
@@ -508,22 +558,28 @@ const AddShipment = () => {
                 </div>
             )}
 
-            {/* 2-Step Progress */}
-            <div className="flex justify-center items-center gap-8 max-w-md mx-auto">
-                {[1, 2].map((s) => (
-                    <div key={s} className="flex items-center gap-3">
-                        <div className={`
-                            w-12 h-12 rounded-xl flex items-center justify-center border-3 transition-all
-                            ${step === s ? "bg-primary border-primary shadow-lg scale-110" :
-                                step > s ? "bg-primary border-primary" : "bg-white border-muted"}
-                        `}>
-                            {step > s ? <BadgeCheck className="h-6 w-6 text-white" /> :
-                                <span className={`text-lg font-black ${step === s ? "text-white" : "text-muted-foreground"}`}>{s}</span>}
+            {/* 3-Step Progress */}
+            <div className="flex justify-center items-center gap-4 max-w-2xl mx-auto">
+                {[
+                    { num: 1, label: "Addresses", icon: MapPin },
+                    { num: 2, label: "Package", icon: Package },
+                    { num: 3, label: "Courier", icon: Truck },
+                ].map((s, i) => (
+                    <div key={s.num} className="flex items-center gap-3">
+                        <div className="flex flex-col items-center gap-1.5">
+                            <div className={`
+                                w-12 h-12 rounded-xl flex items-center justify-center border-2 transition-all
+                                ${step === s.num ? "bg-primary border-primary shadow-lg shadow-primary/25 scale-110" :
+                                    step > s.num ? "bg-primary border-primary" : "bg-white border-muted"}
+                            `}>
+                                {step > s.num ? <BadgeCheck className="h-6 w-6 text-white" /> :
+                                    <s.icon className={`h-5 w-5 ${step === s.num ? "text-white" : "text-muted-foreground"}`} />}
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${step >= s.num ? "text-primary" : "text-muted-foreground"}`}>
+                                {s.label}
+                            </span>
                         </div>
-                        <span className={`text-xs font-bold uppercase tracking-wider ${step >= s ? "text-primary" : "text-muted-foreground"}`}>
-                            {s === 1 ? "Addresses" : "Package & Book"}
-                        </span>
-                        {s === 1 && <div className={`w-16 h-1 rounded ${step > 1 ? "bg-primary" : "bg-muted"}`} />}
+                        {i < 2 && <div className={`w-16 h-1 rounded-full mb-5 ${step > s.num ? "bg-primary" : "bg-muted"}`} />}
                     </div>
                 ))}
             </div>
@@ -594,120 +650,232 @@ const AddShipment = () => {
                         </div>
                     )}
 
-                    {/* STEP 2: Package & Book */}
+                    {/* STEP 2: Package Details */}
                     {step === 2 && (
                         <div className="p-8 lg:p-10 animate-in fade-in duration-500">
                             <div className="max-w-3xl mx-auto space-y-8">
                                 <div className="text-center">
                                     <h2 className="text-3xl font-black">Package Details</h2>
-                                    <p className="text-muted-foreground text-sm mt-1">Enter weight, commodity and select courier</p>
+                                    <p className="text-muted-foreground text-sm mt-1">Enter dimensions, weight, and commodity info</p>
                                 </div>
 
-                            </div>
-                            {/* Package inputs */}
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="space-y-2 text-left">
-                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Length (cm)</Label>
-                                        <Input type="number" value={dimensions.length} onChange={(e) => setDimensions({ ...dimensions, length: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="space-y-2 text-left">
+                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Length (cm)</Label>
+                                            <Input type="number" value={dimensions.length} onChange={(e) => setDimensions({ ...dimensions, length: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                        </div>
+                                        <div className="space-y-2 text-left">
+                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Width (cm)</Label>
+                                            <Input type="number" value={dimensions.width} onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                        </div>
+                                        <div className="space-y-2 text-left">
+                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Height (cm)</Label>
+                                            <Input type="number" value={dimensions.height} onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                        </div>
                                     </div>
-                                    <div className="space-y-2 text-left">
-                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Width (cm)</Label>
-                                        <Input type="number" value={dimensions.width} onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
-                                    </div>
-                                    <div className="space-y-2 text-left">
-                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Height (cm)</Label>
-                                        <Input type="number" value={dimensions.height} onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
-                                    </div>
-                                </div>
 
-                                <div className="space-y-2 text-left">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                        <Package className="h-3 w-3" /> Actual Weight (kg) *
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        placeholder="e.g. 0.5"
-                                        value={actualWeight}
-                                        onChange={(e) => setActualWeight(e.target.value)}
-                                        className="h-14 text-xl font-bold rounded-xl border-2 pl-5"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2 text-left">
-                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground">Commodity</Label>
-                                        <Input
-                                            placeholder="e.g. Electronics"
-                                            value={commodity.description}
-                                            onChange={(e) => setCommodity({ ...commodity, description: e.target.value })}
-                                            className="h-12 rounded-xl border-2"
-                                        />
-                                    </div>
                                     <div className="space-y-2 text-left">
                                         <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                            <Info className="h-3 w-3" /> Value (₹) *
+                                            <Package className="h-3 w-3" /> Actual Weight (kg) *
                                         </Label>
                                         <Input
                                             type="number"
-                                            placeholder="e.g. 500"
-                                            value={commodity.value}
-                                            onChange={(e) => setCommodity({ ...commodity, value: e.target.value })}
-                                            className="h-12 rounded-xl border-2"
+                                            placeholder="e.g. 0.5"
+                                            value={actualWeight}
+                                            onChange={(e) => setActualWeight(e.target.value)}
+                                            className="h-14 text-xl font-bold rounded-xl border-2 pl-5"
                                         />
+                                    </div>
+
+                                    {/* Weight Summary */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="p-3 rounded-xl bg-muted/30 text-center">
+                                            <div className="text-[10px] font-bold uppercase text-muted-foreground">Volumetric</div>
+                                            <div className="text-lg font-black text-foreground">{weights.volumetric} kg</div>
+                                        </div>
+                                        <div className="p-3 rounded-xl bg-muted/30 text-center">
+                                            <div className="text-[10px] font-bold uppercase text-muted-foreground">Actual</div>
+                                            <div className="text-lg font-black text-foreground">{weights.actual} kg</div>
+                                        </div>
+                                        <div className="p-3 rounded-xl bg-primary/10 text-center">
+                                            <div className="text-[10px] font-bold uppercase text-primary">Billable</div>
+                                            <div className="text-lg font-black text-primary">{weights.billable} kg</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-2 text-left">
+                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Commodity</Label>
+                                            <Input
+                                                placeholder="e.g. Electronics"
+                                                value={commodity.description}
+                                                onChange={(e) => setCommodity({ ...commodity, description: e.target.value })}
+                                                className="h-12 rounded-xl border-2"
+                                            />
+                                        </div>
+                                        <div className="space-y-2 text-left">
+                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                                                <Info className="h-3 w-3" /> Value (₹) *
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="e.g. 500"
+                                                value={commodity.value}
+                                                onChange={(e) => setCommodity({ ...commodity, value: e.target.value })}
+                                                className="h-12 rounded-xl border-2"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STEP 3: Courier Selection */}
+                    {step === 3 && (
+                        <div className="p-8 lg:p-10 animate-in fade-in duration-500">
+                            <div className="max-w-3xl mx-auto space-y-8">
+                                <div className="text-center">
+                                    <h2 className="text-3xl font-black">Select Courier</h2>
+                                    <p className="text-muted-foreground text-sm mt-1">Choose your courier partner and service type</p>
+                                </div>
+
+                                {/* Courier Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedCourier('Blue Dart')}
+                                        className={`group relative p-6 rounded-2xl border-2 transition-all text-left ${
+                                            selectedCourier === 'Blue Dart'
+                                                ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-white shadow-xl shadow-blue-100/50 scale-[1.02]'
+                                                : 'border-muted hover:border-blue-300 hover:shadow-md bg-white'
+                                        }`}
+                                    >
+                                        {selectedCourier === 'Blue Dart' && (
+                                            <div className="absolute top-3 right-3">
+                                                <BadgeCheck className="h-6 w-6 text-blue-500" />
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1">
+                                                <Image src="/logos/bluedart.jpg" alt="Blue Dart" width={48} height={48} className="object-contain" />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-lg">Blue Dart</div>
+                                                <div className="text-xs text-muted-foreground">Premium Express Delivery</div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">Next-Day</span>
+                                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">COD Available</span>
+                                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">Pan India</span>
+                                        </div>
+                                    </button>
+
+                                    <div
+                                        className="group relative p-6 rounded-2xl border-2 border-muted bg-muted/10 text-left opacity-60 cursor-not-allowed"
+                                    >
+                                        <div className="absolute top-3 right-3">
+                                            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide">
+                                                Coming Soon
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1 grayscale">
+                                                <Image src="/logos/dtdc.jpg" alt="DTDC" width={48} height={48} className="object-contain" />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-lg text-muted-foreground">DTDC</div>
+                                                <div className="text-xs text-muted-foreground">Smart Express Delivery</div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">Economical</span>
+                                            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">Wide Network</span>
+                                            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">B2C Express</span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Courier Selection */}
-                                <div className="space-y-3">
-                                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                        <Truck className="h-3 w-3" /> Select Courier Partner
-                                    </Label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedCourier('Blue Dart')}
-                                            className={`relative p-5 rounded-2xl border-2 transition-all text-left ${
-                                                selectedCourier === 'Blue Dart'
-                                                    ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-100'
-                                                    : 'border-muted hover:border-blue-200 bg-white'
-                                            }`}
-                                        >
+                                {/* Blue Dart Service Type Selection */}
+                                {selectedCourier === 'Blue Dart' && (
+                                    <div className="space-y-4 pt-2">
+                                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                            <Truck className="h-3 w-3" /> Blue Dart Service Type
+                                        </Label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][]).map(([key, service]) => (
+                                                <button
+                                                    key={key}
+                                                    type="button"
+                                                    onClick={() => setBlueDartServiceType(key)}
+                                                    className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                                                        blueDartServiceType === key
+                                                            ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                            : 'border-muted hover:border-blue-200 bg-white'
+                                                    }`}
+                                                >
+                                                    <div className="font-bold text-sm">{service.displayName}</div>
+                                                    <div className="text-[10px] text-muted-foreground mt-1">{service.description}</div>
+                                                    {blueDartServiceType === key && (
+                                                        <div className="absolute top-2 right-2">
+                                                            <BadgeCheck className="h-4 w-4 text-blue-500" />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* COD Option */}
+                                        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md">BD</div>
+                                                <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                                                    <Info className="h-5 w-5 text-amber-600" />
+                                                </div>
                                                 <div>
-                                                    <div className="font-bold text-sm">Blue Dart</div>
-                                                    <div className="text-[10px] text-muted-foreground">Premium Express</div>
+                                                    <div className="font-bold text-sm">Cash on Delivery (COD)</div>
+                                                    <div className="text-[10px] text-muted-foreground">Collect payment on delivery</div>
                                                 </div>
                                             </div>
-                                            {selectedCourier === 'Blue Dart' && (
-                                                <div className="absolute top-2 right-2">
-                                                    <BadgeCheck className="h-5 w-5 text-blue-500" />
-                                                </div>
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedCourier('DTDC')}
-                                            className={`relative p-5 rounded-2xl border-2 transition-all text-left ${
-                                                selectedCourier === 'DTDC'
-                                                    ? 'border-red-500 bg-red-50 shadow-lg shadow-red-100'
-                                                    : 'border-muted hover:border-red-200 bg-white'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-lg bg-red-600 flex items-center justify-center text-white font-bold text-xs shadow-md">DT</div>
-                                                <div>
-                                                    <div className="font-bold text-sm">DTDC</div>
-                                                    <div className="text-[10px] text-muted-foreground">Smart Express</div>
-                                                </div>
+                                            <Switch
+                                                checked={enableCOD}
+                                                onCheckedChange={setEnableCOD}
+                                            />
+                                        </div>
+
+                                        {/* COD Amount Input */}
+                                        {enableCOD && (
+                                            <div className="space-y-2 animate-in fade-in duration-300">
+                                                <Label className="text-xs font-bold uppercase text-muted-foreground">COD Amount (₹)</Label>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="Amount to collect"
+                                                    value={codAmount}
+                                                    onChange={(e) => setCodAmount(e.target.value)}
+                                                    className="h-12 rounded-xl border-2"
+                                                />
                                             </div>
-                                            {selectedCourier === 'DTDC' && (
-                                                <div className="absolute top-2 right-2">
-                                                    <BadgeCheck className="h-5 w-5 text-red-500" />
-                                                </div>
-                                            )}
-                                        </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Order Summary */}
+                                <div className="p-5 rounded-2xl bg-muted/20 border border-muted/40 space-y-3">
+                                    <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Order Summary</div>
+                                    <div className="grid grid-cols-3 gap-3 text-sm">
+                                        <div>
+                                            <div className="text-muted-foreground text-[10px] font-bold uppercase">From</div>
+                                            <div className="font-semibold truncate">{pickup.city || pickup.pincode}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground text-[10px] font-bold uppercase">To</div>
+                                            <div className="font-semibold truncate">{delivery.city || delivery.pincode}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground text-[10px] font-bold uppercase">Weight</div>
+                                            <div className="font-semibold">{weights.billable} kg</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -720,11 +888,17 @@ const AddShipment = () => {
                             Back
                         </Button>
 
-                        {step === 1 ? (
-                            <Button onClick={handleRouteNext} className="h-14 px-10 rounded-full bg-primary font-bold text-lg">
-                                Continue to Package
+                        {step === 1 && (
+                            <Button onClick={handleRouteNext} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
+                                Continue to Package <ChevronRight className="h-5 w-5" />
                             </Button>
-                        ) : (
+                        )}
+                        {step === 2 && (
+                            <Button onClick={handlePackageNext} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
+                                Choose Courier <ChevronRight className="h-5 w-5" />
+                            </Button>
+                        )}
+                        {step === 3 && (
                             <Button onClick={handleBook} disabled={loading} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
                                 {loading ? <Loader2 className="animate-spin" /> : <Truck className="h-5 w-5" />}
                                 Book via {selectedCourier}

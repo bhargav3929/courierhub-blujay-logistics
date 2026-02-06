@@ -1,13 +1,13 @@
 'use client';
 
 import { MotionCard, MotionCardContent } from "@/components/dashboard/MotionCard";
-import { Package, IndianRupee, Wallet, Weight } from "lucide-react";
+import { Package, CheckCircle, Clock, Weight } from "lucide-react";
 
 interface ClientDashboardMetrics {
     totalShipments: number;
-    totalSpend: number;
-    walletBalance: number;
     totalWeight: number;
+    deliveredCount: number;
+    pendingCount: number;
 }
 
 interface ClientDashboardStatsProps {
@@ -25,17 +25,16 @@ export const ClientDashboardStats = ({ metrics, loading }: ClientDashboardStatsP
             bg: "bg-blue-500/10",
         },
         {
-            title: "Total Spend",
-            value: `₹${metrics?.totalSpend.toLocaleString() || "0"}`,
-            icon: IndianRupee,
+            title: "Delivered",
+            value: metrics?.deliveredCount.toLocaleString() || "0",
+            icon: CheckCircle,
             color: "text-emerald-500",
             bg: "bg-emerald-500/10",
         },
         {
-            title: "Wallet Balance",
-            value: `₹${metrics?.walletBalance.toLocaleString() || "0"}`,
-            subtitle: (metrics?.walletBalance || 0) < 500 ? "Low balance — consider recharging" : undefined,
-            icon: Wallet,
+            title: "In Progress",
+            value: metrics?.pendingCount.toLocaleString() || "0",
+            icon: Clock,
             color: "text-violet-500",
             bg: "bg-violet-500/10",
         },
@@ -75,11 +74,6 @@ export const ClientDashboardStats = ({ metrics, loading }: ClientDashboardStatsP
                             <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                                 {stat.value}
                             </div>
-                            {stat.subtitle && (
-                                <p className="text-xs text-rose-500 mt-2 pt-2 border-t border-border/50">
-                                    {stat.subtitle}
-                                </p>
-                            )}
                         </div>
                     </MotionCardContent>
                 </MotionCard>

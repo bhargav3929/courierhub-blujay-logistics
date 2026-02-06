@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
+import { encryptToken } from '@/lib/shopifyTokenCrypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,16 +32,6 @@ function verifySignedState(stateParam: string): string | null {
     } catch {
         return null;
     }
-}
-
-// Encrypt access token before storing
-function encryptToken(token: string): string {
-    const iv = crypto.randomBytes(16);
-    const key = crypto.createHash('sha256').update(SHOPIFY_API_SECRET!).digest();
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(token, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${encrypted}`;
 }
 
 export async function GET(request: Request) {
@@ -115,7 +106,7 @@ export async function GET(request: Request) {
                 accessToken: encryptToken(accessToken),
                 isConnected: true,
                 updatedAt: new Date().toISOString(),
-                scopes: tokenData.scope || 'read_orders,read_customers'
+                scopes: tokenData.scope || 'read_orders,read_customers,write_fulfillments'
             }
         });
 
@@ -169,7 +160,7 @@ async function registerWebhook(shop: string, accessToken: string): Promise<{ suc
     };
 
     try {
-        const response = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+        const response = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

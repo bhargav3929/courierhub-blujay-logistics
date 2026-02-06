@@ -301,6 +301,56 @@ export const getActiveClientsCount = async (): Promise<number> => {
     }
 };
 
+// ==================== BUSINESS PROFILE ====================
+
+export interface BusinessProfile {
+    companyName: string;
+    gstin: string;
+    website: string;
+    email: string;
+    phone: string;
+    pincode: string;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+}
+
+/**
+ * Get business profile for a client
+ */
+export const getBusinessProfile = async (clientId: string): Promise<BusinessProfile | null> => {
+    try {
+        const clientDoc = await getDoc(doc(db, CLIENTS_COLLECTION, clientId));
+        if (clientDoc.exists()) {
+            const data = clientDoc.data();
+            return data.businessProfile || null;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting business profile:', error);
+        return null;
+    }
+};
+
+/**
+ * Save business profile for a client
+ */
+export const saveBusinessProfile = async (
+    clientId: string,
+    profile: BusinessProfile
+): Promise<void> => {
+    try {
+        await updateDoc(doc(db, CLIENTS_COLLECTION, clientId), {
+            businessProfile: profile,
+            updatedAt: Timestamp.now()
+        });
+    } catch (error) {
+        console.error('Error saving business profile:', error);
+        throw new Error('Failed to save business profile');
+    }
+};
+
 // ==================== DEFAULT PICKUP ADDRESS ====================
 
 interface PickupAddress {

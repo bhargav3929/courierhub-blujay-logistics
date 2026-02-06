@@ -1,0 +1,47 @@
+import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * Diagnostic endpoint to verify Shopify configuration
+ * Access: GET /api/integrations/shopify/debug
+ */
+export async function GET() {
+    const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
+    const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
+    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+    const diagnostics = {
+        timestamp: new Date().toISOString(),
+        appType: 'Public App',
+        configuration: {
+            hasApiKey: !!SHOPIFY_API_KEY,
+            apiKeyPrefix: SHOPIFY_API_KEY ? SHOPIFY_API_KEY.substring(0, 8) + '...' : 'NOT SET',
+            hasApiSecret: !!SHOPIFY_API_SECRET,
+            appUrl: APP_URL,
+            callbackUrl: `${APP_URL}/api/integrations/shopify/callback`,
+            webhookUrl: `${APP_URL}/api/integrations/shopify/webhook`,
+            fulfillmentEndpoint: `${APP_URL}/api/integrations/shopify/fulfill`,
+        },
+        scopes: {
+            required: 'read_orders,read_customers,write_fulfillments',
+            note: 'write_fulfillments enables automatic tracking sync back to Shopify'
+        },
+        requiredShopifySetup: {
+            step1: 'Go to Shopify Partner Dashboard (partners.shopify.com)',
+            step2: 'Navigate to Apps → Blujay Logistics → Configuration',
+            step3: `Add this to "Allowed redirection URL(s)": ${APP_URL}/api/integrations/shopify/callback`,
+            step4: 'Ensure API credentials (Client ID/Secret) match your environment variables',
+            step5: 'Verify scopes include: read_orders, read_customers, write_fulfillments',
+        },
+        commonErrors: {
+            'missing_params': 'Shopify did not return required OAuth parameters',
+            'invalid_signature': 'HMAC verification failed - API secret mismatch',
+            'invalid_state': 'State parameter was tampered or expired',
+            'token_exchange_failed': 'Failed to exchange authorization code for access token',
+            'fulfillment_failed': 'Could not create fulfillment - order may already be fulfilled in Shopify',
+        }
+    };
+
+    return NextResponse.json(diagnostics, { status: 200 });
+}

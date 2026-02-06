@@ -1,0 +1,23 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ef72ac5314f8c6272d2de0f9acd2a47b"
+name = "Blujay Logistics Client"
+application_url = "https://blujaylogistic.com"
+embedded = false
+
+[webhooks]
+api_version = "2024-10"
+# Webhook subscriptions are registered programmatically during OAuth callback
+
+[access_scopes]
+scopes = "read_orders,read_customers,write_fulfillments"
+optional_scopes = []
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://blujaylogistic.com/api/integrations/shopify/callback"
+]
+
+[pos]
+embedded = false

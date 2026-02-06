@@ -3,23 +3,23 @@
 import { MotionCard, MotionCardContent, MotionCardHeader, MotionCardTitle } from "./MotionCard";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
-interface ClientSpendChartProps {
-    data: any[];
+interface ClientActivityChartProps {
+    data: { date: string; shipments: number }[];
 }
 
-export const ClientSpendChart = ({ data }: ClientSpendChartProps) => {
+export const ClientActivityChart = ({ data }: ClientActivityChartProps) => {
     return (
         <MotionCard delay={0.2} className="col-span-1 lg:col-span-2">
             <MotionCardHeader>
-                <MotionCardTitle>Spend Analytics</MotionCardTitle>
-                <p className="text-sm text-muted-foreground">Daily shipping spend for last 7 days</p>
+                <MotionCardTitle>Shipping Activity</MotionCardTitle>
+                <p className="text-sm text-muted-foreground">Daily shipments for last 7 days</p>
             </MotionCardHeader>
             <MotionCardContent>
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={data} barSize={40}>
                             <defs>
-                                <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
+                                <linearGradient id="colorShipments" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
                                     <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
                                 </linearGradient>
@@ -36,7 +36,7 @@ export const ClientSpendChart = ({ data }: ClientSpendChartProps) => {
                                 axisLine={false}
                                 tickLine={false}
                                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                                tickFormatter={(value) => `₹${value}`}
+                                allowDecimals={false}
                             />
                             <Tooltip
                                 cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
@@ -47,11 +47,11 @@ export const ClientSpendChart = ({ data }: ClientSpendChartProps) => {
                                     boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                                 }}
                                 itemStyle={{ color: "hsl(var(--foreground))" }}
-                                formatter={(value: number) => [`₹${value.toLocaleString()}`, "Spend"]}
+                                formatter={(value: number) => [value, "Shipments"]}
                             />
                             <Bar
-                                dataKey="spend"
-                                fill="url(#colorSpend)"
+                                dataKey="shipments"
+                                fill="url(#colorShipments)"
                                 radius={[6, 6, 0, 0]}
                                 animationDuration={1500}
                                 animationEasing="ease-out"
@@ -63,3 +63,6 @@ export const ClientSpendChart = ({ data }: ClientSpendChartProps) => {
         </MotionCard>
     );
 };
+
+// Keep the old export name for backward compatibility during transition
+export const ClientSpendChart = ClientActivityChart;

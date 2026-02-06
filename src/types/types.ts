@@ -79,6 +79,10 @@ export interface Shipment {
     status: 'pending' | 'transit' | 'delivered' | 'cancelled' | 'shopify_pending' | 'declined';
     shopifyOrderId?: string;
     shopifyOrderNumber?: string;
+    shopifyFulfillmentId?: string;
+    shopifyFulfillmentStatus?: 'pending' | 'fulfilled' | 'failed';
+    shopifyFulfillmentSyncedAt?: string;
+    shopifyFulfillmentError?: string;
 
     // Origin and Destination
     origin: {
@@ -172,6 +176,11 @@ export interface Shipment {
     tokenNumber?: string;           // Pickup Token Number
     destinationArea?: string;       // Destination Area Code
     destinationLocation?: string;   // Destination Location Code
+
+    // ========== Blue Dart Service Options ==========
+    blueDartServiceType?: string;   // Service type: Standard, Air, Plus
+    blueDartServiceCode?: string;   // Service code: D, A, E
+    collectableAmount?: number;     // COD amount to collect
 
     // ========== DTDC-specific Fields ==========
     dtdcReferenceNumber?: string;           // AWB/reference from DTDC order upload

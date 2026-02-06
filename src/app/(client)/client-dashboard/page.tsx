@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { useWallet } from "@/hooks/useWallet";
 import { getAllShipments } from "@/services/shipmentService";
 import { Shipment } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,7 +15,6 @@ import { ClientShipmentsTable } from "@/components/dashboard/ClientShipmentsTabl
 
 const ClientDashboard = () => {
     const { currentUser } = useAuth();
-    const { balance } = useWallet();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -42,13 +40,13 @@ const ClientDashboard = () => {
     // Calculate real stats from actual shipment data
     const stats = {
         totalShipments: shipments.length,
-        totalSpend: shipments.reduce((sum, s) => sum + (s.chargedAmount || 0), 0),
-        walletBalance: balance,
         totalWeight: shipments.reduce((sum, s) => sum + (s.weight || 0), 0),
+        deliveredCount: shipments.filter(s => s.status === 'delivered').length,
+        pendingCount: shipments.filter(s => s.status === 'pending' || s.status === 'transit').length,
     };
 
-    // Build real spend chart data aggregated by day (last 7 days)
-    const spendData = (() => {
+    // Build activity chart data aggregated by day (last 7 days)
+    const activityData = (() => {
         const dayMap: Record<string, number> = {};
         // Initialize last 7 days
         for (let i = 6; i >= 0; i--) {
@@ -56,7 +54,7 @@ const ClientDashboard = () => {
             const key = format(d, "EEE");
             dayMap[key] = 0;
         }
-        // Aggregate from real shipments
+        // Aggregate shipment count from real shipments
         shipments.forEach(s => {
             const d = s.createdAt?.toDate ? s.createdAt.toDate() : null;
             if (!d) return;
@@ -65,11 +63,11 @@ const ClientDashboard = () => {
             if (diffDays >= 0 && diffDays < 7) {
                 const key = format(d, "EEE");
                 if (key in dayMap) {
-                    dayMap[key] += (s.chargedAmount || 0);
+                    dayMap[key] += 1;
                 }
             }
         });
-        return Object.entries(dayMap).map(([date, spend]) => ({ date, spend }));
+        return Object.entries(dayMap).map(([date, shipments]) => ({ date, shipments }));
     })();
 
     const container = {
@@ -107,7 +105,7 @@ const ClientDashboard = () => {
                 {/* Main Charts Area */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="col-span-1 lg:col-span-3">
-                        <ClientSpendChart data={spendData} />
+                        <ClientSpendChart data={activityData} />
                     </div>
                 </div>
 

@@ -48,6 +48,19 @@ export async function POST(request: Request) {
 
         console.log(`Processing Order #${order.order_number} for User: ${userId}`);
 
+        // Idempotency: check if we already have a shipment for this Shopify order
+        const existingShipments = await getDocs(
+            query(collection(db, 'shipments'),
+                where('shopifyOrderId', '==', order.id?.toString()),
+                where('clientId', '==', userId)
+            )
+        );
+
+        if (!existingShipments.empty) {
+            console.log(`Duplicate webhook: Order #${order.order_number} already processed`);
+            return NextResponse.json({ message: 'Order already processed' });
+        }
+
         // 4. Map to Shipment - use user profile for origin when available
         const shippingAddress = order.shipping_address || {};
 
@@ -112,7 +125,8 @@ export async function POST(request: Request) {
             declaredValue: parseFloat(order.total_price) || 0,
 
             registerPickup: true,
-            toPayCustomer: isCOD
+            toPayCustomer: isCOD,
+            shopifyFulfillmentStatus: 'pending' as const
         };
 
         // 5. Save to Firestore

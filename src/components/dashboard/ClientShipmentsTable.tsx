@@ -32,7 +32,7 @@ export const ClientShipmentsTable = ({ shipments }: ClientShipmentsTableProps) =
                                 <th className="py-3 px-6 w-[25%]">Order Info</th>
                                 <th className="py-3 px-4 w-[25%]">Destination</th>
                                 <th className="py-3 px-4 w-[15%]">Package</th>
-                                <th className="py-3 px-4 w-[15%]">Payment</th>
+                                <th className="py-3 px-4 w-[15%]">Status</th>
                                 <th className="py-3 px-4 w-[10%]">Courier</th>
                                 <th className="py-3 px-6 w-[10%] text-right">Action</th>
                             </tr>
@@ -45,11 +45,8 @@ export const ClientShipmentsTable = ({ shipments }: ClientShipmentsTableProps) =
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-sm text-slate-800 group-hover:text-blue-600 transition-colors">
-                                                    #{shipment.id.substring(0, 8).toUpperCase()}
+                                                    #{shipment.courierTrackingId || shipment.id.substring(0, 8).toUpperCase()}
                                                 </span>
-                                                <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-slate-100 text-slate-500 border-slate-200">
-                                                    COD
-                                                </Badge>
                                             </div>
                                             <div className="flex items-center gap-1.5 text-xs text-slate-500">
                                                 <Clock className="h-3 w-3 text-slate-400" />
@@ -80,20 +77,29 @@ export const ClientShipmentsTable = ({ shipments }: ClientShipmentsTableProps) =
                                                 <PackageIcon className="h-4 w-4" />
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-slate-700">0.5 kg</span>
-                                                <span className="text-[10px] text-slate-500">Vol: 1.2kg</span>
+                                                <span className="text-xs font-bold text-slate-700">{shipment.weight || 0.5} kg</span>
+                                                {shipment.dimensions && (
+                                                    <span className="text-[10px] text-slate-500">
+                                                        {shipment.dimensions.length}x{shipment.dimensions.width}x{shipment.dimensions.height} cm
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </td>
 
-                                    {/* Payment */}
+                                    {/* Status */}
                                     <td className="py-3 px-4 align-top">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="font-bold text-sm text-slate-800">₹{shipment.chargedAmount}</span>
-                                            <span className="text-[10px] text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded-full w-fit">
-                                                Paid
-                                            </span>
-                                        </div>
+                                        <Badge
+                                            variant="secondary"
+                                            className={`text-[10px] font-medium capitalize ${
+                                                shipment.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                                shipment.status === 'transit' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                                shipment.status === 'cancelled' ? 'bg-red-50 text-red-600 border-red-200' :
+                                                'bg-amber-50 text-amber-600 border-amber-200'
+                                            }`}
+                                        >
+                                            {shipment.status === 'transit' ? 'In Transit' : shipment.status}
+                                        </Badge>
                                     </td>
 
                                     {/* Courier */}

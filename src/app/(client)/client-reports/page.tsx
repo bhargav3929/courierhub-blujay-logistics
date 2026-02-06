@@ -7,9 +7,9 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    FileText, Download, IndianRupee, Package, TrendingUp,
+    FileText, Download, Package, TrendingUp,
     Truck, BarChart3, PieChart as PieChartIcon,
-    Filter, RefreshCw
+    Filter, RefreshCw, CheckCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -95,28 +95,24 @@ export default function ClientReportsPage() {
             );
 
             // Calculate courier breakdown
-            const courierMap: Record<string, { count: number; cost: number }> = {};
+            const courierMap: Record<string, number> = {};
             shipmentsData.forEach(s => {
-                if (!courierMap[s.courier]) courierMap[s.courier] = { count: 0, cost: 0 };
-                courierMap[s.courier].count++;
-                courierMap[s.courier].cost += (s.chargedAmount || 0);
+                courierMap[s.courier] = (courierMap[s.courier] || 0) + 1;
             });
             setCourierBreakdown(
                 Object.entries(courierMap)
-                    .sort(([, a], [, b]) => b.count - a.count)
-                    .map(([name, data], i) => ({ name, shipments: data.count, cost: data.cost, color: courierColors[i % courierColors.length] }))
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([name, count], i) => ({ name, shipments: count, color: courierColors[i % courierColors.length] }))
             );
 
             // Calculate daily trend
-            const dayMap: Record<string, { shipments: number; spend: number }> = {};
+            const dayMap: Record<string, number> = {};
             shipmentsData.forEach(s => {
                 const d = s.createdAt?.toDate ? s.createdAt.toDate() : new Date();
                 const key = format(d, "MMM dd");
-                if (!dayMap[key]) dayMap[key] = { shipments: 0, spend: 0 };
-                dayMap[key].shipments++;
-                dayMap[key].spend += (s.chargedAmount || 0);
+                dayMap[key] = (dayMap[key] || 0) + 1;
             });
-            setDailyTrend(Object.entries(dayMap).map(([date, data]) => ({ date, ...data })));
+            setDailyTrend(Object.entries(dayMap).map(([date, shipments]) => ({ date, shipments })));
 
             setReportGenerated(true);
             toast.success(`Report generated — ${shipmentsData.length} shipments found`);
@@ -141,11 +137,11 @@ export default function ClientReportsPage() {
         : shipments.filter(s => s.status === statusFilter);
 
     // Calculated summary from real data
-    const totalSpend = shipments.reduce((sum, s) => sum + (s.chargedAmount || 0), 0);
     const totalWeight = shipments.reduce((sum, s) => sum + (s.weight || 0), 0);
-    const avgOrderValue = shipments.length > 0 ? totalSpend / shipments.length : 0;
+    const deliveredCount = shipments.filter(s => s.status === 'delivered').length;
+    const inTransitCount = shipments.filter(s => s.status === 'transit').length;
     const deliveryRate = shipments.length > 0
-        ? ((shipments.filter(s => s.status === 'delivered').length / shipments.length) * 100)
+        ? ((deliveredCount / shipments.length) * 100)
         : 0;
     const uniqueCouriers = new Set(shipments.map(s => s.courier)).size;
 
@@ -257,7 +253,7 @@ export default function ClientReportsPage() {
                                     <div className="mt-3">
                                         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Shipments</p>
                                         <h4 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{shipments.length}</h4>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Avg ₹{avgOrderValue.toFixed(0)}/order</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{uniqueCouriers} courier{uniqueCouriers !== 1 ? 's' : ''} used</p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -266,18 +262,16 @@ export default function ClientReportsPage() {
                                 <CardContent className="p-5">
                                     <div className="flex items-center justify-between">
                                         <div className="p-2.5 rounded-xl bg-emerald-500/10">
-                                            <IndianRupee className="h-5 w-5 text-emerald-600" />
+                                            <CheckCircle className="h-5 w-5 text-emerald-600" />
                                         </div>
                                         <Badge variant="secondary" className="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 text-xs">
-                                            Spend
+                                            Delivered
                                         </Badge>
                                     </div>
                                     <div className="mt-3">
-                                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Spend</p>
-                                        <h4 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                                            ₹{totalSpend.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
-                                        </h4>
-                                        <p className="text-xs text-muted-foreground mt-0.5">{uniqueCouriers} courier{uniqueCouriers !== 1 ? 's' : ''} used</p>
+                                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Delivered</p>
+                                        <h4 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{deliveredCount}</h4>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{inTransitCount} in transit</p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -295,7 +289,7 @@ export default function ClientReportsPage() {
                                     <div className="mt-3">
                                         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Delivery Rate</p>
                                         <h4 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{deliveryRate.toFixed(1)}%</h4>
-                                        <p className="text-xs text-muted-foreground mt-0.5">{shipments.filter(s => s.status === 'delivered').length} delivered</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{deliveredCount} of {shipments.length} delivered</p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -321,14 +315,14 @@ export default function ClientReportsPage() {
 
                         {/* Charts Row 1: Trend + Status */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Daily Shipment & Spend Trend */}
+                            {/* Daily Shipment Trend */}
                             <MotionCard delay={0.1} className="lg:col-span-2">
                                 <MotionCardHeader>
                                     <MotionCardTitle className="flex items-center gap-2">
                                         <BarChart3 className="h-5 w-5 text-blue-500" />
                                         Shipping Activity Trend
                                     </MotionCardTitle>
-                                    <p className="text-sm text-muted-foreground">Daily breakdown of orders and spend</p>
+                                    <p className="text-sm text-muted-foreground">Daily shipment volume</p>
                                 </MotionCardHeader>
                                 <MotionCardContent>
                                     <div className="h-[300px] w-full">
@@ -336,23 +330,16 @@ export default function ClientReportsPage() {
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <AreaChart data={dailyTrend}>
                                                     <defs>
-                                                        <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
+                                                        <linearGradient id="colorShipments" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                                                             <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                                                        </linearGradient>
-                                                        <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                                                         </linearGradient>
                                                     </defs>
                                                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                                                     <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                                                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                                                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                                                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
                                                     <Tooltip contentStyle={tooltipStyle} />
-                                                    <Legend />
-                                                    <Area yAxisId="left" type="monotone" dataKey="spend" stroke="#6366f1" fill="url(#colorSpend)" name="Spend (₹)" />
-                                                    <Area yAxisId="right" type="monotone" dataKey="shipments" stroke="#10b981" fill="url(#colorOrders)" name="Shipments" />
+                                                    <Area type="monotone" dataKey="shipments" stroke="#6366f1" fill="url(#colorShipments)" name="Shipments" />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         ) : (
@@ -418,7 +405,7 @@ export default function ClientReportsPage() {
                                     <Truck className="h-5 w-5 text-blue-500" />
                                     Courier Usage Breakdown
                                 </MotionCardTitle>
-                                <p className="text-sm text-muted-foreground">Shipments and spend by courier partner</p>
+                                <p className="text-sm text-muted-foreground">Shipments by courier partner</p>
                             </MotionCardHeader>
                             <MotionCardContent>
                                 <div className="h-[280px] w-full">
@@ -426,12 +413,10 @@ export default function ClientReportsPage() {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={courierBreakdown} layout="vertical" margin={{ left: 10 }}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                                                <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                                                <XAxis type="number" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
                                                 <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={90} />
-                                                <Tooltip contentStyle={tooltipStyle} formatter={(value: any, name: string) => [name === 'cost' ? `₹${value.toLocaleString('en-IN')}` : value, name === 'cost' ? 'Spend' : 'Shipments']} />
-                                                <Legend />
+                                                <Tooltip contentStyle={tooltipStyle} />
                                                 <Bar dataKey="shipments" fill="#6366f1" radius={[0, 4, 4, 0]} name="Shipments" />
-                                                <Bar dataKey="cost" fill="#10b981" radius={[0, 4, 4, 0]} name="Spend (₹)" />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     ) : (
@@ -475,12 +460,11 @@ export default function ClientReportsPage() {
                                         <TableHeader>
                                             <TableRow className="bg-muted/50">
                                                 <TableHead>Date</TableHead>
-                                                <TableHead>Order ID</TableHead>
+                                                <TableHead>AWB/Tracking ID</TableHead>
                                                 <TableHead>Courier</TableHead>
                                                 <TableHead>Route</TableHead>
                                                 <TableHead className="text-center">Status</TableHead>
                                                 <TableHead className="text-right">Weight</TableHead>
-                                                <TableHead className="text-right">Amount Charged</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -493,7 +477,7 @@ export default function ClientReportsPage() {
                                                                 {createdDate ? format(createdDate, "MMM dd, yyyy") : "—"}
                                                             </TableCell>
                                                             <TableCell className="font-mono font-medium text-sm">
-                                                                {shipment.id.slice(0, 12)}...
+                                                                {shipment.courierTrackingId || shipment.id.slice(0, 12)}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <Badge variant="outline" className="text-xs">
@@ -516,15 +500,12 @@ export default function ClientReportsPage() {
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-right text-sm">{shipment.weight || 0} kg</TableCell>
-                                                            <TableCell className="text-right font-semibold text-sm">
-                                                                ₹{(shipment.chargedAmount || 0).toLocaleString('en-IN')}
-                                                            </TableCell>
                                                         </TableRow>
                                                     );
                                                 })
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                                         No shipments found for the selected filter.
                                                     </TableCell>
                                                 </TableRow>
@@ -540,18 +521,18 @@ export default function ClientReportsPage() {
                             </MotionCardContent>
                         </MotionCard>
 
-                        {/* Spending Summary Footer */}
+                        {/* Shipment Summary Footer */}
                         <Card className="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-700 text-white border-0">
                             <CardContent className="p-6">
-                                <h3 className="text-lg font-semibold mb-4">Spending Summary</h3>
+                                <h3 className="text-lg font-semibold mb-4">Shipment Summary</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                     <div>
-                                        <p className="text-slate-400 text-xs uppercase tracking-wider">Total Spend</p>
-                                        <p className="text-2xl font-bold mt-1">₹{totalSpend.toLocaleString('en-IN')}</p>
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider">Total Shipments</p>
+                                        <p className="text-2xl font-bold mt-1">{shipments.length}</p>
                                     </div>
                                     <div>
-                                        <p className="text-slate-400 text-xs uppercase tracking-wider">Avg Per Order</p>
-                                        <p className="text-2xl font-bold mt-1">₹{avgOrderValue.toFixed(0)}</p>
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider">Delivered</p>
+                                        <p className="text-2xl font-bold mt-1 text-emerald-400">{deliveredCount}</p>
                                     </div>
                                     <div>
                                         <p className="text-slate-400 text-xs uppercase tracking-wider">Total Weight</p>
