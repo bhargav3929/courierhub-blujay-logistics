@@ -313,6 +313,7 @@ const AddShipment = () => {
                     CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
                     OriginArea: BLUEDART_PREDEFINED.billingArea,
                     Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
+                    isToPayCustomer: false,
                 },
                 Services: {
                     ProductCode: selectedService.code,
@@ -329,7 +330,7 @@ const AddShipment = () => {
                             Count: "1"
                         }
                     ],
-                    ...(enableCOD ? { CollectableAmount: codAmountValue } : {}),
+                    ...(enableCOD ? { CollactableAmount: codAmountValue } : {}),
                     DeclaredValue: parseFloat(commodity.value) || 200,
                     CreditReferenceNo: referenceNo,
                     PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`,
@@ -841,24 +842,44 @@ const AddShipment = () => {
                                             })}
                                         </div>
 
-                                        {/* COD Option — disabled until Blue Dart enables eTail COD on this account */}
-                                        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-muted/10 opacity-60">
+                                        {/* COD Option */}
+                                        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
                                                     <Info className="h-5 w-5 text-amber-600" />
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-sm text-muted-foreground">Cash on Delivery (COD)</div>
-                                                    <div className="text-[10px] text-amber-600 font-semibold">
-                                                        Pending activation by Blue Dart — contact support to enable
+                                                    <div className="font-bold text-sm">Cash on Delivery (COD)</div>
+                                                    <div className="text-[10px] text-muted-foreground">
+                                                        Available with Dart Apex & Dart Surfaceline only
                                                     </div>
                                                 </div>
                                             </div>
                                             <Switch
-                                                checked={false}
-                                                disabled={true}
+                                                checked={enableCOD}
+                                                onCheckedChange={(checked) => {
+                                                    setEnableCOD(checked);
+                                                    if (checked && BLUEDART_SERVICE_TYPES[blueDartServiceType].code === 'D') {
+                                                        setBlueDartServiceType('APEX');
+                                                        toast.info("Switched to Dart Apex — COD is not available for Domestic Priority");
+                                                    }
+                                                }}
                                             />
                                         </div>
+
+                                        {/* COD Amount Input */}
+                                        {enableCOD && (
+                                            <div className="space-y-2 animate-in fade-in duration-300">
+                                                <Label className="text-xs font-bold uppercase text-muted-foreground">COD Amount (₹)</Label>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="Amount to collect"
+                                                    value={codAmount}
+                                                    onChange={(e) => setCodAmount(e.target.value)}
+                                                    className="h-12 rounded-xl border-2"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
