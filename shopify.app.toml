@@ -12,7 +12,7 @@ api_version = "2024-10"
 [access_scopes]
 scopes = "read_orders,read_customers,write_fulfillments"
 optional_scopes = []
-use_legacy_install_flow = false
+use_legacy_install_flow = true
 
 [auth]
 redirect_urls = [

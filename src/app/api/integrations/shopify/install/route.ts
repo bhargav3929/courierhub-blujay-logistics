@@ -1,6 +1,8 @@
 
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { db } from '@/lib/firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +33,14 @@ export async function GET(request: Request) {
 
         // Ensure shop format
         const shopUrl = shop.includes('.') ? shop : `${shop}.myshopify.com`;
+
+        // Save pending connection in Firestore so the callback can look up
+        // the userId by shop domain (needed for Custom distribution installs
+        // where the install link doesn't carry our signed state)
+        await updateDoc(doc(db, 'users', userId), {
+            'shopifyConfig.pendingShopUrl': shopUrl,
+            'shopifyConfig.pendingAt': new Date().toISOString(),
+        });
 
         const scopes = 'read_orders,read_customers,write_fulfillments';
         const redirectUri = `${APP_URL}/api/integrations/shopify/callback`;

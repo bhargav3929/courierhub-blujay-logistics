@@ -58,6 +58,7 @@ import { format } from "date-fns";
 import { ShipmentManifest, printManifest } from "@/components/shipments/ShipmentManifest";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
 import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
+import { ShopifyLabel, printShopifyLabel } from "@/components/shipments/ShopifyLabel";
 
 const Shipments = () => {
     const [loading, setLoading] = useState(true);
@@ -75,6 +76,7 @@ const Shipments = () => {
     // Label & Manifest dialog state
     const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
     const [selectedShipmentForManifest, setSelectedShipmentForManifest] = useState<Shipment | null>(null);
+    const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -516,25 +518,76 @@ const Shipments = () => {
 
             {/* Print Label Dialog */}
             <Dialog open={!!selectedShipmentForLabel} onOpenChange={(open) => !open && setSelectedShipmentForLabel(null)}>
-                <DialogContent className={`${selectedShipmentForLabel?.courier === 'DTDC' ? 'max-w-2xl' : 'max-w-md'} bg-white p-0 overflow-hidden`}>
-                    <div className="p-4 border-b flex justify-between items-center bg-muted/20">
-                        <h2 className="font-bold">Shipping Label ({selectedShipmentForLabel?.courier})</h2>
-                        <button
-                            onClick={() => {
-                                if (selectedShipmentForLabel?.courier === 'DTDC') {
-                                    printDTDCLabel();
-                                } else {
-                                    printBlueDartLabel();
-                                }
-                            }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90"
-                        >
-                            <Printer className="h-4 w-4" /> Print Label
-                        </button>
+                <DialogContent className={`${
+                    (selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) ? 'max-w-lg' :
+                    selectedShipmentForLabel?.courier === 'DTDC' ? 'max-w-2xl' : 'max-w-md'
+                } bg-white p-0 overflow-hidden [&>button:last-child]:hidden`}>
+                    {/* Header */}
+                    <div className="px-5 pt-5 pb-4 border-b bg-gradient-to-b from-muted/40 to-white space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-base font-bold text-foreground">
+                                    Shipping Label
+                                </h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {(selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId)
+                                        ? `Shopify · ${selectedShipmentForLabel?.courier || ''}`
+                                        : selectedShipmentForLabel?.courier || ''}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedShipmentForLabel(null)}
+                                className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            >
+                                <span className="text-lg leading-none">&times;</span>
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                            {(selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) ? (
+                                <div className="flex items-center bg-muted/60 rounded-lg p-0.5 text-xs">
+                                    <button
+                                        onClick={() => setPrintMode('thermal')}
+                                        className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                                            printMode === 'thermal'
+                                                ? 'bg-white text-primary shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        Thermal 4×6
+                                    </button>
+                                    <button
+                                        onClick={() => setPrintMode('a4')}
+                                        className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                                            printMode === 'a4'
+                                                ? 'bg-white text-primary shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        A4 Sheet
+                                    </button>
+                                </div>
+                            ) : <div />}
+                            <button
+                                onClick={() => {
+                                    if (selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) {
+                                        printShopifyLabel(printMode);
+                                    } else if (selectedShipmentForLabel?.courier === 'DTDC') {
+                                        printDTDCLabel();
+                                    } else {
+                                        printBlueDartLabel();
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
+                            >
+                                <Printer className="h-3.5 w-3.5" /> Print Label
+                            </button>
+                        </div>
                     </div>
-                    <div className="p-8 flex justify-center bg-gray-50 max-h-[70vh] overflow-auto">
+                    <div className="p-6 flex justify-center bg-gray-50/50 max-h-[70vh] overflow-auto">
                         {selectedShipmentForLabel && (
-                            selectedShipmentForLabel.courier === 'DTDC' ? (
+                            (selectedShipmentForLabel.clientType === 'shopify' || !!selectedShipmentForLabel.shopifyOrderId) ? (
+                                <ShopifyLabel shipment={selectedShipmentForLabel} />
+                            ) : selectedShipmentForLabel.courier === 'DTDC' ? (
                                 <DTDCLabel referenceNumber={selectedShipmentForLabel.courierTrackingId || selectedShipmentForLabel.dtdcReferenceNumber || ''} />
                             ) : (
                                 <BlueDartLabel shipment={selectedShipmentForLabel} />

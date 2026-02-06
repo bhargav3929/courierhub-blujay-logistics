@@ -88,6 +88,14 @@ export async function POST(request: Request) {
             status: 'shopify_pending',
             shopifyOrderId: order.id?.toString(),
             shopifyOrderNumber: order.order_number?.toString(),
+            shopifyOrderDate: order.created_at || new Date().toISOString(),
+            shopifyLineItems: (order.line_items || []).map((item: any) => ({
+                sku: item.sku || '',
+                title: item.title || item.name || '',
+                quantity: item.quantity || 1,
+                price: item.price || '0',
+                variant_title: item.variant_title || '',
+            })),
 
             origin: {
                 city: originCity,

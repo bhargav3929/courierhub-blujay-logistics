@@ -83,6 +83,14 @@ export interface Shipment {
     shopifyFulfillmentStatus?: 'pending' | 'fulfilled' | 'failed';
     shopifyFulfillmentSyncedAt?: string;
     shopifyFulfillmentError?: string;
+    shopifyLineItems?: Array<{
+        sku: string;
+        title: string;
+        quantity: number;
+        price?: string;
+        variant_title?: string;
+    }>;
+    shopifyOrderDate?: string; // ISO date from order.created_at
 
     // Origin and Destination
     origin: {

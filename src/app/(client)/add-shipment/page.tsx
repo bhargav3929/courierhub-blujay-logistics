@@ -239,6 +239,11 @@ const AddShipment = () => {
     const handleBook = async () => {
         // Validate COD amount if COD is enabled (Blue Dart only)
         if (selectedCourier === 'Blue Dart' && enableCOD) {
+            const svcCode = BLUEDART_SERVICE_TYPES[blueDartServiceType].code;
+            if (svcCode === 'D') {
+                toast.error("COD is not available for Domestic Priority. Please select Dart Apex or Dart Surfaceline.");
+                return;
+            }
             if (!codAmount || parseFloat(codAmount) <= 0) {
                 toast.error("Please enter COD amount");
                 return;
@@ -308,7 +313,6 @@ const AddShipment = () => {
                     CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
                     OriginArea: BLUEDART_PREDEFINED.billingArea,
                     Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
-                    ...(enableCOD ? { IsToPayCustomer: true } : {})
                 },
                 Services: {
                     ProductCode: selectedService.code,
@@ -369,7 +373,7 @@ const AddShipment = () => {
         const shipmentData = {
             clientId: currentUser?.id || 'guest',
             clientName: currentUser?.name || pickup.name,
-            clientType: shopifySourceId ? 'shopify' as const : 'franchise' as const,
+            clientType: (currentUser?.role === 'shopify' || shopifySourceId) ? 'shopify' as const : 'franchise' as const,
             courier: 'Blue Dart',
             courierTrackingId: awbNo,
             status: 'pending' as const,
@@ -407,7 +411,7 @@ const AddShipment = () => {
             // Blue Dart service options
             blueDartServiceType: selectedService.name,
             blueDartServiceCode: selectedService.code,
-            toPayCustomer: enableCOD,
+            codEnabled: enableCOD,
             collectableAmount: codAmountValue,
         };
 
@@ -484,7 +488,7 @@ const AddShipment = () => {
         const shipmentData = {
             clientId: currentUser?.id || 'guest',
             clientName: currentUser?.name || pickup.name,
-            clientType: shopifySourceId ? 'shopify' as const : 'franchise' as const,
+            clientType: (currentUser?.role === 'shopify' || shopifySourceId) ? 'shopify' as const : 'franchise' as const,
             courier: 'DTDC',
             courierTrackingId: dtdcAwb,
             status: 'pending' as const,
@@ -806,58 +810,55 @@ const AddShipment = () => {
                                             <Truck className="h-3 w-3" /> Blue Dart Service Type
                                         </Label>
                                         <div className="grid grid-cols-3 gap-3">
-                                            {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][]).map(([key, service]) => (
-                                                <button
-                                                    key={key}
-                                                    type="button"
-                                                    onClick={() => setBlueDartServiceType(key)}
-                                                    className={`relative p-4 rounded-xl border-2 transition-all text-left ${
-                                                        blueDartServiceType === key
-                                                            ? 'border-blue-500 bg-blue-50 shadow-md'
-                                                            : 'border-muted hover:border-blue-200 bg-white'
-                                                    }`}
-                                                >
-                                                    <div className="font-bold text-sm">{service.displayName}</div>
-                                                    <div className="text-[10px] text-muted-foreground mt-1">{service.description}</div>
-                                                    {blueDartServiceType === key && (
-                                                        <div className="absolute top-2 right-2">
-                                                            <BadgeCheck className="h-4 w-4 text-blue-500" />
-                                                        </div>
-                                                    )}
-                                                </button>
-                                            ))}
+                                            {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][]).map(([key, service]) => {
+                                                const isCODBlocked = enableCOD && service.code === 'D';
+                                                return (
+                                                    <button
+                                                        key={key}
+                                                        type="button"
+                                                        onClick={() => !isCODBlocked && setBlueDartServiceType(key)}
+                                                        disabled={isCODBlocked}
+                                                        className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                                                            isCODBlocked
+                                                                ? 'border-muted bg-muted/20 opacity-50 cursor-not-allowed'
+                                                                : blueDartServiceType === key
+                                                                    ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                                    : 'border-muted hover:border-blue-200 bg-white'
+                                                        }`}
+                                                    >
+                                                        <div className="font-bold text-sm">{service.displayName}</div>
+                                                        <div className="text-[10px] text-muted-foreground mt-1">{service.description}</div>
+                                                        {isCODBlocked && (
+                                                            <div className="text-[9px] text-amber-600 font-bold mt-1">No COD</div>
+                                                        )}
+                                                        {!isCODBlocked && blueDartServiceType === key && (
+                                                            <div className="absolute top-2 right-2">
+                                                                <BadgeCheck className="h-4 w-4 text-blue-500" />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
 
-                                        {/* COD Option */}
-                                        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
+                                        {/* COD Option — disabled until Blue Dart enables eTail COD on this account */}
+                                        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-muted/10 opacity-60">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
                                                     <Info className="h-5 w-5 text-amber-600" />
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-sm">Cash on Delivery (COD)</div>
-                                                    <div className="text-[10px] text-muted-foreground">Collect payment on delivery</div>
+                                                    <div className="font-bold text-sm text-muted-foreground">Cash on Delivery (COD)</div>
+                                                    <div className="text-[10px] text-amber-600 font-semibold">
+                                                        Pending activation by Blue Dart — contact support to enable
+                                                    </div>
                                                 </div>
                                             </div>
                                             <Switch
-                                                checked={enableCOD}
-                                                onCheckedChange={setEnableCOD}
+                                                checked={false}
+                                                disabled={true}
                                             />
                                         </div>
-
-                                        {/* COD Amount Input */}
-                                        {enableCOD && (
-                                            <div className="space-y-2 animate-in fade-in duration-300">
-                                                <Label className="text-xs font-bold uppercase text-muted-foreground">COD Amount (₹)</Label>
-                                                <Input
-                                                    type="number"
-                                                    placeholder="Amount to collect"
-                                                    value={codAmount}
-                                                    onChange={(e) => setCodAmount(e.target.value)}
-                                                    className="h-12 rounded-xl border-2"
-                                                />
-                                            </div>
-                                        )}
                                     </div>
                                 )}
 

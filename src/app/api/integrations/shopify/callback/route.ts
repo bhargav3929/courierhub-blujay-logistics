@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { encryptToken } from '@/lib/shopifyTokenCrypto';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +34,23 @@ function verifySignedState(stateParam: string): string | null {
     }
 }
 
+// Fallback: look up userId by pending shop domain in Firestore
+// Used when Custom distribution install link bypasses our install route
+async function findUserByPendingShop(shopDomain: string): Promise<string | null> {
+    try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('shopifyConfig.pendingShopUrl', '==', shopDomain));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+            return snapshot.docs[0].id;
+        }
+        return null;
+    } catch (error) {
+        console.error('[Shopify Callback] Error looking up user by shop:', error);
+        return null;
+    }
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const shop = searchParams.get('shop');
@@ -41,7 +58,7 @@ export async function GET(request: Request) {
     const state = searchParams.get('state');
     const hmac = searchParams.get('hmac');
 
-    if (!shop || !code || !hmac || !state) {
+    if (!shop || !code || !hmac) {
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=missing_params`);
     }
 
@@ -66,9 +83,21 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=invalid_signature`);
     }
 
-    // 2. Verify signed state and extract userId
-    const userId = verifySignedState(state);
+    // 2. Extract userId: try signed state first, fall back to shop domain lookup
+    let userId: string | null = null;
+
+    if (state) {
+        userId = verifySignedState(state);
+    }
+
+    // Fallback for Custom distribution installs (no signed state)
     if (!userId) {
+        console.log('[Shopify Callback] No valid state, looking up user by shop domain:', shop);
+        userId = await findUserByPendingShop(shop);
+    }
+
+    if (!userId) {
+        console.error('[Shopify Callback] Could not determine userId for shop:', shop);
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=invalid_state`);
     }
 
