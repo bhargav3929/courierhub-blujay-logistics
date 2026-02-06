@@ -330,7 +330,7 @@ const AddShipment = () => {
                             Count: "1"
                         }
                     ],
-                    ...(enableCOD ? { CollactableAmount: codAmountValue } : {}),
+                    ...(enableCOD ? { CollectableAmount: codAmountValue } : {}),
                     DeclaredValue: parseFloat(commodity.value) || 200,
                     CreditReferenceNo: referenceNo,
                     PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`,
