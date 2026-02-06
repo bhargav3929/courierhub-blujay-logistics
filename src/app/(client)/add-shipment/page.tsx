@@ -62,7 +62,7 @@ const AddShipment = () => {
     const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
 
     // Blue Dart service options
-    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>('STANDARD');
+    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>('PRIORITY');
     const [enableCOD, setEnableCOD] = useState(false);
     const [codAmount, setCodAmount] = useState("");
 
@@ -308,11 +308,11 @@ const AddShipment = () => {
                     CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
                     OriginArea: BLUEDART_PREDEFINED.billingArea,
                     Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
-                    IsToPayCustomer: enableCOD
+                    ...(enableCOD ? { IsToPayCustomer: true } : {})
                 },
                 Services: {
                     ProductCode: selectedService.code,
-                    ProductType: 0,
+                    ProductType: 1,
                     PieceCount: "1",
                     PackType: "",
                     ActualWeight: weights.actual.toString(),
@@ -324,7 +324,7 @@ const AddShipment = () => {
                             Count: "1"
                         }
                     ],
-                    CollectableAmount: codAmountValue,
+                    ...(enableCOD ? { CollectableAmount: codAmountValue } : {}),
                     DeclaredValue: parseFloat(commodity.value) || 200,
                     CreditReferenceNo: referenceNo,
                     PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`,

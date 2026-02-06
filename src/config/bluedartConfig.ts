@@ -3,23 +3,23 @@
 
 // Service Types available for Blue Dart
 export const BLUEDART_SERVICE_TYPES = {
-    STANDARD: {
+    PRIORITY: {
         code: 'D',
-        name: 'Standard',
-        displayName: 'Blue Dart Standard',
-        description: 'Ground express delivery (2-5 days)',
+        name: 'Domestic Priority',
+        displayName: 'Domestic Priority',
+        description: 'Premium next-day air express',
     },
-    AIR: {
+    APEX: {
         code: 'A',
-        name: 'Air',
-        displayName: 'Blue Dart Air Express',
-        description: 'Air express delivery (1-2 days)',
+        name: 'Dart Apex',
+        displayName: 'Dart Apex',
+        description: 'Air express for 10 kg+ shipments',
     },
-    PLUS: {
+    SURFACE: {
         code: 'E',
-        name: 'Plus',
-        displayName: 'Blue Dart Plus',
-        description: 'Priority express delivery with extra care',
+        name: 'Dart Surfaceline',
+        displayName: 'Dart Surfaceline',
+        description: 'Economical ground delivery (3-7 days)',
     },
 } as const;
 
@@ -38,8 +38,8 @@ export const BLUEDART_PREDEFINED = {
     senderMobile: "9876543210", // Should ideally be dynamic
 
     // Product Configuration
-    productCode: "D",           // D = Domestic
-    productType: "NDOX",        // NDOX = Non-Document Express
+    productCode: "D",           // D = Domestic Priority (default)
+    productType: "NDOX",        // NDOX = Non-Document (Dutiables) — API value: 1
 
     // Default Times
     pickupTime: "1600",         // 4:00 PM (Safest default)
