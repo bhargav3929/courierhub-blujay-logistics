@@ -82,7 +82,7 @@ const ClientIntegrations = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
 
-    // Check for success param
+    // Check for success/error/pending params from Shopify OAuth callback
     // We use window.location because Next.js useSearchParams might need Suspense boundary wrapper
     // which is annoying to refactor right now.
     useEffect(() => {
@@ -95,6 +95,18 @@ const ClientIntegrations = () => {
                 retryAuth();
                 window.history.replaceState({}, '', '/client-integrations');
             }
+
+            // Custom Distribution: merchant authorized via Shopify but wasn't logged in here
+            if (params.get('shopifyPending') === 'true') {
+                const pendingShop = params.get('pendingShop') || '';
+                toast.info("Shopify Store Authorized!", {
+                    description: `Your store ${pendingShop ? `(${pendingShop}) ` : ''}was authorized. Click "Connect" on Shopify below and enter your store URL to complete the setup.`,
+                    duration: 10000,
+                });
+                setIsShopifyModalOpen(true);
+                window.history.replaceState({}, '', '/client-integrations');
+            }
+
             const shopifyError = params.get('shopifyError');
             if (shopifyError) {
                 const errorMessages: Record<string, string> = {

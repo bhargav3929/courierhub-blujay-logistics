@@ -2,7 +2,9 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { decryptToken } from '@/lib/shopifyTokenCrypto';
+import { registerShopifyWebhook } from '@/lib/shopifyWebhook';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +36,53 @@ export async function GET(request: Request) {
         // Ensure shop format
         const shopUrl = shop.includes('.') ? shop : `${shop}.myshopify.com`;
 
+        // ── Check for pending Custom Distribution install ──
+        // If the merchant already authorized via Shopify's Custom Distribution link,
+        // the token is stored in pendingShopifyInstalls. Claim it directly — no OAuth needed.
+        const pendingRef = doc(db, 'pendingShopifyInstalls', shopUrl);
+        const pendingDoc = await getDoc(pendingRef);
+
+        if (pendingDoc.exists() && !pendingDoc.data().claimed) {
+            console.log('[Shopify Install] Found pending install for', shopUrl, '— claiming for user', userId);
+
+            const pendingData = pendingDoc.data();
+            const accessToken = decryptToken(pendingData.accessToken);
+
+            // Save to user's shopifyConfig (token is already encrypted in pendingData)
+            await updateDoc(doc(db, 'users', userId), {
+                shopifyConfig: {
+                    shopUrl: shopUrl,
+                    accessToken: pendingData.accessToken,
+                    isConnected: true,
+                    updatedAt: new Date().toISOString(),
+                    scopes: pendingData.scopes,
+                }
+            });
+
+            // Register webhook using the decrypted token
+            const webhookResult = await registerShopifyWebhook(shopUrl, accessToken);
+            if (!webhookResult.success) {
+                console.error('[Shopify Install] Webhook registration failed:', webhookResult.error);
+                await updateDoc(doc(db, 'users', userId), {
+                    'shopifyConfig.webhookStatus': 'failed',
+                    'shopifyConfig.webhookError': webhookResult.error
+                });
+            } else {
+                await updateDoc(doc(db, 'users', userId), {
+                    'shopifyConfig.webhookStatus': 'active'
+                });
+            }
+
+            // Remove the pending install record
+            await deleteDoc(pendingRef);
+
+            console.log('[Shopify Install] Pending install claimed successfully for user', userId);
+            return NextResponse.redirect(`${APP_URL}/client-integrations?shopifySuccess=true`, { status: 302 });
+        }
+
+        // ── Normal OAuth flow ──
         // Save pending connection in Firestore so the callback can look up
-        // the userId by shop domain (needed for Custom distribution installs
-        // where the install link doesn't carry our signed state)
+        // the userId by shop domain (needed if state verification fails)
         await updateDoc(doc(db, 'users', userId), {
             'shopifyConfig.pendingShopUrl': shopUrl,
             'shopifyConfig.pendingAt': new Date().toISOString(),

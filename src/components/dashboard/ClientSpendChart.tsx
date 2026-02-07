@@ -18,12 +18,6 @@ export const ClientActivityChart = ({ data }: ClientActivityChartProps) => {
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={data} barSize={40}>
-                            <defs>
-                                <linearGradient id="colorShipments" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                                </linearGradient>
-                            </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
                             <XAxis
                                 dataKey="date"
@@ -51,7 +45,7 @@ export const ClientActivityChart = ({ data }: ClientActivityChartProps) => {
                             />
                             <Bar
                                 dataKey="shipments"
-                                fill="url(#colorShipments)"
+                                fill="hsl(var(--primary))"
                                 radius={[6, 6, 0, 0]}
                                 animationDuration={1500}
                                 animationEasing="ease-out"

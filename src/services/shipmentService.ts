@@ -263,3 +263,55 @@ export const deleteShipment = async (shipmentId: string): Promise<void> => {
         throw new Error('Failed to delete shipment');
     }
 };
+
+/**
+ * Lookup receiver details by phone number from past shipments.
+ * Returns the most recent matching destination info for auto-fill.
+ */
+export const lookupReceiverByPhone = async (
+    clientId: string,
+    phone: string
+): Promise<{ name: string; phone: string; pincode: string; address: string; city: string; state: string } | null> => {
+    try {
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.length < 10) return null;
+
+        const q = query(
+            collection(db, SHIPMENTS_COLLECTION),
+            where('clientId', '==', clientId)
+        );
+        const snapshot = await getDocs(q);
+
+        let match: any = null;
+        let latestTime = 0;
+
+        for (const shipmentDoc of snapshot.docs) {
+            const data = shipmentDoc.data();
+            const receiverPhone = (data.receiverMobile || data.destination?.phone || '').replace(/\D/g, '');
+            // Match on last 10 digits to handle country code variations
+            const normalizedInput = cleanPhone.slice(-10);
+            const normalizedStored = receiverPhone.slice(-10);
+            if (normalizedInput === normalizedStored) {
+                const time = data.createdAt?.toMillis?.() || 0;
+                if (time > latestTime) {
+                    latestTime = time;
+                    match = data;
+                }
+            }
+        }
+
+        if (!match) return null;
+
+        return {
+            name: match.destination?.name || match.receiverName || '',
+            phone: match.destination?.phone || match.receiverMobile || phone,
+            pincode: match.destination?.pincode || '',
+            address: match.destination?.address || '',
+            city: match.destination?.city || '',
+            state: match.destination?.state || '',
+        };
+    } catch (error) {
+        console.error('Error looking up receiver by phone:', error);
+        return null;
+    }
+};

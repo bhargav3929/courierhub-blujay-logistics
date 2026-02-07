@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import {
     Package,
     MapPin,
     Truck,
-    Info,
     Globe,
     Building2,
     PhoneCall,
@@ -19,11 +18,17 @@ import {
     BadgeCheck,
     Loader2,
     Star,
-    ChevronRight
+    ChevronRight,
+    Ruler,
+    Hash,
+    Tag,
+    IndianRupee,
+    Scale,
+    HandCoins
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { createShipment, getShipmentById, updateShipment } from "@/services/shipmentService";
+import { createShipment, getShipmentById, updateShipment, lookupReceiverByPhone } from "@/services/shipmentService";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
 import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
@@ -73,6 +78,12 @@ const AddShipment = () => {
     const [dimensions, setDimensions] = useState({ length: "10", width: "10", height: "10" });
     const [actualWeight, setActualWeight] = useState("0.5");
     const [commodity, setCommodity] = useState({ description: "", value: "" });
+    const [orderID, setOrderID] = useState("");
+
+    // Auto-fill state
+    const [receiverLookupLoading, setReceiverLookupLoading] = useState(false);
+    const [receiverAutoFilled, setReceiverAutoFilled] = useState(false);
+    const lookupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -159,9 +170,71 @@ const AddShipment = () => {
             if (shipment.declaredValue) {
                 setCommodity(prev => ({ ...prev, value: shipment.declaredValue!.toString() }));
             }
+
+            // Pre-fill commodity description from Shopify line items
+            if (shipment.shopifyLineItems && shipment.shopifyLineItems.length > 0) {
+                const productNames = shipment.shopifyLineItems.map(item => item.title).join(', ');
+                setCommodity(prev => ({ ...prev, description: prev.description || productNames }));
+            }
+
+            // Pre-fill order ID from Shopify order number
+            if (shipment.shopifyOrderNumber) {
+                setOrderID(`#${shipment.shopifyOrderNumber}`);
+            } else if (shipment.referenceNo) {
+                setOrderID(shipment.referenceNo);
+            }
         };
         loadShopifyOrder();
     }, [shopifyShipmentId]);
+
+    // Debounced receiver phone lookup for auto-fill
+    const handleReceiverPhoneChange = useCallback((phone: string) => {
+        setDelivery(prev => ({ ...prev, phone }));
+        setReceiverAutoFilled(false);
+
+        // Clear previous timer
+        if (lookupTimerRef.current) {
+            clearTimeout(lookupTimerRef.current);
+        }
+
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.length >= 10 && currentUser?.id) {
+            setReceiverLookupLoading(true);
+            lookupTimerRef.current = setTimeout(async () => {
+                try {
+                    const result = await lookupReceiverByPhone(currentUser.id, cleanPhone);
+                    if (result) {
+                        setDelivery({
+                            name: result.name,
+                            phone: phone, // Keep user's typed value
+                            pincode: result.pincode,
+                            address: result.address,
+                            city: result.city,
+                            state: result.state,
+                            country: "India",
+                        });
+                        setReceiverAutoFilled(true);
+                        toast.success("Receiver details auto-filled", {
+                            description: `Found previous shipment for ${result.name}`,
+                        });
+                    }
+                } catch {
+                    // Silently fail - user can still enter manually
+                } finally {
+                    setReceiverLookupLoading(false);
+                }
+            }, 500);
+        } else {
+            setReceiverLookupLoading(false);
+        }
+    }, [currentUser?.id]);
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+            if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+        };
+    }, []);
 
     // Save pickup address as default
     const handleSetAsDefault = async () => {
@@ -265,7 +338,7 @@ const AddShipment = () => {
 
         setLoading(true);
         try {
-            const referenceNo = `ORDER ${Date.now().toString().slice(-6)}`;
+            const referenceNo = orderID.trim() || `ORDER ${Date.now().toString().slice(-6)}`;
 
             if (selectedCourier === 'DTDC') {
                 await handleBookDTDC(referenceNo, cleanSenderMobile, cleanReceiverMobile);
@@ -633,18 +706,40 @@ const AddShipment = () => {
 
                                 {/* Delivery */}
                                 <div className="p-8 lg:p-10 space-y-6 bg-muted/5">
-                                    <div>
-                                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-bold uppercase tracking-wider">
-                                            To
-                                        </span>
-                                        <h2 className="text-2xl font-black mt-2">Delivery Address</h2>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-bold uppercase tracking-wider">
+                                                To
+                                            </span>
+                                            <h2 className="text-2xl font-black mt-2">Delivery Address</h2>
+                                        </div>
+                                        {receiverAutoFilled && (
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-600 text-[10px] font-bold uppercase tracking-wider border border-green-200 animate-in fade-in duration-300">
+                                                <BadgeCheck className="h-3 w-3" /> Auto-filled
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="grid gap-4">
-                                        <PremiumInput label="Receiver Name *" icon={UserCircle} placeholder="Receiver's name" value={delivery.name} onChange={(v: any) => setDelivery({ ...delivery, name: v })} />
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <PremiumInput label="Mobile *" icon={PhoneCall} placeholder="10 digits" value={delivery.phone} onChange={(v: any) => setDelivery({ ...delivery, phone: v })} />
-                                            <PremiumInput label="Pincode *" icon={MapPin} placeholder="6 digits" value={delivery.pincode} onChange={(v: any) => setDelivery({ ...delivery, pincode: v })} />
+                                        {/* Phone number FIRST for auto-fill lookup */}
+                                        <div className="relative">
+                                            <PremiumInput
+                                                label="Contact Number *"
+                                                icon={PhoneCall}
+                                                placeholder="Enter 10-digit mobile number"
+                                                value={delivery.phone}
+                                                onChange={handleReceiverPhoneChange}
+                                            />
+                                            {receiverLookupLoading && (
+                                                <div className="absolute right-3 top-9">
+                                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                                </div>
+                                            )}
+                                            <p className="text-[10px] text-muted-foreground mt-1 ml-1">
+                                                Enter the receiver&apos;s number — previously saved details will auto-fill
+                                            </p>
                                         </div>
+                                        <PremiumInput label="Receiver Name *" icon={UserCircle} placeholder="Receiver's name" value={delivery.name} onChange={(v: any) => setDelivery({ ...delivery, name: v })} />
+                                        <PremiumInput label="Pincode *" icon={MapPin} placeholder="6 digits" value={delivery.pincode} onChange={(v: any) => setDelivery({ ...delivery, pincode: v })} />
                                         <PremiumInput label="Address *" icon={Building2} placeholder="Complete address" value={delivery.address} onChange={(v: any) => setDelivery({ ...delivery, address: v })} />
                                         <div className="grid grid-cols-2 gap-3">
                                             <PremiumInput label="City" icon={Globe} placeholder="City" value={delivery.city} onChange={(v: any) => setDelivery({ ...delivery, city: v })} />
@@ -665,73 +760,58 @@ const AddShipment = () => {
                                     <p className="text-muted-foreground text-sm mt-1">Enter dimensions, weight, and commodity info</p>
                                 </div>
 
-                                <div className="space-y-6">
+                                {/* Dimensions Section */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                            <Ruler className="h-4 w-4 text-primary" />
+                                        </div>
+                                        <h3 className="font-bold text-sm uppercase tracking-wide text-foreground">Dimensions</h3>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <PremiumInput label="Length (cm)" icon={Ruler} placeholder="10" value={dimensions.length} onChange={(v: string) => setDimensions({ ...dimensions, length: v })} type="number" />
+                                        <PremiumInput label="Width (cm)" icon={Ruler} placeholder="10" value={dimensions.width} onChange={(v: string) => setDimensions({ ...dimensions, width: v })} type="number" />
+                                        <PremiumInput label="Height (cm)" icon={Ruler} placeholder="10" value={dimensions.height} onChange={(v: string) => setDimensions({ ...dimensions, height: v })} type="number" />
+                                    </div>
+                                </div>
+
+                                {/* Weight Section */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                            <Scale className="h-4 w-4 text-primary" />
+                                        </div>
+                                        <h3 className="font-bold text-sm uppercase tracking-wide text-foreground">Weight</h3>
+                                    </div>
+                                    <PremiumInput label="Actual Weight (kg) *" icon={Scale} placeholder="e.g. 0.5" value={actualWeight} onChange={(v: string) => setActualWeight(v)} type="number" />
                                     <div className="grid grid-cols-3 gap-3">
-                                        <div className="space-y-2 text-left">
-                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Length (cm)</Label>
-                                            <Input type="number" value={dimensions.length} onChange={(e) => setDimensions({ ...dimensions, length: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                        <div className="p-4 rounded-xl bg-muted/30 border border-muted/40 text-center">
+                                            <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Volumetric</div>
+                                            <div className="text-xl font-black text-foreground mt-1">{weights.volumetric} <span className="text-xs font-medium text-muted-foreground">kg</span></div>
                                         </div>
-                                        <div className="space-y-2 text-left">
-                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Width (cm)</Label>
-                                            <Input type="number" value={dimensions.width} onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
+                                        <div className="p-4 rounded-xl bg-muted/30 border border-muted/40 text-center">
+                                            <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Actual</div>
+                                            <div className="text-xl font-black text-foreground mt-1">{weights.actual} <span className="text-xs font-medium text-muted-foreground">kg</span></div>
                                         </div>
-                                        <div className="space-y-2 text-left">
-                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Height (cm)</Label>
-                                            <Input type="number" value={dimensions.height} onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })} className="h-14 text-xl font-bold text-center rounded-xl border-2" />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2 text-left">
-                                        <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                            <Package className="h-3 w-3" /> Actual Weight (kg) *
-                                        </Label>
-                                        <Input
-                                            type="number"
-                                            placeholder="e.g. 0.5"
-                                            value={actualWeight}
-                                            onChange={(e) => setActualWeight(e.target.value)}
-                                            className="h-14 text-xl font-bold rounded-xl border-2 pl-5"
-                                        />
-                                    </div>
-
-                                    {/* Weight Summary */}
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <div className="p-3 rounded-xl bg-muted/30 text-center">
-                                            <div className="text-[10px] font-bold uppercase text-muted-foreground">Volumetric</div>
-                                            <div className="text-lg font-black text-foreground">{weights.volumetric} kg</div>
-                                        </div>
-                                        <div className="p-3 rounded-xl bg-muted/30 text-center">
-                                            <div className="text-[10px] font-bold uppercase text-muted-foreground">Actual</div>
-                                            <div className="text-lg font-black text-foreground">{weights.actual} kg</div>
-                                        </div>
-                                        <div className="p-3 rounded-xl bg-primary/10 text-center">
-                                            <div className="text-[10px] font-bold uppercase text-primary">Billable</div>
-                                            <div className="text-lg font-black text-primary">{weights.billable} kg</div>
+                                        <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 text-center">
+                                            <div className="text-[10px] font-bold uppercase tracking-wide text-primary">Billable</div>
+                                            <div className="text-xl font-black text-primary mt-1">{weights.billable} <span className="text-xs font-medium text-primary/70">kg</span></div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-2 text-left">
-                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground">Commodity</Label>
-                                            <Input
-                                                placeholder="e.g. Electronics"
-                                                value={commodity.description}
-                                                onChange={(e) => setCommodity({ ...commodity, description: e.target.value })}
-                                                className="h-12 rounded-xl border-2"
-                                            />
+                                {/* Order & Commodity Section */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                            <Tag className="h-4 w-4 text-primary" />
                                         </div>
-                                        <div className="space-y-2 text-left">
-                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-2">
-                                                <Info className="h-3 w-3" /> Value (₹) *
-                                            </Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="e.g. 500"
-                                                value={commodity.value}
-                                                onChange={(e) => setCommodity({ ...commodity, value: e.target.value })}
-                                                className="h-12 rounded-xl border-2"
-                                            />
-                                        </div>
+                                        <h3 className="font-bold text-sm uppercase tracking-wide text-foreground">Order & Commodity</h3>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <PremiumInput label="Order ID (Optional)" icon={Hash} placeholder="e.g. ORD-1001" value={orderID} onChange={(v: string) => setOrderID(v)} />
+                                        <PremiumInput label="Commodity" icon={Tag} placeholder="e.g. Electronics" value={commodity.description} onChange={(v: string) => setCommodity({ ...commodity, description: v })} />
+                                        <PremiumInput label="Declared Value (₹) *" icon={IndianRupee} placeholder="e.g. 500" value={commodity.value} onChange={(v: string) => setCommodity({ ...commodity, value: v })} type="number" />
                                     </div>
                                 </div>
                             </div>
@@ -845,8 +925,8 @@ const AddShipment = () => {
                                         {/* COD Option */}
                                         <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                                                    <Info className="h-5 w-5 text-amber-600" />
+                                                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                                    <HandCoins className="h-5 w-5 text-primary" />
                                                 </div>
                                                 <div>
                                                     <div className="font-bold text-sm">Cash on Delivery (COD)</div>

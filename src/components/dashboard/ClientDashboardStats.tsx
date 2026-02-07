@@ -1,7 +1,7 @@
 'use client';
 
 import { MotionCard, MotionCardContent } from "@/components/dashboard/MotionCard";
-import { Package, CheckCircle, Clock, Weight } from "lucide-react";
+import { Package, PackageCheck, Truck, Scale } from "lucide-react";
 
 interface ClientDashboardMetrics {
     totalShipments: number;
@@ -21,29 +21,21 @@ export const ClientDashboardStats = ({ metrics, loading }: ClientDashboardStatsP
             title: "Total Shipments",
             value: metrics?.totalShipments.toLocaleString() || "0",
             icon: Package,
-            color: "text-blue-500",
-            bg: "bg-blue-500/10",
         },
         {
             title: "Delivered",
             value: metrics?.deliveredCount.toLocaleString() || "0",
-            icon: CheckCircle,
-            color: "text-emerald-500",
-            bg: "bg-emerald-500/10",
+            icon: PackageCheck,
         },
         {
             title: "In Progress",
             value: metrics?.pendingCount.toLocaleString() || "0",
-            icon: Clock,
-            color: "text-violet-500",
-            bg: "bg-violet-500/10",
+            icon: Truck,
         },
         {
             title: "Total Weight",
             value: `${metrics?.totalWeight.toLocaleString() || "0"} kg`,
-            icon: Weight,
-            color: "text-amber-500",
-            bg: "bg-amber-500/10",
+            icon: Scale,
         }
     ];
 
@@ -66,12 +58,12 @@ export const ClientDashboardStats = ({ metrics, loading }: ClientDashboardStatsP
                             <p className="text-sm font-medium text-muted-foreground">
                                 {stat.title}
                             </p>
-                            <div className={`p-2 rounded-lg ${stat.bg}`}>
-                                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                            <div className="p-2 rounded-lg bg-primary/10">
+                                <stat.icon className="h-4 w-4 text-primary" />
                             </div>
                         </div>
                         <div className="mt-4">
-                            <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                            <div className="text-3xl font-bold text-foreground">
                                 {stat.value}
                             </div>
                         </div>

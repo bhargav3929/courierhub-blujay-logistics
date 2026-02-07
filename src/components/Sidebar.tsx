@@ -62,7 +62,7 @@ export const Sidebar = () => {
     <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0F172A] border-r border-white/5 shadow-2xl z-50 flex flex-col items-center py-6">
       {/* Brand Header */}
       <div className="mb-8">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
           <Package className="h-6 w-6 text-white" />
         </div>
       </div>
@@ -116,7 +116,7 @@ export const Sidebar = () => {
       <div className="mt-auto pt-4 border-t border-white/5 w-full flex justify-center pb-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center border-2 border-[#0B1120] ring-2 ring-white/10 hover:ring-white/20 transition-all cursor-pointer">
+            <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center border-2 border-[#0B1120] ring-2 ring-white/10 hover:ring-white/20 transition-all cursor-pointer">
               <User className="h-5 w-5 text-white" />
             </div>
           </DropdownMenuTrigger>

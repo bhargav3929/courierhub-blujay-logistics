@@ -40,9 +40,9 @@ export const ClientSidebar = () => {
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0B1120] border-r border-[#1E293B] shadow-2xl flex flex-col items-center py-6 z-50">
-            {/* Logo */}
-            <div className="mb-8 w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-900/20 ring-1 ring-white/10">
-                <span className="text-white font-bold text-lg">B</span>
+            {/* Logo — replace with actual logo in future */}
+            <div className="mb-8 w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 ring-1 ring-white/10">
+                <Package className="h-5 w-5 text-white" />
             </div>
 
             {/* Navigation */}
@@ -86,7 +86,7 @@ export const ClientSidebar = () => {
             <div className="mt-auto pt-4 border-t border-white/5 w-full flex justify-center pb-2">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center border-2 border-[#0B1120] ring-2 ring-white/10 hover:ring-white/20 transition-all cursor-pointer">
+                        <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center border-2 border-[#0B1120] ring-2 ring-white/10 hover:ring-white/20 transition-all cursor-pointer">
                             <User className="h-5 w-5 text-white" />
                         </div>
                     </DropdownMenuTrigger>

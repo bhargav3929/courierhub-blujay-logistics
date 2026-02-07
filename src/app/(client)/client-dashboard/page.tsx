@@ -88,17 +88,6 @@ const ClientDashboard = () => {
                 animate="show"
                 className="space-y-8 max-w-[1600px] mx-auto"
             >
-                {/* Header Section */}
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                        Welcome back{currentUser?.name ? `, ${currentUser.name}` : ""}
-                    </h2>
-                    <p className="text-muted-foreground text-sm flex items-center gap-2">
-                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                        System Operational
-                    </p>
-                </div>
-
                 {/* Stats Grid */}
                 <ClientDashboardStats metrics={stats} loading={loading} />
 
