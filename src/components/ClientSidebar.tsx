@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
     LayoutDashboard,
     Package,
@@ -36,7 +36,8 @@ const navItems = [
 
 export const ClientSidebar = () => {
     const pathname = usePathname();
-    const { currentUser } = useAuth();
+    const router = useRouter();
+    const { currentUser, logout } = useAuth();
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0B1120] border-r border-[#1E293B] shadow-2xl flex flex-col items-center py-6 z-50">
@@ -98,11 +99,11 @@ export const ClientSidebar = () => {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-slate-800" />
-                        <DropdownMenuItem className="text-slate-200 focus:bg-slate-800 focus:text-white cursor-pointer">
+                        <DropdownMenuItem onClick={() => router.push('/client-settings')} className="text-slate-200 focus:bg-slate-800 focus:text-white cursor-pointer">
                             <User className="mr-2 h-4 w-4" />
                             <span>Profile</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-400 focus:bg-red-900/10 focus:text-red-400 cursor-pointer">
+                        <DropdownMenuItem onClick={() => logout()} className="text-red-400 focus:bg-red-900/10 focus:text-red-400 cursor-pointer">
                             <LogOut className="mr-2 h-4 w-4" />
                             <span>Log out</span>
                         </DropdownMenuItem>
