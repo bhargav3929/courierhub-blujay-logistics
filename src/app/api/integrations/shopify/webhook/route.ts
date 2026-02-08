@@ -126,7 +126,7 @@ export async function POST(request: Request) {
             referenceNo: `ORD-${order.order_number}`,
             notes: `Shopify Order #${order.order_number} | ID: ${order.id}${isCOD ? ' | COD' : ' | Prepaid'}`,
 
-            productCode: 'D',
+            productCode: 'A',
             productType: 'NDOX',
             pieceCount: order.line_items?.length || 1,
             actualWeight: order.total_weight ? order.total_weight / 1000 : 0.5,

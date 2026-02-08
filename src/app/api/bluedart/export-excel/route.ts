@@ -12,7 +12,7 @@ const BLUEDART_PREDEFINED = {
     pickupPincode: "500081",
     senderName: "RK",
     senderMobile: "9381816882",
-    productCode: "D",
+    productCode: "A",
     productType: "NDOX",
     pickupTime: "2000",
     officeClosureTime: "2100",

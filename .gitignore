@@ -39,3 +39,11 @@ BLUEDART_*.md
 0
 .vercel
 .env*.local
+.env.vercel-*
+
+# Claude Code
+.claude/
+
+# API documentation
+*.pdf
+*.docx

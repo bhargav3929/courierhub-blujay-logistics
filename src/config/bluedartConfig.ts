@@ -8,18 +8,21 @@ export const BLUEDART_SERVICE_TYPES = {
         name: 'Domestic Priority',
         displayName: 'Domestic Priority',
         description: 'Premium next-day air express',
+        b2bOnly: true,
     },
     APEX: {
         code: 'A',
         name: 'Dart Apex',
         displayName: 'Dart Apex',
         description: 'Air express for 10 kg+ shipments',
+        b2bOnly: false,
     },
     SURFACE: {
         code: 'E',
         name: 'Dart Surfaceline',
         displayName: 'Dart Surfaceline',
         description: 'Economical ground delivery (3-7 days)',
+        b2bOnly: false,
     },
 } as const;
 
@@ -38,7 +41,7 @@ export const BLUEDART_PREDEFINED = {
     senderMobile: "9876543210", // Should ideally be dynamic
 
     // Product Configuration
-    productCode: "D",           // D = Domestic Priority (default)
+    productCode: "A",           // A = Dart Apex (default, B2C eTail)
     productType: "NDOX",        // NDOX = Non-Document (Dutiables) — API value: 1
 
     // Default Times

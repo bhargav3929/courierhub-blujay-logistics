@@ -67,7 +67,7 @@ const AddShipment = () => {
     const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
 
     // Blue Dart service options
-    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>('PRIORITY');
+    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>('APEX');
     const [enableCOD, setEnableCOD] = useState(false);
     const [codAmount, setCodAmount] = useState("");
 
@@ -90,6 +90,7 @@ const AddShipment = () => {
     const shopifyShipmentId = searchParams.get('shopifyShipmentId');
     const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
     const { currentUser } = useAuth();
+    const isB2C = currentUser?.role === 'shopify';
 
     // Fire-and-forget call to sync fulfillment to Shopify after AWB is assigned
     const triggerShopifyFulfillment = async (shipmentId: string) => {
@@ -310,10 +311,9 @@ const AddShipment = () => {
 
     // STEP 3: Book directly
     const handleBook = async () => {
-        // Validate COD amount if COD is enabled (Blue Dart only)
+        // Validate COD for Blue Dart
         if (selectedCourier === 'Blue Dart' && enableCOD) {
-            const svcCode = BLUEDART_SERVICE_TYPES[blueDartServiceType].code;
-            if (svcCode === 'D') {
+            if (!isB2C && BLUEDART_SERVICE_TYPES[blueDartServiceType].code === 'D') {
                 toast.error("COD is not available for Domestic Priority. Please select Dart Apex or Dart Surfaceline.");
                 return;
             }
@@ -391,7 +391,9 @@ const AddShipment = () => {
                 Services: {
                     ProductCode: selectedService.code,
                     ProductType: 1,
-                    ...(enableCOD ? { SubProductCode: "C" } : {}),
+                    ...(isB2C
+                        ? { SubProductCode: enableCOD ? "C" : "P" }
+                        : enableCOD ? { SubProductCode: "C" } : {}),
                     PieceCount: "1",
                     PackType: "",
                     ActualWeight: weights.actual.toString(),
@@ -890,9 +892,11 @@ const AddShipment = () => {
                                         <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                             <Truck className="h-3 w-3" /> Blue Dart Service Type
                                         </Label>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][]).map(([key, service]) => {
-                                                const isCODBlocked = enableCOD && service.code === 'D';
+                                        <div className={`grid ${isB2C ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+                                            {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][])
+                                                .filter(([, service]) => !isB2C || !service.b2bOnly)
+                                                .map(([key, service]) => {
+                                                const isCODBlocked = !isB2C && enableCOD && service.code === 'D';
                                                 return (
                                                     <button
                                                         key={key}
@@ -939,7 +943,7 @@ const AddShipment = () => {
                                                 checked={enableCOD}
                                                 onCheckedChange={(checked) => {
                                                     setEnableCOD(checked);
-                                                    if (checked && BLUEDART_SERVICE_TYPES[blueDartServiceType].code === 'D') {
+                                                    if (!isB2C && checked && BLUEDART_SERVICE_TYPES[blueDartServiceType].code === 'D') {
                                                         setBlueDartServiceType('APEX');
                                                         toast.info("Switched to Dart Apex — COD is not available for Domestic Priority");
                                                     }
