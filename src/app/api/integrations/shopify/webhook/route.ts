@@ -96,6 +96,13 @@ export async function POST(request: Request) {
                 price: item.price || '0',
                 variant_title: item.variant_title || '',
             })),
+            products: (order.line_items || []).map((item: any) => ({
+                sku: item.sku || '',
+                name: item.title || item.name || '',
+                quantity: item.quantity || 1,
+                price: parseFloat(item.price || '0'),
+                variantTitle: item.variant_title || '',
+            })),
 
             origin: {
                 city: originCity,

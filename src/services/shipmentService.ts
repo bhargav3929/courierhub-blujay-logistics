@@ -14,7 +14,7 @@ import {
     limit as firestoreLimit
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseConfig';
-import { Shipment, ShipmentFilters } from '@/types/types';
+import { Shipment, ShipmentFilters, ShipmentProduct } from '@/types/types';
 
 const SHIPMENTS_COLLECTION = 'shipments';
 
@@ -313,5 +313,48 @@ export const lookupReceiverByPhone = async (
     } catch (error) {
         console.error('Error looking up receiver by phone:', error);
         return null;
+    }
+};
+
+/**
+ * Get unique SKUs from past shipments for autocomplete.
+ * Extracts from both `products[]` and legacy `shopifyLineItems[]`.
+ */
+export const getUniqueSKUs = async (clientId: string): Promise<string[]> => {
+    try {
+        const q = query(
+            collection(db, SHIPMENTS_COLLECTION),
+            where('clientId', '==', clientId)
+        );
+        const snapshot = await getDocs(q);
+
+        const skuSet = new Set<string>();
+
+        for (const shipmentDoc of snapshot.docs) {
+            const data = shipmentDoc.data();
+
+            // Extract from new products array
+            if (data.products && Array.isArray(data.products)) {
+                for (const product of data.products) {
+                    if (product.sku && product.sku.trim()) {
+                        skuSet.add(product.sku.trim());
+                    }
+                }
+            }
+
+            // Extract from legacy shopifyLineItems
+            if (data.shopifyLineItems && Array.isArray(data.shopifyLineItems)) {
+                for (const item of data.shopifyLineItems) {
+                    if (item.sku && item.sku.trim()) {
+                        skuSet.add(item.sku.trim());
+                    }
+                }
+            }
+        }
+
+        return Array.from(skuSet).sort().slice(0, 100);
+    } catch (error) {
+        console.error('Error getting unique SKUs:', error);
+        return [];
     }
 };

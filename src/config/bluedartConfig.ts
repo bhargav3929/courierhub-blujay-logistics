@@ -22,7 +22,7 @@ export const BLUEDART_SERVICE_TYPES = {
         name: 'Dart Surfaceline',
         displayName: 'Dart Surfaceline',
         description: 'Economical ground delivery (3-7 days)',
-        b2bOnly: false,
+        b2bOnly: true,
     },
 } as const;
 

@@ -132,8 +132,12 @@ export const ShipmentManifest = ({ shipments, manifestId }: ShipmentManifestProp
                                 {shipment.awbNo || shipment.courierTrackingId || '—'}
                             </td>
                             <td style={{ padding: '8px', fontSize: '10px' }}>
-                                {shipment.commodityDetail1 || shipment.productType || 'NDOX'}
-                                {shipment.commodityDetail1 && ` (SKU- ${shipment.commodityDetail2 || shipment.referenceNo || '—'})`}
+                                {shipment.products && shipment.products.length > 0
+                                    ? shipment.products.map(p => `${p.name}${p.sku ? ` (SKU: ${p.sku})` : ''}`).join(', ')
+                                    : shipment.commodityDetail1
+                                        ? `${shipment.commodityDetail1}${shipment.commodityDetail2 ? ` (SKU- ${shipment.commodityDetail2})` : ''}`
+                                        : shipment.productType || 'NDOX'
+                                }
                             </td>
                             <td style={{ padding: '8px', fontSize: '10px' }}>
                                 {shipment.destination?.city}{shipment.destination?.pincode ? ` - ${shipment.destination.pincode}` : ''}

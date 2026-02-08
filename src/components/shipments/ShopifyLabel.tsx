@@ -16,9 +16,12 @@ export const ShopifyLabel = ({ shipment }: ShopifyLabelProps) => {
             ? new Date(shipment.createdAt.toDate()).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' })
             : new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
 
-    const lineItems = shipment.shopifyLineItems && shipment.shopifyLineItems.length > 0
-        ? shipment.shopifyLineItems
-        : [{ sku: '-', title: shipment.commodityDetail1 || 'General Goods', quantity: shipment.pieceCount || 1 }];
+    // Prefer new products array, fallback to shopifyLineItems, then legacy fields
+    const lineItems = shipment.products && shipment.products.length > 0
+        ? shipment.products.map(p => ({ sku: p.sku || '-', title: p.name, quantity: p.quantity, price: p.price }))
+        : shipment.shopifyLineItems && shipment.shopifyLineItems.length > 0
+            ? shipment.shopifyLineItems.map(item => ({ sku: item.sku || '-', title: item.title, quantity: item.quantity, price: parseFloat(item.price || '0') }))
+            : [{ sku: '-', title: shipment.commodityDetail1 || 'General Goods', quantity: shipment.pieceCount || 1, price: shipment.declaredValue || 0 }];
 
     const isPrepaid = !shipment.toPayCustomer;
     const awb = shipment.courierTrackingId || shipment.awbNo || shipment.dtdcReferenceNumber || 'PENDING';
@@ -177,9 +180,10 @@ export const ShopifyLabel = ({ shipment }: ShopifyLabelProps) => {
                 }}>
                     <thead>
                         <tr style={{ borderBottom: '1px solid #ccc' }}>
-                            <th style={{ textAlign: 'left', padding: '1mm', fontWeight: 'bold', width: '25%' }}>SKU</th>
-                            <th style={{ textAlign: 'left', padding: '1mm', fontWeight: 'bold', width: '55%' }}>Item Name</th>
-                            <th style={{ textAlign: 'center', padding: '1mm', fontWeight: 'bold', width: '20%' }}>Qty.</th>
+                            <th style={{ textAlign: 'left', padding: '1mm', fontWeight: 'bold', width: '20%' }}>SKU</th>
+                            <th style={{ textAlign: 'left', padding: '1mm', fontWeight: 'bold', width: '40%' }}>Item Name</th>
+                            <th style={{ textAlign: 'center', padding: '1mm', fontWeight: 'bold', width: '15%' }}>Qty.</th>
+                            <th style={{ textAlign: 'right', padding: '1mm', fontWeight: 'bold', width: '25%' }}>Price</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -188,6 +192,7 @@ export const ShopifyLabel = ({ shipment }: ShopifyLabelProps) => {
                                 <td style={{ padding: '1mm', fontSize: '7.5px' }}>{item.sku || '-'}</td>
                                 <td style={{ padding: '1mm', fontSize: '7.5px' }}>{item.title}</td>
                                 <td style={{ textAlign: 'center', padding: '1mm', fontSize: '7.5px' }}>{item.quantity}</td>
+                                <td style={{ textAlign: 'right', padding: '1mm', fontSize: '7.5px' }}>₹{item.price || 0}</td>
                             </tr>
                         ))}
                     </tbody>

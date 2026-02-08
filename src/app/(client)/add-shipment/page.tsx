@@ -24,11 +24,16 @@ import {
     Tag,
     IndianRupee,
     Scale,
-    HandCoins
+    HandCoins,
+    Plus,
+    Trash2,
+    Percent,
+    ShoppingBag
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { createShipment, getShipmentById, updateShipment, lookupReceiverByPhone } from "@/services/shipmentService";
+import { createShipment, getShipmentById, updateShipment, lookupReceiverByPhone, getUniqueSKUs } from "@/services/shipmentService";
+import { ShipmentProduct } from "@/types/types";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
 import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
@@ -77,8 +82,11 @@ const AddShipment = () => {
     const [delivery, setDelivery] = useState({ name: "", phone: "", pincode: "", address: "", city: "", state: "", country: "India" });
     const [dimensions, setDimensions] = useState({ length: "10", width: "10", height: "10" });
     const [actualWeight, setActualWeight] = useState("0.5");
-    const [commodity, setCommodity] = useState({ description: "", value: "" });
+    const [products, setProducts] = useState<ShipmentProduct[]>([{ sku: '', name: '', quantity: 1, price: 0 }]);
     const [orderID, setOrderID] = useState("");
+    const [skuHistory, setSkuHistory] = useState<string[]>([]);
+    const [adCommissionType, setAdCommissionType] = useState<'flat' | 'percentage' | null>(null);
+    const [adCommissionValue, setAdCommissionValue] = useState<number>(0);
 
     // Auto-fill state
     const [receiverLookupLoading, setReceiverLookupLoading] = useState(false);
@@ -168,14 +176,24 @@ const AddShipment = () => {
                 });
             }
 
-            if (shipment.declaredValue) {
-                setCommodity(prev => ({ ...prev, value: shipment.declaredValue!.toString() }));
-            }
-
-            // Pre-fill commodity description from Shopify line items
-            if (shipment.shopifyLineItems && shipment.shopifyLineItems.length > 0) {
-                const productNames = shipment.shopifyLineItems.map(item => item.title).join(', ');
-                setCommodity(prev => ({ ...prev, description: prev.description || productNames }));
+            // Pre-fill products from Shopify line items or existing products
+            if (shipment.products && shipment.products.length > 0) {
+                setProducts(shipment.products);
+            } else if (shipment.shopifyLineItems && shipment.shopifyLineItems.length > 0) {
+                setProducts(shipment.shopifyLineItems.map(item => ({
+                    sku: item.sku || '',
+                    name: item.title || '',
+                    quantity: item.quantity || 1,
+                    price: parseFloat(item.price || '0'),
+                    variantTitle: item.variant_title,
+                })));
+            } else if (shipment.declaredValue || shipment.commodityDetail1) {
+                setProducts([{
+                    sku: '',
+                    name: shipment.commodityDetail1 || '',
+                    quantity: shipment.pieceCount || 1,
+                    price: shipment.declaredValue || 0,
+                }]);
             }
 
             // Pre-fill order ID from Shopify order number
@@ -271,6 +289,38 @@ const AddShipment = () => {
     }, [dimensions, actualWeight]);
 
     const estimatedPrice = useMemo(() => calculatePrice(weights.billable), [weights.billable]);
+
+    // Total declared value from all products
+    const totalDeclaredValue = useMemo(() =>
+        products.reduce((sum, p) => sum + (p.quantity * p.price), 0),
+        [products]
+    );
+
+    // Fetch SKU history on mount
+    useEffect(() => {
+        const loadSKUs = async () => {
+            if (currentUser?.id) {
+                const skus = await getUniqueSKUs(currentUser.id);
+                setSkuHistory(skus);
+            }
+        };
+        loadSKUs();
+    }, [currentUser?.id]);
+
+    // Product helpers
+    const updateProduct = (index: number, field: keyof ShipmentProduct, value: any) => {
+        setProducts(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
+    };
+
+    const addProduct = () => {
+        setProducts(prev => [...prev, { sku: '', name: '', quantity: 1, price: 0 }]);
+    };
+
+    const removeProduct = (index: number) => {
+        if (products.length > 1) {
+            setProducts(prev => prev.filter((_, i) => i !== index));
+        }
+    };
 
     // STEP 1: Validate addresses and move to package step
     const handleRouteNext = async () => {
@@ -406,13 +456,13 @@ const AddShipment = () => {
                         }
                     ],
                     ...(enableCOD ? { CollectableAmount: codAmountValue } : {}),
-                    DeclaredValue: parseFloat(commodity.value) || 200,
+                    DeclaredValue: totalDeclaredValue || 200,
                     CreditReferenceNo: referenceNo,
                     PickupDate: `/Date(${new Date().getTime() + 24 * 60 * 60 * 1000})/`,
                     PickupTime: BLUEDART_PREDEFINED.pickupTime,
                     PDFOutputNotRequired: false,
                     Commodity: {
-                        CommodityDetail1: commodity.description
+                        CommodityDetail1: products[0]?.name || ''
                     }
                 }
             }
@@ -476,8 +526,10 @@ const AddShipment = () => {
             productType: BLUEDART_PREDEFINED.productType,
             pieceCount: BLUEDART_PREDEFINED.defaultPieceCount,
             actualWeight: weights.actual,
-            declaredValue: parseFloat(commodity.value) || BLUEDART_PREDEFINED.defaultDeclaredValue,
-            commodityDetail1: commodity.description,
+            declaredValue: totalDeclaredValue || BLUEDART_PREDEFINED.defaultDeclaredValue,
+            commodityDetail1: products[0]?.name || '',
+            products: products,
+            ...(adCommissionType ? { adCommissionType, adCommissionValue } : {}),
             officeClosureTime: BLUEDART_PREDEFINED.officeClosureTime,
             awbNo,
             blueDartStatus,
@@ -511,14 +563,14 @@ const AddShipment = () => {
             customer_code: DTDC_PREDEFINED.customerCode,
             service_type_id: DTDC_PREDEFINED.serviceTypeId,
             load_type: DTDC_PREDEFINED.loadType,
-            description: commodity.description || 'General Goods',
+            description: products[0]?.name || 'General Goods',
             dimension_unit: DTDC_PREDEFINED.dimensionUnit,
             length: dimensions.length,
             width: dimensions.width,
             height: dimensions.height,
             weight_unit: DTDC_PREDEFINED.weightUnit,
             weight: weights.actual.toString(),
-            declared_value: commodity.value || DTDC_PREDEFINED.defaultDeclaredValue,
+            declared_value: totalDeclaredValue.toString() || DTDC_PREDEFINED.defaultDeclaredValue,
             num_pieces: DTDC_PREDEFINED.defaultPieceCount,
             customer_reference_number: referenceNo,
             commodity_id: DTDC_PREDEFINED.commodityId,
@@ -579,7 +631,10 @@ const AddShipment = () => {
             receiverMobile: delivery.phone,
             senderName: pickup.name,
             senderMobile: pickup.phone,
-            declaredValue: parseFloat(commodity.value) || parseFloat(DTDC_PREDEFINED.defaultDeclaredValue),
+            declaredValue: totalDeclaredValue || parseFloat(DTDC_PREDEFINED.defaultDeclaredValue),
+            commodityDetail1: products[0]?.name || '',
+            products: products,
+            ...(adCommissionType ? { adCommissionType, adCommissionValue } : {}),
             // DTDC-specific fields
             dtdcReferenceNumber: dtdcAwb,
             dtdcCustomerReferenceNumber: referenceNo,
@@ -602,18 +657,25 @@ const AddShipment = () => {
         });
     };
 
-    // STEP 2: Validate package details and move to courier step
+    // STEP 2: Validate package details and move to product step
     const handlePackageNext = () => {
         if (!weights.billable || weights.billable <= 0) {
             toast.error("Please enter valid weight");
             return;
         }
-        if (!commodity.value || parseFloat(commodity.value) <= 0) {
-            toast.error("Please enter commodity value");
-            return;
-        }
         toast.success("Package details saved!");
         setStep(3);
+    };
+
+    // STEP 3: Validate product details and move to courier step
+    const handleProductNext = () => {
+        const hasValidProduct = products.some(p => p.name.trim() && p.price > 0);
+        if (!hasValidProduct) {
+            toast.error("Please add at least one product with name and price");
+            return;
+        }
+        toast.success("Product details saved!");
+        setStep(4);
     };
 
     const handleBack = () => setStep(step - 1);
@@ -628,7 +690,7 @@ const AddShipment = () => {
                 <h1 className="text-4xl font-black tracking-tighter text-foreground">
                     Book <span className="text-primary">Shipment</span>
                 </h1>
-                <p className="text-muted-foreground font-medium">Simple 3-step booking</p>
+                <p className="text-muted-foreground font-medium">Simple 4-step booking</p>
             </div>
 
             {shopifyShipmentId && (
@@ -639,12 +701,13 @@ const AddShipment = () => {
                 </div>
             )}
 
-            {/* 3-Step Progress */}
-            <div className="flex justify-center items-center gap-4 max-w-2xl mx-auto">
+            {/* 4-Step Progress */}
+            <div className="flex justify-center items-center gap-3 max-w-3xl mx-auto">
                 {[
                     { num: 1, label: "Addresses", icon: MapPin },
                     { num: 2, label: "Package", icon: Package },
-                    { num: 3, label: "Courier", icon: Truck },
+                    { num: 3, label: "Products", icon: ShoppingBag },
+                    { num: 4, label: "Courier", icon: Truck },
                 ].map((s, i) => (
                     <div key={s.num} className="flex items-center gap-3">
                         <div className="flex flex-col items-center gap-1.5">
@@ -660,7 +723,7 @@ const AddShipment = () => {
                                 {s.label}
                             </span>
                         </div>
-                        {i < 2 && <div className={`w-16 h-1 rounded-full mb-5 ${step > s.num ? "bg-primary" : "bg-muted"}`} />}
+                        {i < 3 && <div className={`w-12 h-1 rounded-full mb-5 ${step > s.num ? "bg-primary" : "bg-muted"}`} />}
                     </div>
                 ))}
             </div>
@@ -759,7 +822,7 @@ const AddShipment = () => {
                             <div className="max-w-3xl mx-auto space-y-8">
                                 <div className="text-center">
                                     <h2 className="text-3xl font-black">Package Details</h2>
-                                    <p className="text-muted-foreground text-sm mt-1">Enter dimensions, weight, and commodity info</p>
+                                    <p className="text-muted-foreground text-sm mt-1">Enter dimensions and weight</p>
                                 </div>
 
                                 {/* Dimensions Section */}
@@ -802,26 +865,164 @@ const AddShipment = () => {
                                     </div>
                                 </div>
 
-                                {/* Order & Commodity Section */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                            <Tag className="h-4 w-4 text-primary" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STEP 3: Product Details */}
+                    {step === 3 && (
+                        <div className="p-8 lg:p-10 animate-in fade-in duration-500">
+                            <div className="max-w-3xl mx-auto space-y-8">
+                                <div className="text-center">
+                                    <h2 className="text-3xl font-black">Product Details</h2>
+                                    <p className="text-muted-foreground text-sm mt-1">Add product info for your shipment</p>
+                                </div>
+
+                                {/* Order ID & Ad Commission */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <PremiumInput label="Order ID (Optional)" icon={Hash} placeholder="e.g. ORD-1001" value={orderID} onChange={(v: string) => setOrderID(v)} />
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                            <Percent className="h-3 w-3" /> Ad Commission / COD Margin (Optional)
+                                        </Label>
+                                        <div className="flex gap-3 items-center">
+                                            <div className="flex rounded-xl border-2 border-muted overflow-hidden">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAdCommissionType(adCommissionType === 'flat' ? null : 'flat')}
+                                                    className={`px-4 py-2.5 text-xs font-bold transition-colors ${
+                                                        adCommissionType === 'flat'
+                                                            ? 'bg-primary text-white'
+                                                            : 'bg-white text-muted-foreground hover:bg-muted/30'
+                                                    }`}
+                                                >
+                                                    Flat (₹)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAdCommissionType(adCommissionType === 'percentage' ? null : 'percentage')}
+                                                    className={`px-4 py-2.5 text-xs font-bold transition-colors ${
+                                                        adCommissionType === 'percentage'
+                                                            ? 'bg-primary text-white'
+                                                            : 'bg-white text-muted-foreground hover:bg-muted/30'
+                                                    }`}
+                                                >
+                                                    Percentage (%)
+                                                </button>
+                                            </div>
+                                            {adCommissionType && (
+                                                <Input
+                                                    type="number"
+                                                    placeholder={adCommissionType === 'flat' ? 'Amount in ₹' : 'e.g. 5'}
+                                                    value={adCommissionValue ? adCommissionValue.toString() : ''}
+                                                    onChange={(e) => setAdCommissionValue(parseFloat(e.target.value) || 0)}
+                                                    className="h-12 w-40 bg-white border-2 border-muted focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium"
+                                                />
+                                            )}
                                         </div>
-                                        <h3 className="font-bold text-sm uppercase tracking-wide text-foreground">Order & Commodity</h3>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <PremiumInput label="Order ID (Optional)" icon={Hash} placeholder="e.g. ORD-1001" value={orderID} onChange={(v: string) => setOrderID(v)} />
-                                        <PremiumInput label="Commodity" icon={Tag} placeholder="e.g. Electronics" value={commodity.description} onChange={(v: string) => setCommodity({ ...commodity, description: v })} />
-                                        <PremiumInput label="Declared Value (₹) *" icon={IndianRupee} placeholder="e.g. 500" value={commodity.value} onChange={(v: string) => setCommodity({ ...commodity, value: v })} type="number" />
+                                </div>
+
+                                {/* Products List */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                                <ShoppingBag className="h-4 w-4 text-primary" />
+                                            </div>
+                                            <h3 className="font-bold text-sm uppercase tracking-wide text-foreground">Products</h3>
+                                        </div>
+                                        <Button type="button" variant="outline" size="sm" onClick={addProduct} className="h-8 gap-1.5 text-xs font-bold">
+                                            <Plus className="h-3 w-3" /> Add Product
+                                        </Button>
+                                    </div>
+
+                                    {products.map((product, index) => (
+                                        <div key={index} className="p-5 rounded-2xl border-2 border-muted/60 bg-white space-y-4 relative">
+                                            {products.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeProduct(index)}
+                                                    className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                            <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                                                Product {products.length > 1 ? `#${index + 1}` : ''}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {/* SKU with datalist autocomplete */}
+                                                <div className="space-y-2 group text-left">
+                                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground group-focus-within:text-primary transition-colors flex items-center gap-2">
+                                                        <Tag className="h-3 w-3" /> SKU
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            type="text"
+                                                            placeholder="Enter or select SKU"
+                                                            value={product.sku}
+                                                            onChange={(e) => updateProduct(index, 'sku', e.target.value)}
+                                                            list="sku-history"
+                                                            className="h-12 bg-white border-2 border-muted focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium text-foreground placeholder:text-muted-foreground/50 shadow-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <PremiumInput
+                                                    label="Product Name / Commodity *"
+                                                    icon={Tag}
+                                                    placeholder="e.g. Electronics"
+                                                    value={product.name}
+                                                    onChange={(v: string) => updateProduct(index, 'name', v)}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <PremiumInput
+                                                    label="Quantity *"
+                                                    icon={Hash}
+                                                    placeholder="1"
+                                                    value={product.quantity.toString()}
+                                                    onChange={(v: string) => updateProduct(index, 'quantity', parseInt(v) || 1)}
+                                                    type="number"
+                                                />
+                                                <PremiumInput
+                                                    label="Price per unit (₹) *"
+                                                    icon={IndianRupee}
+                                                    placeholder="e.g. 500"
+                                                    value={product.price ? product.price.toString() : ''}
+                                                    onChange={(v: string) => updateProduct(index, 'price', parseFloat(v) || 0)}
+                                                    type="number"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* SKU datalist for autocomplete */}
+                                    <datalist id="sku-history">
+                                        {skuHistory.map(sku => (
+                                            <option key={sku} value={sku} />
+                                        ))}
+                                    </datalist>
+                                </div>
+
+                                {/* Total Declared Value */}
+                                <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Total Declared Value</div>
+                                        <div className="text-sm text-muted-foreground mt-0.5">Sum of all products (qty × price)</div>
+                                    </div>
+                                    <div className="text-3xl font-black text-primary">
+                                        ₹{totalDeclaredValue.toLocaleString('en-IN')}
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* STEP 3: Courier Selection */}
-                    {step === 3 && (
+                    {/* STEP 4: Courier Selection */}
+                    {step === 4 && (
                         <div className="p-8 lg:p-10 animate-in fade-in duration-500">
                             <div className="max-w-3xl mx-auto space-y-8">
                                 <div className="text-center">
@@ -892,7 +1093,7 @@ const AddShipment = () => {
                                         <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                             <Truck className="h-3 w-3" /> Blue Dart Service Type
                                         </Label>
-                                        <div className={`grid ${isB2C ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+                                        <div className={`grid ${isB2C ? 'grid-cols-1 max-w-xs' : 'grid-cols-3'} gap-3`}>
                                             {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][])
                                                 .filter(([, service]) => !isB2C || !service.b2bOnly)
                                                 .map(([key, service]) => {
@@ -935,7 +1136,7 @@ const AddShipment = () => {
                                                 <div>
                                                     <div className="font-bold text-sm">Cash on Delivery (COD)</div>
                                                     <div className="text-[10px] text-muted-foreground">
-                                                        Available with Dart Apex & Dart Surfaceline only
+                                                        {isB2C ? 'Available with Dart Apex' : 'Available with Dart Apex & Dart Surfaceline only'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1002,10 +1203,15 @@ const AddShipment = () => {
                         )}
                         {step === 2 && (
                             <Button onClick={handlePackageNext} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
-                                Choose Courier <ChevronRight className="h-5 w-5" />
+                                Add Products <ChevronRight className="h-5 w-5" />
                             </Button>
                         )}
                         {step === 3 && (
+                            <Button onClick={handleProductNext} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
+                                Choose Courier <ChevronRight className="h-5 w-5" />
+                            </Button>
+                        )}
+                        {step === 4 && (
                             <Button onClick={handleBook} disabled={loading} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
                                 {loading ? <Loader2 className="animate-spin" /> : <Truck className="h-5 w-5" />}
                                 Book via {selectedCourier}

@@ -16,6 +16,13 @@ export const BlueDartLabel = ({ shipment }: BlueDartLabelProps) => {
 
     const routingCode = `${shipment.destinationArea || ''} ${shipment.destinationLocation ? `/ ${shipment.destinationLocation}` : ''}`;
 
+    // Product line items: prefer products array, fallback to legacy fields
+    const lineItems = shipment.products && shipment.products.length > 0
+        ? shipment.products
+        : shipment.shopifyLineItems && shipment.shopifyLineItems.length > 0
+            ? shipment.shopifyLineItems.map(item => ({ sku: item.sku, name: item.title, quantity: item.quantity, price: parseFloat(item.price || '0') }))
+            : [{ sku: '', name: shipment.commodityDetail1 || 'General Goods', quantity: shipment.pieceCount || 1, price: shipment.declaredValue || 0 }];
+
     return (
         <div
             id="bluedart-label"
@@ -131,6 +138,37 @@ export const BlueDartLabel = ({ shipment }: BlueDartLabelProps) => {
                         {shipment.receiverMobile}
                     </div>
                 </div>
+            </div>
+
+            {/* Product Details */}
+            <div style={{
+                borderBottom: '2px solid black',
+                paddingBottom: '0.5rem',
+                marginBottom: '0.5rem',
+            }}>
+                <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '0.25rem', textTransform: 'uppercase' }}>
+                    Products
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid #ccc' }}>
+                            <th style={{ textAlign: 'left', padding: '1px 2px', fontWeight: 'bold', width: '20%' }}>SKU</th>
+                            <th style={{ textAlign: 'left', padding: '1px 2px', fontWeight: 'bold', width: '45%' }}>Item</th>
+                            <th style={{ textAlign: 'center', padding: '1px 2px', fontWeight: 'bold', width: '15%' }}>Qty</th>
+                            <th style={{ textAlign: 'right', padding: '1px 2px', fontWeight: 'bold', width: '20%' }}>Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {lineItems.map((item, index) => (
+                            <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '1px 2px', fontSize: '8px' }}>{item.sku || '-'}</td>
+                                <td style={{ padding: '1px 2px', fontSize: '8px' }}>{item.name}</td>
+                                <td style={{ textAlign: 'center', padding: '1px 2px', fontSize: '8px' }}>{item.quantity}</td>
+                                <td style={{ textAlign: 'right', padding: '1px 2px', fontSize: '8px' }}>₹{item.price || 0}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
 
             {/* Shipment Details */}

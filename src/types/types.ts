@@ -66,6 +66,15 @@ export interface Client {
     shopifyAccessToken?: string;
 }
 
+// Product within a shipment (supports multiple products per order)
+export interface ShipmentProduct {
+    sku: string;
+    name: string;           // commodity/product description
+    quantity: number;
+    price: number;          // declared value per unit (₹)
+    variantTitle?: string;
+}
+
 // Shipment Interface
 export interface Shipment {
     id: string;
@@ -91,6 +100,11 @@ export interface Shipment {
         variant_title?: string;
     }>;
     shopifyOrderDate?: string; // ISO date from order.created_at
+    products?: ShipmentProduct[]; // Multiple products per order
+
+    // Ad Commission / COD Margin (order-level)
+    adCommissionType?: 'flat' | 'percentage';
+    adCommissionValue?: number;
 
     // Origin and Destination
     origin: {
