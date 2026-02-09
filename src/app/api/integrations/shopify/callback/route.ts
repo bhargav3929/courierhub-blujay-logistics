@@ -80,7 +80,7 @@ export async function GET(request: Request) {
         .update(message)
         .digest('hex');
 
-    if (generatedHmac !== hmac) {
+    if (!crypto.timingSafeEqual(Buffer.from(generatedHmac), Buffer.from(hmac))) {
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=invalid_signature`);
     }
 
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
         }
 
         accessToken = tokenData.access_token;
-        tokenScopes = tokenData.scope || 'read_orders,read_customers,write_fulfillments';
+        tokenScopes = tokenData.scope || 'read_orders,write_fulfillments';
     } catch (error: any) {
         console.error('[Shopify Callback] Token exchange error:', error);
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=token_exchange_failed`);

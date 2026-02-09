@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { decryptToken } from '@/lib/shopifyTokenCrypto';
+import { adminAuth } from '@/lib/firebaseAdmin';
+
+export const dynamic = 'force-dynamic';
 
 const SHOPIFY_API_VERSION = '2024-10';
 
@@ -133,6 +136,20 @@ async function createFulfillment(
 
 export async function POST(request: Request) {
     try {
+        // 0. Verify Firebase auth token
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader?.startsWith('Bearer ')) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const idToken = authHeader.split('Bearer ')[1];
+        let authenticatedUserId: string;
+        try {
+            const decodedToken = await adminAuth.verifyIdToken(idToken);
+            authenticatedUserId = decodedToken.uid;
+        } catch {
+            return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+        }
+
         const { shipmentId } = await request.json();
 
         if (!shipmentId) {
@@ -145,6 +162,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
         }
         const shipment = shipmentDoc.data();
+
+        // 1b. Verify the authenticated user owns this shipment
+        if (shipment.clientId !== authenticatedUserId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
         // 2. Verify this is a Shopify order with an AWB
         if (!shipment.shopifyOrderId) {

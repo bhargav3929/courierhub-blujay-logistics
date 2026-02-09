@@ -25,6 +25,7 @@ import {
     IndianRupee,
     Scale,
     HandCoins,
+    Plane,
     Plus,
     Trash2,
     Percent,
@@ -97,15 +98,19 @@ const AddShipment = () => {
     const searchParams = useSearchParams();
     const shopifyShipmentId = searchParams.get('shopifyShipmentId');
     const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
-    const { currentUser } = useAuth();
+    const { currentUser, firebaseUser } = useAuth();
     const isB2C = currentUser?.role === 'shopify';
 
     // Fire-and-forget call to sync fulfillment to Shopify after AWB is assigned
     const triggerShopifyFulfillment = async (shipmentId: string) => {
         try {
+            const idToken = await firebaseUser?.getIdToken();
             const response = await fetch('/api/integrations/shopify/fulfill', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(idToken && { 'Authorization': `Bearer ${idToken}` }),
+                },
                 body: JSON.stringify({ shipmentId }),
             });
             if (response.ok) {
@@ -1113,8 +1118,12 @@ const AddShipment = () => {
                                                                     : 'border-muted hover:border-blue-200 bg-white'
                                                         }`}
                                                     >
-                                                        <div className="font-bold text-sm">{service.displayName}</div>
-                                                        <div className="text-[10px] text-muted-foreground mt-1">{service.description}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            {key === 'APEX' && <Plane className="h-4 w-4 text-blue-500" />}
+                                                            {key === 'BHARAT_DART' && <Truck className="h-4 w-4 text-blue-500" />}
+                                                            <div className="font-bold text-sm">{service.displayName}</div>
+                                                        </div>
+                                                        {service.description && <div className="text-[10px] text-muted-foreground mt-1">{service.description}</div>}
                                                         {isCODBlocked && (
                                                             <div className="text-[9px] text-amber-600 font-bold mt-1">No COD</div>
                                                         )}

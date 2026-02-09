@@ -163,28 +163,59 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2>9. Third-Party Links</h2>
+            <h2>9. Shopify Integration & Data Handling</h2>
+            <p>
+              If you connect your Shopify store to Blujay, we access certain data through Shopify&rsquo;s API to provide our shipping and fulfillment services:
+            </p>
+            <h3>9.1 Data We Access</h3>
+            <ul>
+              <li><strong>Order data:</strong> Order details including order number, line items, quantities, prices, and shipping addresses (via <code>read_orders</code> scope)</li>
+              <li><strong>Fulfillment data:</strong> We create fulfillment records with tracking information on your Shopify orders when shipments are booked (via <code>write_fulfillments</code> scope)</li>
+            </ul>
+            <h3>9.2 How We Use Shopify Data</h3>
+            <ul>
+              <li>To import orders into our platform for shipment booking</li>
+              <li>To sync tracking numbers and fulfillment status back to your Shopify store</li>
+              <li>To display order details in your Blujay dashboard</li>
+            </ul>
+            <h3>9.3 Data Deletion & GDPR Compliance</h3>
+            <p>
+              We comply with Shopify&rsquo;s mandatory GDPR webhook requirements. When a customer requests data deletion or when you uninstall the Blujay app:
+            </p>
+            <ul>
+              <li><strong>Customer data requests:</strong> We process data export requests within 30 days</li>
+              <li><strong>Customer data deletion:</strong> We anonymize all personal information (names, addresses, phone numbers) in shipment records within 30 days</li>
+              <li><strong>App uninstall:</strong> We revoke access and mark the connection as inactive. After 48 hours, Shopify triggers a shop data redaction request, and we anonymize all associated data</li>
+            </ul>
+            <h3>9.4 Revoking Access</h3>
+            <p>
+              You can disconnect your Shopify store at any time from the Integrations page in your Blujay dashboard. You can also uninstall the Blujay app directly from your Shopify admin panel.
+            </p>
+          </section>
+
+          <section>
+            <h2>10. Third-Party Links</h2>
             <p>
               The Platform may contain links to third-party websites or services (e.g., courier partner tracking pages). We are not responsible for the privacy practices of these third parties. We encourage you to review their privacy policies before providing any personal information.
             </p>
           </section>
 
           <section>
-            <h2>10. Children&rsquo;s Privacy</h2>
+            <h2>11. Children&rsquo;s Privacy</h2>
             <p>
               The Platform is not intended for use by individuals under 18 years of age. We do not knowingly collect personal information from children. If we become aware that we have collected data from a child, we will take steps to delete it promptly.
             </p>
           </section>
 
           <section>
-            <h2>11. Changes to This Policy</h2>
+            <h2>12. Changes to This Policy</h2>
             <p>
               We may update this Privacy Policy from time to time to reflect changes in our practices, legal requirements, or Platform features. When we make material changes, we will update the &ldquo;Last updated&rdquo; date and notify registered users via email at least 7 days before the changes take effect.
             </p>
           </section>
 
           <section>
-            <h2>12. Grievance Officer</h2>
+            <h2>13. Grievance Officer</h2>
             <p>
               In accordance with the Information Technology Act, 2000 and the rules made thereunder, the contact details of the Grievance Officer are:
             </p>
@@ -202,7 +233,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2>13. Contact Us</h2>
+            <h2>14. Contact Us</h2>
             <p>
               For any questions or concerns about this Privacy Policy, please contact us at:
             </p>

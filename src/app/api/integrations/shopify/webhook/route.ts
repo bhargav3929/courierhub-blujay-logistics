@@ -2,8 +2,10 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { Shipment } from '@/types/types';
+
+export const dynamic = 'force-dynamic';
 
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 
@@ -25,12 +27,34 @@ export async function POST(request: Request) {
             .update(rawBody)
             .digest('base64');
 
-        if (generatedHmac !== hmac) {
+        if (!crypto.timingSafeEqual(Buffer.from(generatedHmac), Buffer.from(hmac))) {
             return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 401 });
         }
 
         // 2. Parse Payload
-        const order = JSON.parse(rawBody);
+        const payload = JSON.parse(rawBody);
+
+        // Handle APP_UNINSTALLED — mark shop as disconnected
+        if (topic === 'app/uninstalled') {
+            console.log(`[Shopify Webhook] APP_UNINSTALLED for ${shopDomain}`);
+
+            const usersRef = collection(db, 'users');
+            const uq = query(usersRef, where('shopifyConfig.shopUrl', '==', shopDomain));
+            const uSnap = await getDocs(uq);
+
+            for (const userDocument of uSnap.docs) {
+                await updateDoc(doc(db, 'users', userDocument.id), {
+                    'shopifyConfig.isConnected': false,
+                    'shopifyConfig.uninstalledAt': new Date().toISOString(),
+                });
+                console.log(`[Shopify Webhook] Marked ${shopDomain} disconnected for user ${userDocument.id}`);
+            }
+
+            return NextResponse.json({ message: 'Uninstall processed' });
+        }
+
+        // Only process orders/create from here
+        const order = payload;
 
         // 3. Find User/Client by Shop URL
         const usersRef = collection(db, 'users');

@@ -9,8 +9,13 @@ embedded = false
 api_version = "2024-10"
 # Webhook subscriptions are registered programmatically during OAuth callback
 
+  [webhooks.privacy_compliance]
+  customer_deletion_url = "https://blujaylogistic.com/api/integrations/shopify/gdpr/customers-redact"
+  customer_data_request_url = "https://blujaylogistic.com/api/integrations/shopify/gdpr/customers-data-request"
+  shop_deletion_url = "https://blujaylogistic.com/api/integrations/shopify/gdpr/shop-redact"
+
 [access_scopes]
-scopes = "read_orders,read_customers,write_fulfillments"
+scopes = "read_orders,write_fulfillments"
 optional_scopes = []
 use_legacy_install_flow = true
 
