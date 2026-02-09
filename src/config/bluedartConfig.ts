@@ -9,6 +9,7 @@ export const BLUEDART_SERVICE_TYPES = {
         displayName: 'Domestic Priority',
         description: 'Premium next-day air express',
         b2bOnly: true,
+        packType: '',
     },
     APEX: {
         code: 'A',
@@ -16,6 +17,15 @@ export const BLUEDART_SERVICE_TYPES = {
         displayName: 'Dart Apex',
         description: 'Air express for 10 kg+ shipments',
         b2bOnly: false,
+        packType: '',
+    },
+    BHARAT_DART: {
+        code: 'A',
+        name: 'Bharat Dart',
+        displayName: 'Bharat Dart',
+        description: 'Economy air express delivery',
+        b2bOnly: false,
+        packType: 'L',
     },
     SURFACE: {
         code: 'E',
@@ -23,6 +33,7 @@ export const BLUEDART_SERVICE_TYPES = {
         displayName: 'Dart Surfaceline',
         description: 'Economical ground delivery (3-7 days)',
         b2bOnly: true,
+        packType: '',
     },
 } as const;
 
@@ -31,7 +42,7 @@ export type BlueDartServiceType = keyof typeof BLUEDART_SERVICE_TYPES;
 export const BLUEDART_PREDEFINED = {
     // Billing & Pickup Location - From Environment Variables
     billingArea: process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD",
-    billingCustomerCode: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "101183",
+    billingCustomerCode: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "302282",
 
     // Shipper Details - Hardcoded default can be overridden or updated to env
     shipperName: "ROAST AND KRUNCH CAFE", // Updated to match Customer Name

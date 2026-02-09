@@ -6,7 +6,7 @@ import fs from 'fs';
 // BlueDart pre-defined values
 const BLUEDART_PREDEFINED = {
     billingArea: "HYD",
-    billingCustomerCode: "101183",
+    billingCustomerCode: "302282",
     shipperName: "RK",
     pickupAddress: "CAPITAL PARK MADHAPUR HYD",
     pickupPincode: "500081",

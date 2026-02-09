@@ -445,7 +445,7 @@ const AddShipment = () => {
                         ? { SubProductCode: enableCOD ? "C" : "P" }
                         : enableCOD ? { SubProductCode: "C" } : {}),
                     PieceCount: "1",
-                    PackType: "",
+                    PackType: selectedService.packType || "",
                     ActualWeight: weights.actual.toString(),
                     Dimensions: [
                         {
@@ -539,6 +539,7 @@ const AddShipment = () => {
             // Blue Dart service options
             blueDartServiceType: selectedService.name,
             blueDartServiceCode: selectedService.code,
+            packType: selectedService.packType || '',
             codEnabled: enableCOD,
             collectableAmount: codAmountValue,
         };
@@ -1093,7 +1094,7 @@ const AddShipment = () => {
                                         <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                             <Truck className="h-3 w-3" /> Blue Dart Service Type
                                         </Label>
-                                        <div className={`grid ${isB2C ? 'grid-cols-1 max-w-xs' : 'grid-cols-3'} gap-3`}>
+                                        <div className={`grid ${isB2C ? 'grid-cols-2 max-w-lg' : 'grid-cols-3'} gap-3`}>
                                             {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][])
                                                 .filter(([, service]) => !isB2C || !service.b2bOnly)
                                                 .map(([key, service]) => {
@@ -1136,7 +1137,7 @@ const AddShipment = () => {
                                                 <div>
                                                     <div className="font-bold text-sm">Cash on Delivery (COD)</div>
                                                     <div className="text-[10px] text-muted-foreground">
-                                                        {isB2C ? 'Available with Dart Apex' : 'Available with Dart Apex & Dart Surfaceline only'}
+                                                        {isB2C ? 'Available with Dart Apex & Bharat Dart' : 'Available with Dart Apex, Bharat Dart & Dart Surfaceline'}
                                                     </div>
                                                 </div>
                                             </div>
