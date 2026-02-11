@@ -429,7 +429,7 @@ const AddShipment = () => {
                 },
                 Shipper: {
                     CustomerName: BLUEDART_PREDEFINED.shipperName,
-                    CustomerCode: isB2C ? BLUEDART_PREDEFINED.billingCustomerCode : BLUEDART_PREDEFINED.billingCustomerCodeB2B,
+                    CustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
                     CustomerAddress1: BLUEDART_PREDEFINED.pickupAddress.slice(0, 30),
                     CustomerAddress2: BLUEDART_PREDEFINED.pickupAddress.slice(30, 60) || "",
                     CustomerAddress3: "HYD",
@@ -514,7 +514,7 @@ const AddShipment = () => {
             marginAmount: 0,
             referenceNo,
             billingArea: BLUEDART_PREDEFINED.billingArea,
-            billingCustomerCode: isB2C ? BLUEDART_PREDEFINED.billingCustomerCode : BLUEDART_PREDEFINED.billingCustomerCodeB2B,
+            billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
             pickupTime: BLUEDART_PREDEFINED.pickupTime,
             shipperName: BLUEDART_PREDEFINED.shipperName,
             pickupAddress: pickup.address,
@@ -1132,7 +1132,8 @@ const AddShipment = () => {
                                             </>
                                         )}
 
-                                        {/* COD Option */}
+                                        {/* COD Option - Only for B2C (Domestic Priority doesn't support COD) */}
+                                        {isB2C && (
                                         <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -1141,7 +1142,7 @@ const AddShipment = () => {
                                                 <div>
                                                     <div className="font-bold text-sm">Cash on Delivery (COD)</div>
                                                     <div className="text-[10px] text-muted-foreground">
-                                                        {isB2C ? 'Available with Blue Dart Air & Blue Dart Surface' : 'Available with Domestic Priority'}
+                                                        Available with Blue Dart Air & Blue Dart Surface
                                                     </div>
                                                 </div>
                                             </div>
@@ -1150,9 +1151,10 @@ const AddShipment = () => {
                                                 onCheckedChange={setEnableCOD}
                                             />
                                         </div>
+                                        )}
 
                                         {/* COD Amount Input */}
-                                        {enableCOD && (
+                                        {isB2C && enableCOD && (
                                             <div className="space-y-2 animate-in fade-in duration-300">
                                                 <Label className="text-xs font-bold uppercase text-muted-foreground">COD Amount (₹)</Label>
                                                 <Input
