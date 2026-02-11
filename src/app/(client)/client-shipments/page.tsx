@@ -82,8 +82,8 @@ const ClientShipments = () => {
 
             toast.success("Shipment cancelled successfully", { id: toastId });
 
-            // 3. Refresh list
-            fetchShipments();
+            // 3. Update local state immediately so row reflects cancellation
+            setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, status: 'cancelled' } : s));
         } catch (error: any) {
             console.error("Cancellation failed:", error);
             const errorMsg = error.response?.data?.error || error.message || "Failed to cancel shipment";
@@ -178,6 +178,7 @@ const ClientShipments = () => {
                                             <th className="px-6 py-4">Receiver</th>
                                             <th className="px-6 py-4">Destination</th>
                                             <th className="px-6 py-4">Courier</th>
+                                            <th className="px-6 py-4">Status</th>
                                             <th className="px-6 py-4 text-right">Action</th>
                                         </tr>
                                     </thead>
@@ -209,6 +210,17 @@ const ClientShipments = () => {
                                                 <td className="px-6 py-5 text-sm">{shp.destination?.city}, {shp.destination?.state}</td>
                                                 <td className="px-6 py-5">
                                                     <span className="text-sm font-semibold">{shp.courier}</span>
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                                                        shp.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                                        shp.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                                                        shp.status === 'declined' ? 'bg-orange-100 text-orange-700' :
+                                                        shp.status === 'shopify_pending' ? 'bg-[#95BF47]/20 text-[#5e8e3e]' :
+                                                        'bg-blue-100 text-blue-700'
+                                                    }`}>
+                                                        {shp.status === 'shopify_pending' ? 'Pending' : shp.status || 'Booked'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-5 text-right">
                                                     {shp.status === 'shopify_pending' ? (
