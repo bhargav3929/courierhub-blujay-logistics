@@ -59,6 +59,8 @@ import { ShipmentManifest, printManifest } from "@/components/shipments/Shipment
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
 import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShopifyLabel, printShopifyLabel } from "@/components/shipments/ShopifyLabel";
+import { blueDartService } from "@/services/blueDartService";
+import { dtdcService } from "@/services/dtdcService";
 
 const Shipments = () => {
     const [loading, setLoading] = useState(true);
@@ -253,9 +255,24 @@ const Shipments = () => {
 
         try {
             setIsDeleting(true);
+
+            // 1. Cancel with courier API if AWB exists
+            if (shipmentToDelete.courierTrackingId) {
+                try {
+                    if (shipmentToDelete.courier === 'DTDC') {
+                        await dtdcService.cancelShipment(shipmentToDelete.courierTrackingId);
+                    } else {
+                        await blueDartService.cancelWaybill(shipmentToDelete.courierTrackingId);
+                    }
+                } catch (apiError: any) {
+                    console.warn("Courier API cancel failed (proceeding with delete):", apiError.message);
+                }
+            }
+
+            // 2. Delete from Firestore
             await deleteShipment(shipmentToDelete.id);
 
-            // Remove from local state
+            // 3. Remove from local state
             setShipments(prev => prev.filter(s => s.id !== shipmentToDelete.id));
             setSelectedIds(prev => {
                 const newSet = new Set(prev);

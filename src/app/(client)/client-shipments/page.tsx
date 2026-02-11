@@ -82,8 +82,8 @@ const ClientShipments = () => {
 
             toast.success("Shipment cancelled successfully", { id: toastId });
 
-            // 3. Update local state immediately so row reflects cancellation
-            setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, status: 'cancelled' } : s));
+            // 3. Remove from table immediately
+            setShipments(prev => prev.filter(s => s.id !== shipment.id));
         } catch (error: any) {
             console.error("Cancellation failed:", error);
             const errorMsg = error.response?.data?.error || error.message || "Failed to cancel shipment";
