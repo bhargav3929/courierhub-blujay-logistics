@@ -67,13 +67,18 @@ const calculatePrice = (weight: number) => {
 };
 
 const AddShipment = () => {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const { currentUser, firebaseUser } = useAuth();
+    const isB2C = currentUser?.role === 'shopify';
+
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [savingDefault, setSavingDefault] = useState(false);
     const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
 
     // Blue Dart service options
-    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>('APEX');
+    const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
     const [enableCOD, setEnableCOD] = useState(false);
     const [codAmount, setCodAmount] = useState("");
 
@@ -94,12 +99,8 @@ const AddShipment = () => {
     const [receiverAutoFilled, setReceiverAutoFilled] = useState(false);
     const lookupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const router = useRouter();
-    const searchParams = useSearchParams();
     const shopifyShipmentId = searchParams.get('shopifyShipmentId');
     const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
-    const { currentUser, firebaseUser } = useAuth();
-    const isB2C = currentUser?.role === 'shopify';
 
     // Fire-and-forget call to sync fulfillment to Shopify after AWB is assigned
     const triggerShopifyFulfillment = async (shipmentId: string) => {
@@ -368,10 +369,6 @@ const AddShipment = () => {
     const handleBook = async () => {
         // Validate COD for Blue Dart
         if (selectedCourier === 'Blue Dart' && enableCOD) {
-            if (!isB2C && BLUEDART_SERVICE_TYPES[blueDartServiceType].code === 'D') {
-                toast.error("COD is not available for Domestic Priority. Please select Dart Apex or Dart Surfaceline.");
-                return;
-            }
             if (!codAmount || parseFloat(codAmount) <= 0) {
                 toast.error("Please enter COD amount");
                 return;
@@ -663,17 +660,17 @@ const AddShipment = () => {
         });
     };
 
-    // STEP 2: Validate package details and move to product step
+    // STEP 2: Validate package details and move to next step
     const handlePackageNext = () => {
         if (!weights.billable || weights.billable <= 0) {
             toast.error("Please enter valid weight");
             return;
         }
         toast.success("Package details saved!");
-        setStep(3);
+        setStep(isB2C ? 3 : 4); // Franchise skips Products step
     };
 
-    // STEP 3: Validate product details and move to courier step
+    // STEP 3: Validate product details and move to courier step (B2C only)
     const handleProductNext = () => {
         const hasValidProduct = products.some(p => p.name.trim() && p.price > 0);
         if (!hasValidProduct) {
@@ -684,7 +681,7 @@ const AddShipment = () => {
         setStep(4);
     };
 
-    const handleBack = () => setStep(step - 1);
+    const handleBack = () => setStep(!isB2C && step === 4 ? 2 : step - 1);
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
@@ -696,7 +693,7 @@ const AddShipment = () => {
                 <h1 className="text-4xl font-black tracking-tighter text-foreground">
                     Book <span className="text-primary">Shipment</span>
                 </h1>
-                <p className="text-muted-foreground font-medium">Simple 4-step booking</p>
+                <p className="text-muted-foreground font-medium">Simple {isB2C ? '4' : '3'}-step booking</p>
             </div>
 
             {shopifyShipmentId && (
@@ -707,14 +704,18 @@ const AddShipment = () => {
                 </div>
             )}
 
-            {/* 4-Step Progress */}
+            {/* Step Progress */}
             <div className="flex justify-center items-center gap-3 max-w-3xl mx-auto">
-                {[
+                {(isB2C ? [
                     { num: 1, label: "Addresses", icon: MapPin },
                     { num: 2, label: "Package", icon: Package },
                     { num: 3, label: "Products", icon: ShoppingBag },
                     { num: 4, label: "Courier", icon: Truck },
-                ].map((s, i) => (
+                ] : [
+                    { num: 1, label: "Addresses", icon: MapPin },
+                    { num: 2, label: "Package", icon: Package },
+                    { num: 4, label: "Courier", icon: Truck },
+                ]).map((s, i, arr) => (
                     <div key={s.num} className="flex items-center gap-3">
                         <div className="flex flex-col items-center gap-1.5">
                             <div className={`
@@ -729,7 +730,7 @@ const AddShipment = () => {
                                 {s.label}
                             </span>
                         </div>
-                        {i < 3 && <div className={`w-12 h-1 rounded-full mb-5 ${step > s.num ? "bg-primary" : "bg-muted"}`} />}
+                        {i < arr.length - 1 && <div className={`w-12 h-1 rounded-full mb-5 ${step > s.num ? "bg-primary" : "bg-muted"}`} />}
                     </div>
                 ))}
             </div>
@@ -1096,46 +1097,40 @@ const AddShipment = () => {
                                 {/* Blue Dart Service Type Selection */}
                                 {selectedCourier === 'Blue Dart' && (
                                     <div className="space-y-4 pt-2">
-                                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                            <Truck className="h-3 w-3" /> Blue Dart Service Type
-                                        </Label>
-                                        <div className={`grid ${isB2C ? 'grid-cols-2 max-w-lg' : 'grid-cols-3'} gap-3`}>
-                                            {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][])
-                                                .filter(([, service]) => !isB2C || !service.b2bOnly)
-                                                .map(([key, service]) => {
-                                                const isCODBlocked = !isB2C && enableCOD && service.code === 'D';
-                                                return (
-                                                    <button
-                                                        key={key}
-                                                        type="button"
-                                                        onClick={() => !isCODBlocked && setBlueDartServiceType(key)}
-                                                        disabled={isCODBlocked}
-                                                        className={`relative p-4 rounded-xl border-2 transition-all text-left ${
-                                                            isCODBlocked
-                                                                ? 'border-muted bg-muted/20 opacity-50 cursor-not-allowed'
-                                                                : blueDartServiceType === key
-                                                                    ? 'border-blue-500 bg-blue-50 shadow-md'
-                                                                    : 'border-muted hover:border-blue-200 bg-white'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            {key === 'APEX' && <Plane className="h-4 w-4 text-blue-500" />}
-                                                            {key === 'BHARAT_DART' && <Truck className="h-4 w-4 text-blue-500" />}
-                                                            <div className="font-bold text-sm">{service.displayName}</div>
-                                                        </div>
-                                                        {service.description && <div className="text-[10px] text-muted-foreground mt-1">{service.description}</div>}
-                                                        {isCODBlocked && (
-                                                            <div className="text-[9px] text-amber-600 font-bold mt-1">No COD</div>
-                                                        )}
-                                                        {!isCODBlocked && blueDartServiceType === key && (
-                                                            <div className="absolute top-2 right-2">
-                                                                <BadgeCheck className="h-4 w-4 text-blue-500" />
-                                                            </div>
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                                        {isB2C && (
+                                            <>
+                                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                                    <Truck className="h-3 w-3" /> Blue Dart Service Type
+                                                </Label>
+                                                <div className="grid grid-cols-2 max-w-lg gap-3">
+                                                    {(Object.entries(BLUEDART_SERVICE_TYPES) as [BlueDartServiceType, typeof BLUEDART_SERVICE_TYPES[BlueDartServiceType]][])
+                                                        .filter(([, service]) => !service.b2bOnly)
+                                                        .map(([key, service]) => (
+                                                            <button
+                                                                key={key}
+                                                                type="button"
+                                                                onClick={() => setBlueDartServiceType(key)}
+                                                                className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                                                                    blueDartServiceType === key
+                                                                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                                        : 'border-muted hover:border-blue-200 bg-white'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    {key === 'APEX' && <Plane className="h-4 w-4 text-blue-500" />}
+                                                                    {key === 'BHARAT_DART' && <Truck className="h-4 w-4 text-blue-500" />}
+                                                                    <div className="font-bold text-sm">{service.displayName}</div>
+                                                                </div>
+                                                                {blueDartServiceType === key && (
+                                                                    <div className="absolute top-2 right-2">
+                                                                        <BadgeCheck className="h-4 w-4 text-blue-500" />
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        ))}
+                                                </div>
+                                            </>
+                                        )}
 
                                         {/* COD Option */}
                                         <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
@@ -1146,19 +1141,13 @@ const AddShipment = () => {
                                                 <div>
                                                     <div className="font-bold text-sm">Cash on Delivery (COD)</div>
                                                     <div className="text-[10px] text-muted-foreground">
-                                                        {isB2C ? 'Available with Dart Apex & Bharat Dart' : 'Available with Dart Apex, Bharat Dart & Dart Surfaceline'}
+                                                        {isB2C ? 'Available with Blue Dart Air & Blue Dart Surface' : 'Available with Domestic Priority'}
                                                     </div>
                                                 </div>
                                             </div>
                                             <Switch
                                                 checked={enableCOD}
-                                                onCheckedChange={(checked) => {
-                                                    setEnableCOD(checked);
-                                                    if (!isB2C && checked && BLUEDART_SERVICE_TYPES[blueDartServiceType].code === 'D') {
-                                                        setBlueDartServiceType('APEX');
-                                                        toast.info("Switched to Dart Apex — COD is not available for Domestic Priority");
-                                                    }
-                                                }}
+                                                onCheckedChange={setEnableCOD}
                                             />
                                         </div>
 
@@ -1213,7 +1202,7 @@ const AddShipment = () => {
                         )}
                         {step === 2 && (
                             <Button onClick={handlePackageNext} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
-                                Add Products <ChevronRight className="h-5 w-5" />
+                                {isB2C ? 'Add Products' : 'Choose Courier'} <ChevronRight className="h-5 w-5" />
                             </Button>
                         )}
                         {step === 3 && (
