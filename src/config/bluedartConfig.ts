@@ -43,6 +43,7 @@ export const BLUEDART_PREDEFINED = {
     // Billing & Pickup Location - From Environment Variables
     billingArea: process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD",
     billingCustomerCode: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "302282",
+    billingCustomerCodeB2B: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE_B2B || "HYD64586",
 
     // Shipper Details - Hardcoded default can be overridden or updated to env
     shipperName: "ROAST AND KRUNCH CAFE", // Updated to match Customer Name

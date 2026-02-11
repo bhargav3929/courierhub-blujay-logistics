@@ -432,7 +432,7 @@ const AddShipment = () => {
                 },
                 Shipper: {
                     CustomerName: BLUEDART_PREDEFINED.shipperName,
-                    CustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+                    CustomerCode: isB2C ? BLUEDART_PREDEFINED.billingCustomerCode : BLUEDART_PREDEFINED.billingCustomerCodeB2B,
                     CustomerAddress1: BLUEDART_PREDEFINED.pickupAddress.slice(0, 30),
                     CustomerAddress2: BLUEDART_PREDEFINED.pickupAddress.slice(30, 60) || "",
                     CustomerAddress3: "HYD",
@@ -517,7 +517,7 @@ const AddShipment = () => {
             marginAmount: 0,
             referenceNo,
             billingArea: BLUEDART_PREDEFINED.billingArea,
-            billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+            billingCustomerCode: isB2C ? BLUEDART_PREDEFINED.billingCustomerCode : BLUEDART_PREDEFINED.billingCustomerCodeB2B,
             pickupTime: BLUEDART_PREDEFINED.pickupTime,
             shipperName: BLUEDART_PREDEFINED.shipperName,
             pickupAddress: pickup.address,
