@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence, useMotionValueEvent, useScroll } from 'framer-motion';
-import { Package, Menu, X, ArrowUpRight } from 'lucide-react';
+import { Menu, X, ArrowUpRight } from 'lucide-react';
 
 interface NavbarProps {
   scrollTo: (target: string, offset?: number) => void;
@@ -60,14 +61,15 @@ export default function Navbar({ scrollTo }: NavbarProps) {
       >
         <div className="max-w-[1400px] mx-auto px-6 lg:px-10">
           <div className="flex items-center justify-between h-[72px]">
-            <Link href="/" className="flex items-center gap-2.5 group relative">
-              <div className="relative">
-                <div className="absolute inset-0 bg-[#3b82f6] rounded-lg blur-md opacity-30 group-hover:opacity-50 transition-opacity" />
-                <div className="relative p-1.5 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#06b6d4]">
-                  <Package className="h-5 w-5 text-white" />
-                </div>
-              </div>
-              <span className="text-[17px] font-semibold text-[#0f172a] tracking-[-0.02em]">blujay</span>
+            <Link href="/" className="relative -ml-6">
+              <Image
+                src="/logos/blujay-logo.svg"
+                alt="Blujay Logistics"
+                width={200}
+                height={43}
+                unoptimized
+                priority
+              />
             </Link>
 
             <nav className="hidden md:flex items-center gap-1 px-1.5 py-1.5 rounded-full bg-[#0f172a]/[0.04] border border-[#0f172a]/[0.06]">
@@ -121,11 +123,14 @@ export default function Navbar({ scrollTo }: NavbarProps) {
             className="fixed inset-0 z-[60] bg-white/98 backdrop-blur-2xl flex flex-col"
           >
             <div className="flex items-center justify-between px-6 h-[72px]">
-              <Link href="/" className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#06b6d4]">
-                  <Package className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-[17px] font-semibold text-[#0f172a]">blujay</span>
+              <Link href="/">
+                <Image
+                  src="/logos/blujay-logo.svg"
+                  alt="Blujay Logistics"
+                  width={200}
+                  height={43}
+                  unoptimized
+                />
               </Link>
               <button onClick={() => setMobileOpen(false)} className="p-2 text-[#0f172a]/60"><X className="h-5 w-5" /></button>
             </div>

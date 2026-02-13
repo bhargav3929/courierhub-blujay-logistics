@@ -58,7 +58,8 @@ const ClientShipments = () => {
     const [cancellingId, setCancellingId] = useState<string | null>(null);
     const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
-    // Tab state
+    // Tab state (only used by Shopify merchants)
+    const isFranchise = currentUser?.role === 'franchise';
     const [activeTab, setActiveTab] = useState<string>('new-orders');
 
     // Shipped tab: Bulk selection state
@@ -97,13 +98,15 @@ const ClientShipments = () => {
         }
     };
 
-    // Set default tab based on data
+    // Set default tab based on data (franchise always shows shipped)
     useEffect(() => {
-        if (!loading && shipments.length > 0) {
+        if (isFranchise) {
+            setActiveTab('shipped');
+        } else if (!loading && shipments.length > 0) {
             const hasPending = shipments.some(s => s.status === 'shopify_pending');
             setActiveTab(hasPending ? 'new-orders' : 'shipped');
         }
-    }, [loading, shipments]);
+    }, [loading, shipments, isFranchise]);
 
     // Check if a shipment was created in the last 24 hours (for NEW badge in New Orders tab only)
     const isRecentOrder = (shp: Shipment): boolean => {
@@ -114,8 +117,9 @@ const ClientShipments = () => {
     };
 
     // Separate shipments into new orders and booked shipments
-    const newOrders = shipments.filter(s => s.status === 'shopify_pending');
-    const bookedShipments = shipments.filter(s => s.status !== 'shopify_pending');
+    // Franchise users see all shipments in the "shipped" view (no shopify_pending split)
+    const newOrders = isFranchise ? [] : shipments.filter(s => s.status === 'shopify_pending');
+    const bookedShipments = isFranchise ? shipments : shipments.filter(s => s.status !== 'shopify_pending');
 
     // Per-tab filtering
     const filteredNewOrders = newOrders.filter((shp) => {
@@ -518,27 +522,30 @@ const ClientShipments = () => {
                     </div>
                 </CardHeader>
 
-                <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedIds(new Set()); setSelectedNewOrderIds(new Set()); }}>
-                    <div className="px-6 pt-4 border-b">
-                        <TabsList className="bg-muted/40 h-11 p-1 border border-border/50">
-                            <TabsTrigger value="new-orders" className="gap-2 px-5 bg-white border border-border/40 shadow-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:border-primary transition-all">
-                                New Orders
-                                {newOrders.length > 0 && (
-                                    <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-white/20 text-[10px] font-bold">
-                                        {newOrders.length}
-                                    </span>
-                                )}
-                            </TabsTrigger>
-                            <TabsTrigger value="shipped" className="gap-2 px-5 bg-white border border-border/40 shadow-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:border-primary transition-all">
-                                Shipped
-                                {bookedShipments.length > 0 && (
-                                    <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-white/20 text-[10px] font-bold">
-                                        {bookedShipments.length}
-                                    </span>
-                                )}
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
+                <Tabs value={isFranchise ? 'shipped' : activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedIds(new Set()); setSelectedNewOrderIds(new Set()); }}>
+                    {/* Tab strip — only for Shopify merchants */}
+                    {!isFranchise && (
+                        <div className="px-6 pt-4 border-b">
+                            <TabsList className="bg-muted/40 h-11 p-1 border border-border/50">
+                                <TabsTrigger value="new-orders" className="gap-2 px-5 bg-white border border-border/40 shadow-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:border-primary transition-all">
+                                    New Orders
+                                    {newOrders.length > 0 && (
+                                        <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-white/20 text-[10px] font-bold">
+                                            {newOrders.length}
+                                        </span>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="shipped" className="gap-2 px-5 bg-white border border-border/40 shadow-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:border-primary transition-all">
+                                    Shipped
+                                    {bookedShipments.length > 0 && (
+                                        <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-white/20 text-[10px] font-bold">
+                                            {bookedShipments.length}
+                                        </span>
+                                    )}
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+                    )}
 
                     {/* ==================== NEW ORDERS TAB ==================== */}
                     <TabsContent value="new-orders" className="mt-0">
@@ -821,16 +828,31 @@ const ClientShipments = () => {
                                                         aria-label="Select all"
                                                     />
                                                 </th>
-                                                <th className="px-4 py-4">Channel</th>
-                                                <th className="px-4 py-4">Order #</th>
-                                                <th className="px-4 py-4">Date</th>
-                                                <th className="px-4 py-4">Product</th>
-                                                <th className="px-4 py-4">Payment</th>
-                                                <th className="px-4 py-4">Customer</th>
-                                                <th className="px-4 py-4">Zip</th>
-                                                <th className="px-4 py-4">Weight</th>
-                                                <th className="px-4 py-4">Status</th>
-                                                <th className="px-4 py-4 text-right">Action</th>
+                                                {isFranchise ? (
+                                                    <>
+                                                        <th className="px-4 py-4">AWB</th>
+                                                        <th className="px-4 py-4">Date</th>
+                                                        <th className="px-4 py-4">Sender</th>
+                                                        <th className="px-4 py-4">Receiver</th>
+                                                        <th className="px-4 py-4">Zip</th>
+                                                        <th className="px-4 py-4">Weight</th>
+                                                        <th className="px-4 py-4">Status</th>
+                                                        <th className="px-4 py-4 text-right">Action</th>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <th className="px-4 py-4">Channel</th>
+                                                        <th className="px-4 py-4">Order #</th>
+                                                        <th className="px-4 py-4">Date</th>
+                                                        <th className="px-4 py-4">Product</th>
+                                                        <th className="px-4 py-4">Payment</th>
+                                                        <th className="px-4 py-4">Customer</th>
+                                                        <th className="px-4 py-4">Zip</th>
+                                                        <th className="px-4 py-4">Weight</th>
+                                                        <th className="px-4 py-4">Status</th>
+                                                        <th className="px-4 py-4 text-right">Action</th>
+                                                    </>
+                                                )}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/50">
@@ -848,85 +870,123 @@ const ClientShipments = () => {
                                                             />
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-4">
-                                                        {shp.clientType === 'shopify' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
-                                                                <ShoppingBag className="h-3 w-3" /> Shopify
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 text-muted-foreground text-[10px] font-bold">
-                                                                <Package className="h-3 w-3" /> Direct
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <div className="flex items-center gap-2">
+                                                    {isFranchise ? (
+                                                        <>
+                                                            <td className="px-4 py-4">
                                                                 <span className="font-mono text-sm font-bold text-blue-700">
-                                                                    {shp.shopifyOrderNumber ? `#${shp.shopifyOrderNumber}` : shp.referenceNo || '-'}
+                                                                    {shp.courierTrackingId || '-'}
                                                                 </span>
-                                                            </div>
-                                                            <span className="font-mono text-[10px] text-muted-foreground">
-                                                                {shp.courierTrackingId || shp.id?.substring(0, 10).toUpperCase()}
-                                                            </span>
-                                                            {shp.shopifyFulfillmentStatus === 'fulfilled' && (
-                                                                <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-bold w-fit">
-                                                                    SYNCED
+                                                            </td>
+                                                            <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">
+                                                                {shp.createdAt?.toDate ? format(shp.createdAt.toDate(), "dd MMM yyyy") : "N/A"}
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className="font-semibold text-sm block">{shp.senderName || shp.origin?.name || "N/A"}</span>
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className="font-semibold text-sm block">{shp.destination?.name || "N/A"}</span>
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className="font-mono text-sm">{shp.destination?.pincode || "-"}</span>
+                                                            </td>
+                                                            <td className="px-4 py-4 text-sm font-medium">
+                                                                {(shp.weight || shp.actualWeight || 0) > 0
+                                                                    ? `${shp.weight || shp.actualWeight}kg`
+                                                                    : '-'}
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                                                                    shp.status === 'cancelled'
+                                                                        ? 'bg-red-100 text-red-700'
+                                                                        : 'bg-primary/10 text-primary'
+                                                                }`}>
+                                                                    {shp.status === 'cancelled' ? 'Cancelled' : 'Shipped'}
                                                                 </span>
-                                                            )}
-                                                            {shp.shopifyFulfillmentStatus === 'failed' && (
-                                                                <span
-                                                                    className="text-[9px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-bold w-fit cursor-help"
-                                                                    title={shp.shopifyFulfillmentError || 'Shopify sync failed'}
-                                                                >
-                                                                    SYNC FAILED
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">
-                                                        {shp.createdAt?.toDate ? format(shp.createdAt.toDate(), "dd MMM yyyy") : "N/A"}
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <div className="max-w-[180px]">
-                                                            <span className="text-sm font-medium block truncate">
-                                                                {shp.products?.[0]?.name || shp.shopifyLineItems?.[0]?.title || '-'}
-                                                            </span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                ₹{(shp.declaredValue || shp.chargedAmount || 0).toLocaleString('en-IN')}
-                                                                {(shp.products?.length || 0) > 1 && (
-                                                                    <span className="ml-1 text-[10px] text-muted-foreground">+{(shp.products?.length || 0) - 1} more</span>
+                                                            </td>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <td className="px-4 py-4">
+                                                                {shp.clientType === 'shopify' ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                                                                        <ShoppingBag className="h-3 w-3" /> Shopify
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 text-muted-foreground text-[10px] font-bold">
+                                                                        <Package className="h-3 w-3" /> Direct
+                                                                    </span>
                                                                 )}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        {shp.toPayCustomer ? (
-                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold">COD</span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground text-[10px] font-bold">Prepaid</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <span className="font-semibold text-sm block">{shp.destination?.name || "N/A"}</span>
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <span className="font-mono text-sm">{shp.destination?.pincode || "-"}</span>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-sm font-medium">
-                                                        {(shp.weight || shp.actualWeight || 0) > 0
-                                                            ? `${shp.weight || shp.actualWeight}kg`
-                                                            : '-'}
-                                                    </td>
-                                                    <td className="px-4 py-4">
-                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                                                            shp.status === 'cancelled'
-                                                                ? 'bg-red-100 text-red-700'
-                                                                : 'bg-primary/10 text-primary'
-                                                        }`}>
-                                                            {shp.status === 'cancelled' ? 'Cancelled' : 'Shipped'}
-                                                        </span>
-                                                    </td>
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono text-sm font-bold text-blue-700">
+                                                                            {shp.shopifyOrderNumber ? `#${shp.shopifyOrderNumber}` : shp.referenceNo || '-'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <span className="font-mono text-[10px] text-muted-foreground">
+                                                                        {shp.courierTrackingId || shp.id?.substring(0, 10).toUpperCase()}
+                                                                    </span>
+                                                                    {shp.shopifyFulfillmentStatus === 'fulfilled' && (
+                                                                        <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-bold w-fit">
+                                                                            SYNCED
+                                                                        </span>
+                                                                    )}
+                                                                    {shp.shopifyFulfillmentStatus === 'failed' && (
+                                                                        <span
+                                                                            className="text-[9px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-bold w-fit cursor-help"
+                                                                            title={shp.shopifyFulfillmentError || 'Shopify sync failed'}
+                                                                        >
+                                                                            SYNC FAILED
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">
+                                                                {shp.createdAt?.toDate ? format(shp.createdAt.toDate(), "dd MMM yyyy") : "N/A"}
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <div className="max-w-[180px]">
+                                                                    <span className="text-sm font-medium block truncate">
+                                                                        {shp.products?.[0]?.name || shp.shopifyLineItems?.[0]?.title || '-'}
+                                                                    </span>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        ₹{(shp.declaredValue || shp.chargedAmount || 0).toLocaleString('en-IN')}
+                                                                        {(shp.products?.length || 0) > 1 && (
+                                                                            <span className="ml-1 text-[10px] text-muted-foreground">+{(shp.products?.length || 0) - 1} more</span>
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                {shp.toPayCustomer ? (
+                                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold">COD</span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground text-[10px] font-bold">Prepaid</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className="font-semibold text-sm block">{shp.destination?.name || "N/A"}</span>
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className="font-mono text-sm">{shp.destination?.pincode || "-"}</span>
+                                                            </td>
+                                                            <td className="px-4 py-4 text-sm font-medium">
+                                                                {(shp.weight || shp.actualWeight || 0) > 0
+                                                                    ? `${shp.weight || shp.actualWeight}kg`
+                                                                    : '-'}
+                                                            </td>
+                                                            <td className="px-4 py-4">
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                                                                    shp.status === 'cancelled'
+                                                                        ? 'bg-red-100 text-red-700'
+                                                                        : 'bg-primary/10 text-primary'
+                                                                }`}>
+                                                                    {shp.status === 'cancelled' ? 'Cancelled' : 'Shipped'}
+                                                                </span>
+                                                            </td>
+                                                        </>
+                                                    )}
                                                     <td className="px-4 py-4 text-right">
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger className="p-2 hover:bg-muted rounded-lg transition-colors">

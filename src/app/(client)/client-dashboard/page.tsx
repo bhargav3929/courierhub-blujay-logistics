@@ -6,7 +6,7 @@ import { Shipment } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { format, subDays } from "date-fns";
+import { format, subDays, isToday } from "date-fns";
 
 // Components
 import { ClientDashboardStats } from "@/components/dashboard/ClientDashboardStats";
@@ -17,6 +17,8 @@ const ClientDashboard = () => {
     const { currentUser } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const isFranchise = currentUser?.role === 'franchise';
 
     useEffect(() => {
         if (currentUser?.id) {
@@ -46,12 +48,21 @@ const ClientDashboard = () => {
         ? Math.round((deliveredCount / shipments.length) * 100)
         : 0;
 
+    // Franchise-specific metrics
+    const totalWeight = shipments.reduce((sum, s) => sum + (s.weight || s.actualWeight || 0), 0);
+    const todayShipments = shipments.filter(s => {
+        const d = s.createdAt?.toDate ? s.createdAt.toDate() : null;
+        return d ? isToday(d) : false;
+    }).length;
+
     const stats = {
         totalShipments: shipments.length,
         totalRevenue,
         shippingRate,
         toBeProcessed,
         processed,
+        totalWeight,
+        todayShipments,
     };
 
     // Build activity chart data — last 7 days
@@ -77,19 +88,46 @@ const ClientDashboard = () => {
         return Object.entries(dayMap).map(([date, shipments]) => ({ date, shipments }));
     })();
 
-    // Build platform distribution data for pie chart
+    // Pie chart data — different for franchise vs shopify
     const sourceData = (() => {
-        const shopifyCount = shipments.filter(s => s.shopifyOrderId || s.clientType === 'shopify').length;
-        const directCount = shipments.length - shopifyCount;
-        return [
-            { name: 'Shopify', value: shopifyCount, color: 'hsl(var(--primary))' },
-            { name: 'Direct', value: directCount, color: '#94a3b8' },
-        ].filter(d => d.value > 0);
+        if (isFranchise) {
+            // Franchise: Courier Distribution (Blue Dart vs DTDC)
+            const blueDartCount = shipments.filter(s => s.courier === 'Blue Dart').length;
+            const dtdcCount = shipments.filter(s => s.courier === 'DTDC').length;
+            const otherCount = shipments.length - blueDartCount - dtdcCount;
+            const data = [
+                { name: 'Blue Dart', value: blueDartCount, color: '#2563eb' },
+                { name: 'DTDC', value: dtdcCount, color: '#dc2626' },
+            ];
+            if (otherCount > 0) {
+                data.push({ name: 'Other', value: otherCount, color: '#94a3b8' });
+            }
+            return data.filter(d => d.value > 0);
+        } else {
+            // Shopify: Order Sources
+            const shopifyCount = shipments.filter(s => s.shopifyOrderId || s.clientType === 'shopify').length;
+            const directCount = shipments.length - shopifyCount;
+            return [
+                { name: 'Shopify', value: shopifyCount, color: 'hsl(var(--primary))' },
+                { name: 'Direct', value: directCount, color: '#94a3b8' },
+            ].filter(d => d.value > 0);
+        }
     })();
 
-    // New orders for the table (max 10)
-    const pendingOrders = shipments.filter(s => s.status === 'shopify_pending');
-    const displayOrders = pendingOrders.slice(0, 10);
+    // Pie chart title/subtitle
+    const pieChartTitle = isFranchise ? "Courier Distribution" : "Order Sources";
+    const pieChartSubtitle = isFranchise ? "Shipments by courier" : "Shipments by platform";
+
+    // Table data: Shopify gets pending orders, Franchise gets recent shipments
+    const tableShipments = isFranchise
+        ? [...shipments].sort((a, b) => {
+            const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+            const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+            return bTime - aTime;
+        }).slice(0, 10)
+        : shipments.filter(s => s.status === 'shopify_pending');
+    const displayOrders = isFranchise ? tableShipments : tableShipments.slice(0, 10);
+    const totalTableCount = isFranchise ? shipments.length : tableShipments.length;
 
     const container = {
         hidden: { opacity: 0 },
@@ -109,19 +147,24 @@ const ClientDashboard = () => {
                 animate="show"
                 className="space-y-6 max-w-[1600px] mx-auto"
             >
-                {/* Stats Grid — 5 cards */}
-                <ClientDashboardStats metrics={stats} loading={loading} />
+                {/* Stats Grid */}
+                <ClientDashboardStats metrics={stats} loading={loading} userRole={currentUser?.role} />
 
                 {/* Charts — 50/50 split */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <ClientActivityChart data={activityData} />
-                    <ClientSourceChart data={sourceData} />
+                    <ClientSourceChart
+                        data={sourceData}
+                        title={pieChartTitle}
+                        subtitle={pieChartSubtitle}
+                    />
                 </div>
 
-                {/* New Orders Table */}
+                {/* Shipments Table */}
                 <ClientShipmentsTable
                     shipments={displayOrders}
-                    totalPendingCount={pendingOrders.length}
+                    totalPendingCount={totalTableCount}
+                    userRole={currentUser?.role}
                 />
             </motion.div>
         </div>

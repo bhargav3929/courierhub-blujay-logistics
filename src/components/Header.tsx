@@ -1,41 +1,24 @@
 'use client';
 
-import { Search, Bell, HelpCircle, ChevronRight } from "lucide-react";
+import { Search, Bell, HelpCircle } from "lucide-react";
 import { Input } from "./ui/input";
-import { usePathname } from "next/navigation";
 import { Button } from "./ui/button";
+import Image from "next/image";
 
 export const Header = () => {
-  const pathname = usePathname();
-  const pathSegments = pathname?.split('/').filter(Boolean) || [];
-
-  // Detect admin vs client context from the route
-  const isClient = pathSegments[0]?.startsWith('client-') || pathSegments[0] === 'add-shipment';
-  const contextLabel = isClient ? 'Portal' : 'Admin';
-
-  // Clean page title — strip "client-" prefix and replace dashes with spaces
-  const formatSegment = (s: string) => s.replace(/^client-/, '').replace(/-/g, ' ');
-  const pageTitle = formatSegment(pathSegments[pathSegments.length - 1] || 'dashboard');
-
   return (
     <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-xl border-b border-border">
-      <div className="flex items-center justify-between px-8 h-16">
+      <div className="flex items-center justify-between pl-4 pr-8 h-16">
 
-        {/* Left: Breadcrumbs & Page Title */}
-        <div className="flex flex-col justify-center gap-0.5">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground tracking-wide">
-            <span>{contextLabel}</span>
-            {pathSegments.map((segment, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <ChevronRight className="h-3 w-3 text-border" />
-                <span className="capitalize">{formatSegment(segment)}</span>
-              </div>
-            ))}
-          </div>
-          <h1 className="text-lg font-bold text-foreground capitalize leading-tight">
-            {pageTitle}
-          </h1>
-        </div>
+        {/* Left: Logo */}
+        <Image
+          src="/logos/blujay-logo.svg"
+          alt="Blujay Logistics"
+          width={160}
+          height={34}
+          unoptimized
+          className="-ml-4"
+        />
 
         {/* Right: Search + Actions */}
         <div className="flex items-center gap-2">

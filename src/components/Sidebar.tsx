@@ -1,19 +1,19 @@
 'use client';
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
-  LayoutDashboard,
+  LayoutGrid,
   Users,
-  Package,
+  Boxes,
   Truck,
-  BarChart3,
+  TrendingUp,
   Settings,
   LogOut,
-  ShieldCheck,
-  CreditCard,
+  ReceiptIndianRupee,
   User
 } from "lucide-react";
 import {
@@ -32,22 +32,22 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/admin-dashboard" },
-      { icon: BarChart3, label: "Reports", path: "/reports" },
+      { icon: LayoutGrid, label: "Dashboard", path: "/admin-dashboard" },
+      { icon: TrendingUp, label: "Reports", path: "/reports" },
     ]
   },
   {
     label: "Management",
     items: [
       { icon: Users, label: "Clients", path: "/clients" },
-      { icon: Package, label: "Shipments", path: "/shipments" },
+      { icon: Boxes, label: "Shipments", path: "/shipments" },
       { icon: Truck, label: "Couriers", path: "/couriers" },
     ]
   },
   {
     label: "System",
     items: [
-      { icon: CreditCard, label: "Billing", path: "/billing" },
+      { icon: ReceiptIndianRupee, label: "Billing", path: "/billing" },
       { icon: Settings, label: "Settings", path: "/settings" },
     ]
   }
@@ -60,13 +60,6 @@ export const Sidebar = () => {
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0F172A] border-r border-white/5 shadow-2xl z-50 flex flex-col items-center py-6">
-      {/* Brand Header */}
-      <div className="mb-8">
-        <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-          <Package className="h-6 w-6 text-white" />
-        </div>
-      </div>
-
       {/* Navigation */}
       <div className="flex-1 w-full overflow-y-auto space-y-8 scrollbar-none px-2">
         <TooltipProvider delayDuration={0}>

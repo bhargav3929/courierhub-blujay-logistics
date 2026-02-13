@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,16 +12,21 @@ import {
     ShieldCheck,
     Save,
     Upload,
-    Loader2
+    Loader2,
+    Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBusinessProfile, saveBusinessProfile, BusinessProfile } from "@/services/clientService";
+import { storage } from "@/lib/firebaseConfig";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 const ClientSettings = () => {
     const { currentUser } = useAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [businessData, setBusinessData] = useState<BusinessProfile>({
         companyName: "",
         gstin: "",
@@ -94,6 +99,62 @@ const ClientSettings = () => {
         }
     };
 
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !currentUser?.id) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            toast.error("Please upload an image file (PNG, JPG, etc.)");
+            return;
+        }
+
+        // Validate file size (max 2MB)
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error("Logo must be under 2MB");
+            return;
+        }
+
+        setUploadingLogo(true);
+        try {
+            const storageRef = ref(storage, `logos/${currentUser.id}/logo`);
+            await uploadBytes(storageRef, file);
+            const downloadUrl = await getDownloadURL(storageRef);
+
+            const updatedData = { ...businessData, logoUrl: downloadUrl };
+            setBusinessData(updatedData);
+            await saveBusinessProfile(currentUser.id, updatedData);
+            toast.success("Logo uploaded successfully");
+        } catch (error) {
+            console.error("Error uploading logo:", error);
+            toast.error("Failed to upload logo. Please try again.");
+        } finally {
+            setUploadingLogo(false);
+            // Reset file input
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveLogo = async () => {
+        if (!currentUser?.id || !businessData.logoUrl) return;
+
+        setUploadingLogo(true);
+        try {
+            const storageRef = ref(storage, `logos/${currentUser.id}/logo`);
+            try { await deleteObject(storageRef); } catch { /* file may not exist */ }
+
+            const updatedData = { ...businessData, logoUrl: undefined };
+            setBusinessData(updatedData);
+            await saveBusinessProfile(currentUser.id, updatedData);
+            toast.success("Logo removed");
+        } catch (error) {
+            console.error("Error removing logo:", error);
+            toast.error("Failed to remove logo");
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -118,16 +179,45 @@ const ClientSettings = () => {
                                 <ImageIcon className="h-4 w-4 text-primary" /> Business Logo
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="p-8 text-center space-y-6">
-                            <div className="w-32 h-32 mx-auto rounded-3xl bg-muted flex items-center justify-center border-4 border-dashed border-muted-foreground/20 group hover:border-primary/50 transition-all cursor-pointer overflow-hidden relative">
-                                <div className="bg-primary w-full h-full flex items-center justify-center text-white font-black text-xl">
-                                    {businessData.companyName ? businessData.companyName.substring(0, 2).toUpperCase() : "BL"}
-                                </div>
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                    <Upload className="h-6 w-6 text-white" />
-                                </div>
+                        <CardContent className="p-8 text-center space-y-4">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                className="hidden"
+                            />
+                            <div
+                                onClick={() => !uploadingLogo && fileInputRef.current?.click()}
+                                className="w-32 h-32 mx-auto rounded-3xl bg-muted flex items-center justify-center border-4 border-dashed border-muted-foreground/20 group hover:border-primary/50 transition-all cursor-pointer overflow-hidden relative"
+                            >
+                                {uploadingLogo ? (
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                ) : businessData.logoUrl ? (
+                                    <img src={businessData.logoUrl} alt="Business logo" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="bg-primary w-full h-full flex items-center justify-center text-white font-black text-xl">
+                                        {businessData.companyName ? businessData.companyName.substring(0, 2).toUpperCase() : "BL"}
+                                    </div>
+                                )}
+                                {!uploadingLogo && (
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                        <Upload className="h-6 w-6 text-white" />
+                                    </div>
+                                )}
                             </div>
-                            <p className="text-xs text-muted-foreground font-medium">Logo upload coming soon</p>
+                            <p className="text-xs text-muted-foreground font-medium">
+                                {businessData.logoUrl ? "Click to change logo" : "Click to upload logo"}
+                            </p>
+                            {businessData.logoUrl && (
+                                <button
+                                    onClick={handleRemoveLogo}
+                                    disabled={uploadingLogo}
+                                    className="text-xs text-destructive hover:underline flex items-center gap-1 mx-auto"
+                                >
+                                    <Trash2 className="h-3 w-3" /> Remove logo
+                                </button>
+                            )}
                         </CardContent>
                     </Card>
 

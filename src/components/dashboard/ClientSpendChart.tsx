@@ -12,6 +12,8 @@ interface ClientActivityChartProps {
 
 interface ClientSourceChartProps {
     data: { name: string; value: number; color: string }[];
+    title?: string;
+    subtitle?: string;
 }
 
 // Custom label for pie chart
@@ -87,14 +89,14 @@ export const ClientActivityChart = ({ data }: ClientActivityChartProps) => {
     );
 };
 
-export const ClientSourceChart = ({ data }: ClientSourceChartProps) => {
+export const ClientSourceChart = ({ data, title = "Order Sources", subtitle = "Shipments by platform" }: ClientSourceChartProps) => {
     const total = data.reduce((sum, d) => sum + d.value, 0);
 
     return (
         <MotionCard delay={0.4}>
             <MotionCardHeader className="pb-2">
-                <MotionCardTitle className="text-base">Order Sources</MotionCardTitle>
-                <p className="text-xs text-muted-foreground">Shipments by platform</p>
+                <MotionCardTitle className="text-base">{title}</MotionCardTitle>
+                <p className="text-xs text-muted-foreground">{subtitle}</p>
             </MotionCardHeader>
             <MotionCardContent>
                 <div className="h-[260px] w-full">

@@ -314,6 +314,7 @@ export interface BusinessProfile {
     city: string;
     state: string;
     country: string;
+    logoUrl?: string;
 }
 
 /**

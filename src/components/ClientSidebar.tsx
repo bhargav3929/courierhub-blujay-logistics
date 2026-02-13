@@ -1,16 +1,17 @@
 'use client';
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
-    LayoutDashboard,
-    Package,
-    PlusCircle,
+    House,
+    PackageSearch,
+    PackagePlus,
     Settings,
-    Puzzle,
+    Store,
     User,
     LogOut,
-    FileBarChart
+    ChartColumnBig
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -26,11 +27,11 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
-    { icon: LayoutDashboard, label: "Home", path: "/client-dashboard" },
-    { icon: Package, label: "My Shipments", path: "/client-shipments" },
-    { icon: PlusCircle, label: "Book Shipment", path: "/add-shipment" },
-    { icon: FileBarChart, label: "Reports", path: "/client-reports" },
-    { icon: Puzzle, label: "Store Integrations", path: "/client-integrations" },
+    { icon: House, label: "Home", path: "/client-dashboard" },
+    { icon: PackageSearch, label: "My Shipments", path: "/client-shipments" },
+    { icon: PackagePlus, label: "Book Shipment", path: "/add-shipment" },
+    { icon: ChartColumnBig, label: "Reports", path: "/client-reports" },
+    { icon: Store, label: "Store Integrations", path: "/client-integrations" },
     { icon: Settings, label: "Portal Settings", path: "/client-settings" },
 ];
 
@@ -41,11 +42,6 @@ export const ClientSidebar = () => {
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0B1120] border-r border-[#1E293B] shadow-2xl flex flex-col items-center py-6 z-50">
-            {/* Logo — replace with actual logo in future */}
-            <div className="mb-8 w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 ring-1 ring-white/10">
-                <Package className="h-5 w-5 text-white" />
-            </div>
-
             {/* Navigation */}
             <nav className="flex-1 flex flex-col gap-4 w-full px-3">
                 <TooltipProvider delayDuration={0}>
