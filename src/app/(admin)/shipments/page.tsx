@@ -560,14 +560,14 @@ const Shipments = () => {
                             </button>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            {(selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) ? (
-                                <div className="flex items-center bg-muted/60 rounded-lg p-0.5 text-xs">
+                            {selectedShipmentForLabel?.courier !== 'DTDC' ? (
+                                <div className="flex items-center bg-muted/50 rounded-lg p-1 text-xs border border-border/50">
                                     <button
                                         onClick={() => setPrintMode('thermal')}
                                         className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
                                             printMode === 'thermal'
-                                                ? 'bg-white text-primary shadow-sm'
-                                                : 'text-muted-foreground hover:text-foreground'
+                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                : 'bg-white text-muted-foreground border border-border/40 shadow-sm hover:text-foreground'
                                         }`}
                                     >
                                         Thermal 4×6
@@ -576,8 +576,8 @@ const Shipments = () => {
                                         onClick={() => setPrintMode('a4')}
                                         className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
                                             printMode === 'a4'
-                                                ? 'bg-white text-primary shadow-sm'
-                                                : 'text-muted-foreground hover:text-foreground'
+                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                : 'bg-white text-muted-foreground border border-border/40 shadow-sm hover:text-foreground'
                                         }`}
                                     >
                                         A4 Sheet
@@ -591,7 +591,7 @@ const Shipments = () => {
                                     } else if (selectedShipmentForLabel?.courier === 'DTDC') {
                                         printDTDCLabel();
                                     } else {
-                                        printBlueDartLabel();
+                                        printBlueDartLabel(printMode);
                                     }
                                 }}
                                 className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"

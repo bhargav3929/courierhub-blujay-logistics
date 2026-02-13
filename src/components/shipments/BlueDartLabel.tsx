@@ -215,24 +215,21 @@ export const BlueDartLabel = ({ shipment }: BlueDartLabelProps) => {
 };
 
 // Separate print function to be used externally
-export const printBlueDartLabel = () => {
+export const printBlueDartLabel = (mode: 'thermal' | 'a4' = 'a4') => {
     const labelElement = document.getElementById('bluedart-label');
     if (!labelElement) {
         console.error('Label element not found');
         return;
     }
 
-    // Create a new window for printing
     const printWindow = window.open('', '_blank', 'width=800,height=900');
     if (!printWindow) {
         alert('Please allow popups to print the label');
         return;
     }
 
-    // Deep clone the element to avoid modifying the original
     const clonedLabel = labelElement.cloneNode(true) as HTMLElement;
 
-    // Helper function to inline all computed styles recursively
     const inlineStyles = (source: Element, target: Element) => {
         const computedStyle = window.getComputedStyle(source);
         let styleString = '';
@@ -244,8 +241,6 @@ export const printBlueDartLabel = () => {
             }
         }
         (target as HTMLElement).setAttribute('style', styleString);
-
-        // Recurse for children
         const sourceChildren = source.children;
         const targetChildren = target.children;
         for (let i = 0; i < sourceChildren.length; i++) {
@@ -253,15 +248,11 @@ export const printBlueDartLabel = () => {
         }
     };
 
-    // Inline all computed styles from the original element
     inlineStyles(labelElement, clonedLabel);
 
-    // Serialize SVG elements properly with XMLSerializer for proper namespace handling
     const svgs = clonedLabel.querySelectorAll('svg');
     svgs.forEach((svg) => {
-        // Ensure SVG has proper namespace
         svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        // Set explicit dimensions if not present
         if (!svg.getAttribute('width')) {
             svg.setAttribute('width', String(svg.getBoundingClientRect().width || 200));
         }
@@ -270,145 +261,122 @@ export const printBlueDartLabel = () => {
         }
     });
 
-    // Get the fully styled HTML
+    // For A4: override inlined dimensions so label fits exactly 140mm x 210mm
+    if (mode === 'a4') {
+        clonedLabel.style.setProperty('width', '140mm', 'important');
+        clonedLabel.style.setProperty('height', '210mm', 'important');
+        clonedLabel.style.setProperty('max-height', '210mm', 'important');
+        clonedLabel.style.setProperty('min-height', 'unset', 'important');
+        clonedLabel.style.setProperty('border', 'none', 'important');
+        clonedLabel.style.setProperty('margin', '0', 'important');
+        clonedLabel.style.setProperty('padding', '5mm', 'important');
+        clonedLabel.style.setProperty('overflow', 'hidden', 'important');
+        clonedLabel.style.setProperty('box-sizing', 'border-box', 'important');
+        clonedLabel.style.setProperty('font-size', '11px', 'important');
+    }
+
     const labelHtml = clonedLabel.outerHTML;
 
-    // Write the complete HTML document - optimized for A4 paper with centered label
-    printWindow.document.write(`<!DOCTYPE html>
+    if (mode === 'thermal') {
+        printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
     <title>Shipping Label - Blue Dart</title>
     <style>
-        /* A4 page setup with label centered */
-        @page {
-            size: A4;
-            margin: 0;
-        }
-        
+        @page { size: 101.6mm 152.4mm; margin: 0; }
         @media print {
-            html, body {
-                width: 210mm;
-                height: 297mm;
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: visible !important;
-                background: white !important;
-            }
-            * {
-                visibility: visible !important;
-                overflow: visible !important;
-            }
-            .print-wrapper {
-                width: 210mm !important;
-                height: 297mm !important;
-                display: flex !important;
-                justify-content: center !important;
-                align-items: flex-start !important;
-                padding-top: 15mm !important;
-            }
+            html, body { width: 101.6mm; height: 152.4mm; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: white !important; }
+            * { visibility: visible !important; overflow: visible !important; }
+            .print-wrapper { width: 101.6mm !important; height: 152.4mm !important; display: flex !important; justify-content: center !important; align-items: flex-start !important; padding: 0 !important; margin: 0 !important; }
         }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 101.6mm; min-height: 152.4mm; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; overflow: visible !important; background: #f5f5f5; }
+        body { display: flex; justify-content: center; align-items: flex-start; padding: 0; }
+        .print-wrapper { width: 101.6mm; min-height: 152.4mm; display: flex; justify-content: center; align-items: flex-start; padding: 0; background: white; }
+        #bluedart-label { width: 101.6mm !important; min-height: 152.4mm !important; height: auto !important; max-height: none !important; background: white !important; border: none !important; margin: 0 !important; padding: 3mm !important; overflow: visible !important; position: relative !important; display: block !important; page-break-inside: avoid !important; font-size: 9px !important; color: #000 !important; }
+        #bluedart-label * { overflow: visible !important; max-height: none !important; color: #000 !important; }
+        svg { display: block !important; margin: 0 auto !important; overflow: visible !important; background: white !important; }
+        svg text { fill: #000 !important; }
+        @media screen { body { background: #e0e0e0; } .print-wrapper { box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin: 20px auto; } }
+    </style>
+</head>
+<body>
+    <div class="print-wrapper">${labelHtml}</div>
+    <script>
+        window.onload = function() { setTimeout(function() { window.print(); setTimeout(function() { window.close(); }, 500); }, 300); };
+    </script>
+</body>
+</html>`);
+    } else {
+        printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Shipping Label - Blue Dart</title>
+    <style>
+        @page { size: A4; margin: 0; }
+
+        @media print {
+            html, body { width: 210mm; height: 297mm; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: white !important; }
+            * { visibility: visible !important; overflow: visible !important; }
+            .print-wrapper { width: 210mm !important; height: 297mm !important; padding: 5mm !important; margin: 0 !important; display: block !important; }
+            .label-area { border: 1px solid #000 !important; }
         }
-        
-        html, body {
-            width: 210mm;
-            min-height: 297mm;
-            font-family: Arial, sans-serif;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            color-adjust: exact !important;
-            overflow: visible !important;
-            background: #f5f5f5;
-        }
-        
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px;
-        }
-        
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 210mm; min-height: 297mm; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; overflow: visible !important; background: #f5f5f5; }
+
         .print-wrapper {
             width: 210mm;
             min-height: 297mm;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding-top: 15mm;
+            padding: 5mm;
             background: white;
         }
-        
-        /* Label sizing - 10cm x 15cm (standard shipping label size) */
+
+        .label-area {
+            width: 140mm;
+            height: 210mm;
+            border: 1px solid #000;
+            overflow: hidden;
+            position: relative;
+        }
+
         #bluedart-label {
-            width: 100mm !important;
-            min-height: 150mm !important;
-            height: auto !important;
-            max-height: none !important;
+            width: 140mm !important;
+            height: 210mm !important;
+            max-height: 210mm !important;
             background: white !important;
-            border: 1px solid #ccc !important;
+            border: none !important;
             margin: 0 !important;
-            padding: 8mm !important;
-            overflow: visible !important;
+            padding: 5mm !important;
+            overflow: hidden !important;
             position: relative !important;
             display: block !important;
             page-break-inside: avoid !important;
             font-size: 11px !important;
             color: #000 !important;
         }
-        
-        #bluedart-label * {
-            overflow: visible !important;
-            max-height: none !important;
-            color: #000 !important;
-        }
-        
-        /* SVG barcode styling - preserve original colors */
-        svg {
-            display: block !important;
-            margin: 0 auto !important;
-            overflow: visible !important;
-            background: white !important;
-        }
-        
-        /* Do NOT override rect/line colors - let barcode render correctly */
-        svg rect {
-            /* Barcode uses black rects on white background - don't override */
-        }
-        
-        svg text {
-            fill: #000 !important;
-        }
+
+        #bluedart-label * { overflow: visible !important; max-height: none !important; color: #000 !important; }
+        svg { display: block !important; margin: 0 auto !important; overflow: visible !important; background: white !important; }
+        svg text { fill: #000 !important; }
 
         @media screen {
-            body {
-                background: #e0e0e0;
-            }
-            .print-wrapper {
-                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-                margin: 20px auto;
-            }
+            body { background: #e0e0e0; display: flex; justify-content: center; padding: 20px; }
+            .print-wrapper { box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin: 0 auto; }
         }
     </style>
 </head>
 <body>
     <div class="print-wrapper">
-        ${labelHtml}
+        <div class="label-area">
+            ${labelHtml}
+        </div>
     </div>
     <script>
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-                setTimeout(function() {
-                    window.close();
-                }, 500);
-            }, 300);
-        };
+        window.onload = function() { setTimeout(function() { window.print(); setTimeout(function() { window.close(); }, 500); }, 300); };
     </script>
 </body>
 </html>`);
+    }
     printWindow.document.close();
 };

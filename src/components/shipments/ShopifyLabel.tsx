@@ -307,94 +307,102 @@ export const printShopifyLabel = (mode: 'thermal' | 'a4' = 'thermal') => {
         }
     });
 
+    // For A4: override inlined dimensions so label fits exactly 140mm x 210mm
+    if (mode === 'a4') {
+        clonedLabel.style.setProperty('width', '140mm', 'important');
+        clonedLabel.style.setProperty('height', '210mm', 'important');
+        clonedLabel.style.setProperty('max-height', '210mm', 'important');
+        clonedLabel.style.setProperty('min-height', 'unset', 'important');
+        clonedLabel.style.setProperty('border', 'none', 'important');
+        clonedLabel.style.setProperty('margin', '0', 'important');
+        clonedLabel.style.setProperty('padding', '5mm', 'important');
+        clonedLabel.style.setProperty('overflow', 'hidden', 'important');
+        clonedLabel.style.setProperty('box-sizing', 'border-box', 'important');
+        clonedLabel.style.setProperty('font-size', '11px', 'important');
+    }
+
     const labelHtml = clonedLabel.outerHTML;
 
     const isThermal = mode === 'thermal';
-    const pageSize = isThermal ? '101.6mm 152.4mm' : 'A4';
-    const pageWidth = isThermal ? '101.6mm' : '210mm';
-    const pageHeight = isThermal ? '152.4mm' : '297mm';
 
-    printWindow.document.write(`<!DOCTYPE html>
+    if (isThermal) {
+        // Thermal: 101.6mm x 152.4mm — no changes
+        printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
     <title>Shipping Label - Shopify</title>
     <style>
-        @page {
-            size: ${pageSize};
-            margin: 0;
+        @page { size: 101.6mm 152.4mm; margin: 0; }
+        @media print {
+            html, body { width: 101.6mm; height: 152.4mm; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: white !important; }
+            * { visibility: visible !important; overflow: visible !important; }
+            .print-wrapper { width: 101.6mm !important; height: 152.4mm !important; display: flex !important; justify-content: center !important; align-items: flex-start !important; padding: 0 !important; margin: 0 !important; }
         }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 101.6mm; min-height: 152.4mm; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; overflow: visible !important; background: #f5f5f5; }
+        body { display: flex; justify-content: center; align-items: flex-start; padding: 0; }
+        .print-wrapper { width: 101.6mm; min-height: 152.4mm; display: flex; justify-content: center; align-items: flex-start; padding: 0; background: white; }
+        #shopify-label { width: 101.6mm !important; min-height: 152.4mm !important; height: auto !important; max-height: none !important; background: white !important; border: none !important; margin: 0 !important; padding: 3mm !important; overflow: visible !important; position: relative !important; display: block !important; page-break-inside: avoid !important; font-size: 9px !important; color: #000 !important; }
+        #shopify-label * { overflow: visible !important; max-height: none !important; color: #000 !important; }
+        svg { display: block !important; margin: 0 auto !important; overflow: visible !important; background: white !important; }
+        svg text { fill: #000 !important; }
+        @media screen { body { background: #e0e0e0; } .print-wrapper { box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin: 20px auto; } }
+    </style>
+</head>
+<body>
+    <div class="print-wrapper">${labelHtml}</div>
+    <script>
+        window.onload = function() { setTimeout(function() { window.print(); setTimeout(function() { window.close(); }, 500); }, 300); };
+    </script>
+</body>
+</html>`);
+    } else {
+        // A4: Label is 140mm x 210mm, positioned top-left with solid border
+        printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Shipping Label - Shopify</title>
+    <style>
+        @page { size: A4; margin: 0; }
 
         @media print {
-            html, body {
-                width: ${pageWidth};
-                height: ${pageHeight};
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: visible !important;
-                background: white !important;
-            }
-            * {
-                visibility: visible !important;
-                overflow: visible !important;
-            }
-            .print-wrapper {
-                width: ${pageWidth} !important;
-                height: ${pageHeight} !important;
-                display: flex !important;
-                justify-content: center !important;
-                align-items: flex-start !important;
-                ${isThermal ? 'padding: 0 !important; margin: 0 !important;' : 'padding-top: 15mm !important;'}
-            }
+            html, body { width: 210mm; height: 297mm; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: white !important; }
+            * { visibility: visible !important; overflow: visible !important; }
+            .print-wrapper { width: 210mm !important; height: 297mm !important; padding: 5mm !important; margin: 0 !important; display: block !important; }
+            .label-area { border: 1px solid #000 !important; }
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html, body {
-            width: ${pageWidth};
-            min-height: ${pageHeight};
-            font-family: Arial, Helvetica, sans-serif;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            color-adjust: exact !important;
-            overflow: visible !important;
-            background: #f5f5f5;
-        }
-
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: ${isThermal ? '0' : '20px'};
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 210mm; min-height: 297mm; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; overflow: visible !important; background: #f5f5f5; }
 
         .print-wrapper {
-            width: ${pageWidth};
-            min-height: ${pageHeight};
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            ${isThermal ? 'padding: 0;' : 'padding-top: 15mm;'}
+            width: 210mm;
+            min-height: 297mm;
+            padding: 5mm;
             background: white;
         }
 
+        .label-area {
+            width: 140mm;
+            height: 210mm;
+            border: 1px solid #000;
+            overflow: hidden;
+            position: relative;
+        }
+
         #shopify-label {
-            width: 101.6mm !important;
-            min-height: 152.4mm !important;
-            height: auto !important;
-            max-height: none !important;
+            width: 140mm !important;
+            height: 210mm !important;
+            max-height: 210mm !important;
             background: white !important;
-            ${isThermal ? 'border: none !important;' : 'border: 1px solid #ccc !important;'}
+            border: none !important;
             margin: 0 !important;
-            padding: ${isThermal ? '3mm' : '4mm'} !important;
-            overflow: visible !important;
+            padding: 5mm !important;
+            overflow: hidden !important;
             position: relative !important;
             display: block !important;
             page-break-inside: avoid !important;
-            font-size: ${isThermal ? '9px' : '10px'} !important;
+            font-size: 11px !important;
             color: #000 !important;
         }
 
@@ -404,43 +412,211 @@ export const printShopifyLabel = (mode: 'thermal' | 'a4' = 'thermal') => {
             color: #000 !important;
         }
 
-        svg {
-            display: block !important;
-            margin: 0 auto !important;
-            overflow: visible !important;
-            background: white !important;
-        }
-
-        svg text {
-            fill: #000 !important;
-        }
+        svg { display: block !important; margin: 0 auto !important; overflow: visible !important; background: white !important; }
+        svg text { fill: #000 !important; }
 
         @media screen {
-            body {
-                background: #e0e0e0;
-            }
-            .print-wrapper {
-                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-                margin: 20px auto;
-            }
+            body { background: #e0e0e0; display: flex; justify-content: center; padding: 20px; }
+            .print-wrapper { box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin: 0 auto; }
         }
     </style>
 </head>
 <body>
     <div class="print-wrapper">
-        ${labelHtml}
+        <div class="label-area">
+            ${labelHtml}
+        </div>
     </div>
     <script>
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-                setTimeout(function() {
-                    window.close();
-                }, 500);
-            }, 300);
-        };
+        window.onload = function() { setTimeout(function() { window.print(); setTimeout(function() { window.close(); }, 500); }, 300); };
     </script>
 </body>
 </html>`);
+    }
+    printWindow.document.close();
+};
+
+// Bulk print function for multiple labels
+export const printBulkShopifyLabels = (mode: 'thermal' | 'a4' = 'thermal') => {
+    const container = document.getElementById('bulk-print-labels');
+    if (!container) {
+        console.error('Bulk labels container not found');
+        return;
+    }
+
+    const labelItems = container.querySelectorAll('.shopify-label-item > div');
+    if (labelItems.length === 0) {
+        console.error('No labels found in bulk container');
+        return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=800,height=900');
+    if (!printWindow) {
+        alert('Please allow popups to print labels');
+        return;
+    }
+
+    // Inline styles helper
+    const inlineStyles = (source: Element, target: Element) => {
+        const computedStyle = window.getComputedStyle(source);
+        let styleString = '';
+        for (let i = 0; i < computedStyle.length; i++) {
+            const prop = computedStyle[i];
+            const value = computedStyle.getPropertyValue(prop);
+            if (value) {
+                styleString += `${prop}: ${value}; `;
+            }
+        }
+        (target as HTMLElement).setAttribute('style', styleString);
+        const sourceChildren = source.children;
+        const targetChildren = target.children;
+        for (let i = 0; i < sourceChildren.length; i++) {
+            inlineStyles(sourceChildren[i], targetChildren[i]);
+        }
+    };
+
+    let allLabelsHtml = '';
+    labelItems.forEach((label) => {
+        const cloned = label.cloneNode(true) as HTMLElement;
+        inlineStyles(label, cloned);
+
+        // Handle SVGs
+        cloned.querySelectorAll('svg').forEach((svg) => {
+            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            if (!svg.getAttribute('width')) {
+                svg.setAttribute('width', String(svg.getBoundingClientRect().width || 200));
+            }
+            if (!svg.getAttribute('height')) {
+                svg.setAttribute('height', String(svg.getBoundingClientRect().height || 50));
+            }
+        });
+
+        allLabelsHtml += `<div class="label-page">${cloned.outerHTML}</div>`;
+    });
+
+    const isThermal = mode === 'thermal';
+
+    if (isThermal) {
+        // Thermal: 101.6mm x 152.4mm per label
+        printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Bulk Labels (${labelItems.length})</title>
+    <style>
+        @page { size: 101.6mm 152.4mm; margin: 0; }
+        @media print {
+            html, body { margin: 0 !important; padding: 0 !important; overflow: visible !important; background: white !important; }
+            * { visibility: visible !important; overflow: visible !important; }
+            .label-page { page-break-after: always; width: 101.6mm !important; display: flex !important; justify-content: center !important; align-items: flex-start !important; padding: 0 !important; margin: 0 !important; }
+            .label-page:last-child { page-break-after: auto; }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; overflow: visible !important; background: #f5f5f5; }
+        .label-page { width: 101.6mm; min-height: 152.4mm; display: flex; justify-content: center; align-items: flex-start; padding: 0; background: white; }
+        .label-page > div { width: 101.6mm !important; min-height: 152.4mm !important; height: auto !important; max-height: none !important; background: white !important; border: none !important; margin: 0 !important; padding: 3mm !important; overflow: visible !important; position: relative !important; display: block !important; page-break-inside: avoid !important; font-size: 9px !important; color: #000 !important; }
+        .label-page > div * { overflow: visible !important; max-height: none !important; color: #000 !important; }
+        svg { display: block !important; margin: 0 auto !important; overflow: visible !important; background: white !important; }
+        svg text { fill: #000 !important; }
+    </style>
+</head>
+<body>
+    ${allLabelsHtml}
+    <script>
+        window.onload = function() { setTimeout(function() { window.print(); setTimeout(function() { window.close(); }, 500); }, 500); };
+    </script>
+</body>
+</html>`);
+    } else {
+        // A4: Each label is 140mm x 210mm, positioned top-left with solid border
+        let wrappedLabelsHtml = '';
+        labelItems.forEach((label) => {
+            const cloned = label.cloneNode(true) as HTMLElement;
+            inlineStyles(label, cloned);
+            cloned.querySelectorAll('svg').forEach((svg) => {
+                svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                if (!svg.getAttribute('width')) svg.setAttribute('width', String(svg.getBoundingClientRect().width || 200));
+                if (!svg.getAttribute('height')) svg.setAttribute('height', String(svg.getBoundingClientRect().height || 50));
+            });
+            // Override inlined dimensions for A4
+            cloned.style.setProperty('width', '140mm', 'important');
+            cloned.style.setProperty('height', '210mm', 'important');
+            cloned.style.setProperty('max-height', '210mm', 'important');
+            cloned.style.setProperty('min-height', 'unset', 'important');
+            cloned.style.setProperty('border', 'none', 'important');
+            cloned.style.setProperty('margin', '0', 'important');
+            cloned.style.setProperty('padding', '5mm', 'important');
+            cloned.style.setProperty('overflow', 'hidden', 'important');
+            cloned.style.setProperty('box-sizing', 'border-box', 'important');
+            cloned.style.setProperty('font-size', '11px', 'important');
+            wrappedLabelsHtml += `<div class="label-page"><div class="label-area">${cloned.outerHTML}</div></div>`;
+        });
+
+        printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Bulk Labels (${labelItems.length})</title>
+    <style>
+        @page { size: A4; margin: 0; }
+
+        @media print {
+            html, body { margin: 0 !important; padding: 0 !important; overflow: visible !important; background: white !important; }
+            * { visibility: visible !important; overflow: visible !important; }
+            .label-page { page-break-after: always; width: 210mm !important; height: 297mm !important; padding: 5mm !important; margin: 0 !important; display: block !important; }
+            .label-page:last-child { page-break-after: auto; }
+            .label-area { border: 1px solid #000 !important; }
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; overflow: visible !important; background: #f5f5f5; }
+
+        .label-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 5mm;
+            background: white;
+            margin: 10px auto;
+        }
+
+        .label-area {
+            width: 140mm;
+            height: 210mm;
+            border: 1px solid #000;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .label-area > div {
+            width: 140mm !important;
+            height: 210mm !important;
+            max-height: 210mm !important;
+            background: white !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 5mm !important;
+            overflow: hidden !important;
+            position: relative !important;
+            display: block !important;
+            page-break-inside: avoid !important;
+            font-size: 11px !important;
+            color: #000 !important;
+        }
+
+        .label-area > div * { overflow: visible !important; max-height: none !important; color: #000 !important; }
+        svg { display: block !important; margin: 0 auto !important; overflow: visible !important; background: white !important; }
+        svg text { fill: #000 !important; }
+
+        @media screen {
+            .label-page { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        }
+    </style>
+</head>
+<body>
+    ${wrappedLabelsHtml}
+    <script>
+        window.onload = function() { setTimeout(function() { window.print(); setTimeout(function() { window.close(); }, 500); }, 500); };
+    </script>
+</body>
+</html>`);
+    }
     printWindow.document.close();
 };

@@ -214,6 +214,17 @@ const AddShipment = () => {
             } else if (shipment.referenceNo) {
                 setOrderID(shipment.referenceNo);
             }
+
+            // Auto-enable COD if Shopify order is COD
+            if (shipment.toPayCustomer) {
+                setEnableCOD(true);
+            }
+
+            // Pre-fill ad commission if previously set
+            if (shipment.adCommissionType) {
+                setAdCommissionType(shipment.adCommissionType);
+                setAdCommissionValue(shipment.adCommissionValue || 0);
+            }
         };
         loadShopifyOrder();
     }, [shopifyShipmentId, currentUser?.id]);
@@ -307,6 +318,23 @@ const AddShipment = () => {
         products.reduce((sum, p) => sum + (p.quantity * p.price), 0),
         [products]
     );
+
+    // Auto-calculate COD amount when COD is enabled and values change
+    useEffect(() => {
+        if (!enableCOD) return;
+
+        let calculatedCOD = totalDeclaredValue;
+
+        if (adCommissionType === 'flat' && adCommissionValue > 0) {
+            calculatedCOD += adCommissionValue;
+        } else if (adCommissionType === 'percentage' && adCommissionValue > 0) {
+            calculatedCOD += Math.round(totalDeclaredValue * adCommissionValue / 100);
+        }
+
+        if (calculatedCOD > 0) {
+            setCodAmount(calculatedCOD.toString());
+        }
+    }, [enableCOD, totalDeclaredValue, adCommissionType, adCommissionValue]);
 
     // Fetch SKU history on mount
     useEffect(() => {
@@ -1159,17 +1187,40 @@ const AddShipment = () => {
                                         </div>
                                         )}
 
-                                        {/* COD Amount Input */}
+                                        {/* COD Breakdown Card */}
                                         {isB2C && enableCOD && (
-                                            <div className="space-y-2 animate-in fade-in duration-300">
-                                                <Label className="text-xs font-bold uppercase text-muted-foreground">COD Amount (₹)</Label>
-                                                <Input
-                                                    type="number"
-                                                    placeholder="Amount to collect"
-                                                    value={codAmount}
-                                                    onChange={(e) => setCodAmount(e.target.value)}
-                                                    className="h-12 rounded-xl border-2"
-                                                />
+                                            <div className="animate-in fade-in duration-300 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-4 space-y-3">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-amber-700 flex items-center gap-2">
+                                                    <IndianRupee className="h-3.5 w-3.5" /> COD Breakdown
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-muted-foreground">Product Value</span>
+                                                        <span className="font-semibold">₹{totalDeclaredValue.toLocaleString('en-IN')}</span>
+                                                    </div>
+                                                    {adCommissionType && adCommissionValue > 0 && (
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <span className="text-muted-foreground">
+                                                                Margin ({adCommissionType === 'flat' ? `₹${adCommissionValue}` : `${adCommissionValue}%`})
+                                                            </span>
+                                                            <span className="font-semibold text-amber-700">
+                                                                +₹{(adCommissionType === 'flat'
+                                                                    ? adCommissionValue
+                                                                    : Math.round(totalDeclaredValue * adCommissionValue / 100)
+                                                                ).toLocaleString('en-IN')}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="border-t border-amber-200 pt-2 flex items-center justify-between">
+                                                        <span className="text-sm font-bold text-amber-800">Collect from Customer</span>
+                                                        <Input
+                                                            type="number"
+                                                            value={codAmount}
+                                                            onChange={(e) => setCodAmount(e.target.value)}
+                                                            className="h-9 w-32 text-right font-bold text-base bg-white border-2 border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 rounded-xl"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
