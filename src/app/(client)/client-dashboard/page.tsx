@@ -10,7 +10,7 @@ import { format, subDays } from "date-fns";
 
 // Components
 import { ClientDashboardStats } from "@/components/dashboard/ClientDashboardStats";
-import { ClientSpendChart } from "@/components/dashboard/ClientSpendChart";
+import { ClientActivityChart, ClientSourceChart } from "@/components/dashboard/ClientSpendChart";
 import { ClientShipmentsTable } from "@/components/dashboard/ClientShipmentsTable";
 
 const ClientDashboard = () => {
@@ -37,24 +37,31 @@ const ClientDashboard = () => {
         }
     };
 
-    // Calculate real stats from actual shipment data
+    // Calculate metrics
+    const deliveredCount = shipments.filter(s => s.status === 'delivered').length;
+    const toBeProcessed = shipments.filter(s => s.status === 'shopify_pending').length;
+    const processed = shipments.filter(s => ['pending', 'transit', 'delivered'].includes(s.status || '')).length;
+    const totalRevenue = shipments.reduce((sum, s) => sum + (s.chargedAmount || s.declaredValue || 0), 0);
+    const shippingRate = shipments.length > 0
+        ? Math.round((deliveredCount / shipments.length) * 100)
+        : 0;
+
     const stats = {
         totalShipments: shipments.length,
-        totalWeight: shipments.reduce((sum, s) => sum + (s.weight || 0), 0),
-        deliveredCount: shipments.filter(s => s.status === 'delivered').length,
-        pendingCount: shipments.filter(s => s.status === 'pending' || s.status === 'transit').length,
+        totalRevenue,
+        shippingRate,
+        toBeProcessed,
+        processed,
     };
 
-    // Build activity chart data aggregated by day (last 7 days)
+    // Build activity chart data — last 7 days
     const activityData = (() => {
         const dayMap: Record<string, number> = {};
-        // Initialize last 7 days
         for (let i = 6; i >= 0; i--) {
             const d = subDays(new Date(), i);
             const key = format(d, "EEE");
             dayMap[key] = 0;
         }
-        // Aggregate shipment count from real shipments
         shipments.forEach(s => {
             const d = s.createdAt?.toDate ? s.createdAt.toDate() : null;
             if (!d) return;
@@ -69,6 +76,20 @@ const ClientDashboard = () => {
         });
         return Object.entries(dayMap).map(([date, shipments]) => ({ date, shipments }));
     })();
+
+    // Build platform distribution data for pie chart
+    const sourceData = (() => {
+        const shopifyCount = shipments.filter(s => s.shopifyOrderId || s.clientType === 'shopify').length;
+        const directCount = shipments.length - shopifyCount;
+        return [
+            { name: 'Shopify', value: shopifyCount, color: 'hsl(var(--primary))' },
+            { name: 'Direct', value: directCount, color: '#94a3b8' },
+        ].filter(d => d.value > 0);
+    })();
+
+    // New orders for the table (max 10)
+    const pendingOrders = shipments.filter(s => s.status === 'shopify_pending');
+    const displayOrders = pendingOrders.slice(0, 10);
 
     const container = {
         hidden: { opacity: 0 },
@@ -86,20 +107,22 @@ const ClientDashboard = () => {
                 variants={container}
                 initial="hidden"
                 animate="show"
-                className="space-y-8 max-w-[1600px] mx-auto"
+                className="space-y-6 max-w-[1600px] mx-auto"
             >
-                {/* Stats Grid */}
+                {/* Stats Grid — 5 cards */}
                 <ClientDashboardStats metrics={stats} loading={loading} />
 
-                {/* Main Charts Area */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="col-span-1 lg:col-span-3">
-                        <ClientSpendChart data={activityData} />
-                    </div>
+                {/* Charts — 50/50 split */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <ClientActivityChart data={activityData} />
+                    <ClientSourceChart data={sourceData} />
                 </div>
 
-                {/* Recent Shipments Table */}
-                <ClientShipmentsTable shipments={shipments.slice(0, 10)} />
+                {/* New Orders Table */}
+                <ClientShipmentsTable
+                    shipments={displayOrders}
+                    totalPendingCount={pendingOrders.length}
+                />
             </motion.div>
         </div>
     );

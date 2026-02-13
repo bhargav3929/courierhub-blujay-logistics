@@ -61,9 +61,6 @@ const ClientShipments = () => {
     // Tab state
     const [activeTab, setActiveTab] = useState<string>('new-orders');
 
-    // "New Order" badge: track last visit timestamp
-    const [lastVisitTime, setLastVisitTime] = useState<number | null>(null);
-
     // Shipped tab: Bulk selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkPrintMode, setBulkPrintMode] = useState<'thermal' | 'a4'>('thermal');
@@ -78,20 +75,6 @@ const ClientShipments = () => {
     const [isBulkShipping, setIsBulkShipping] = useState(false);
     const [bulkShipResults, setBulkShipResults] = useState<BulkShipResult[] | null>(null);
     const [bulkShipProgress, setBulkShipProgress] = useState({ completed: 0, total: 0 });
-
-    // On mount: read last visit time, then update it to "now"
-    useEffect(() => {
-        const key = `courierhub_last_visit_${currentUser?.id || 'anon'}`;
-        const stored = localStorage.getItem(key);
-        if (stored) {
-            setLastVisitTime(parseInt(stored, 10));
-        } else {
-            // First ever visit — treat everything as "new"
-            setLastVisitTime(0);
-        }
-        // Update stored time to now
-        localStorage.setItem(key, Date.now().toString());
-    }, [currentUser?.id]);
 
     useEffect(() => {
         if (currentUser?.id) {
@@ -122,11 +105,12 @@ const ClientShipments = () => {
         }
     }, [loading, shipments]);
 
-    // Check if a shipment arrived after the user's last visit
-    const isNewSinceLastVisit = (shp: Shipment): boolean => {
-        if (lastVisitTime === null || lastVisitTime === 0) return true; // first visit — all are "new"
+    // Check if a shipment was created in the last 24 hours (for NEW badge in New Orders tab only)
+    const isRecentOrder = (shp: Shipment): boolean => {
         const createdMs = shp.createdAt?.toDate ? shp.createdAt.toDate().getTime() : 0;
-        return createdMs > lastVisitTime;
+        if (!createdMs) return false;
+        const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+        return createdMs > twentyFourHoursAgo;
     };
 
     // Separate shipments into new orders and booked shipments
@@ -694,7 +678,7 @@ const ClientShipments = () => {
                                                             <span className="font-mono text-sm font-bold text-blue-700">
                                                                 #{shp.shopifyOrderNumber || shp.referenceNo?.replace('ORD-', '') || '-'}
                                                             </span>
-                                                            {isNewSinceLastVisit(shp) && (
+                                                            {isRecentOrder(shp) && (
                                                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary text-white text-[9px] font-bold leading-none">
                                                                     NEW
                                                                 </span>
@@ -881,11 +865,6 @@ const ClientShipments = () => {
                                                                 <span className="font-mono text-sm font-bold text-blue-700">
                                                                     {shp.shopifyOrderNumber ? `#${shp.shopifyOrderNumber}` : shp.referenceNo || '-'}
                                                                 </span>
-                                                                {isNewSinceLastVisit(shp) && (
-                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary text-white text-[9px] font-bold leading-none">
-                                                                        NEW
-                                                                    </span>
-                                                                )}
                                                             </div>
                                                             <span className="font-mono text-[10px] text-muted-foreground">
                                                                 {shp.courierTrackingId || shp.id?.substring(0, 10).toUpperCase()}
