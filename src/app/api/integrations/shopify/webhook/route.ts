@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Shipment } from '@/types/types';
 
 export const dynamic = 'force-dynamic';
@@ -85,18 +85,26 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Order already processed' });
         }
 
-        // 4. Map to Shipment - use user profile for origin when available
+        // 4. Map to Shipment - use saved default pickup address from clients collection
         const shippingAddress = order.shipping_address || {};
 
-        // Use origin from user profile if available, otherwise use billing address from order
-        const userPickupAddress = userData.pickupAddress || userData.origin || {};
-        const billingAddress = order.billing_address || {};
+        // Fetch defaultPickupAddress from the clients collection (saved via "Set Default" button)
+        let savedPickupAddress: Record<string, string> | null = null;
+        try {
+            const clientDoc = await getDoc(doc(db, 'clients', userId));
+            if (clientDoc.exists()) {
+                savedPickupAddress = clientDoc.data().defaultPickupAddress || null;
+            }
+        } catch (err) {
+            console.error('Failed to fetch client defaultPickupAddress:', err);
+        }
 
-        const originCity = userPickupAddress.city || billingAddress.city || '';
-        const originPincode = userPickupAddress.pincode || billingAddress.zip || '';
-        const originAddress = userPickupAddress.address || [billingAddress.address1, billingAddress.address2].filter(Boolean).join(', ') || '';
-        const originPhone = userPickupAddress.phone || userData.phone || '';
-        const originName = userPickupAddress.name || userData.name || '';
+        const originCity = savedPickupAddress?.city || '';
+        const originPincode = savedPickupAddress?.pincode || '';
+        const originAddress = savedPickupAddress?.address || '';
+        const originPhone = savedPickupAddress?.phone || userData.phone || '';
+        const originName = savedPickupAddress?.name || userData.name || '';
+        const originState = savedPickupAddress?.state || '';
 
         // Determine if COD
         const isCOD = order.financial_status === 'pending' ||
@@ -130,6 +138,7 @@ export async function POST(request: Request) {
 
             origin: {
                 city: originCity,
+                state: originState,
                 pincode: originPincode,
                 address: originAddress,
                 phone: originPhone,
