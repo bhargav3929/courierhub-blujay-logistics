@@ -317,6 +317,36 @@ export interface SystemSettings {
     maintenanceMode: boolean;
 }
 
+// Client Request (Self-Registration Application)
+export interface ClientRequest {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    companyName: string;
+    type: 'franchise' | 'shopify';
+    status: 'pending' | 'accepted' | 'rejected';
+
+    // Business details for admin review
+    gstin?: string;
+    website?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+
+    // Margin & courier preferences (admin sets these on acceptance, applicant can suggest)
+    marginType?: 'flat' | 'percentage';
+    marginValue?: number;
+    allowedCouriers?: string[];
+
+    // Optional notes from applicant
+    message?: string;
+
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+}
+
 // Filter types for queries
 export interface ShipmentFilters {
     clientId?: string;

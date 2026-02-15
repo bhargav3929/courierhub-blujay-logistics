@@ -97,7 +97,7 @@ export default function Navbar({ scrollTo }: NavbarProps) {
               <Link href="/client-login" className="px-4 py-2 text-[13px] font-medium text-[#0f172a]/50 hover:text-[#0f172a] transition-colors">
                 Log in
               </Link>
-              <Link href="/client-signup" className="group relative px-5 py-2 text-[13px] font-medium text-white overflow-hidden rounded-full">
+              <Link href="/get-started" className="group relative px-5 py-2 text-[13px] font-medium text-white overflow-hidden rounded-full">
                 <div className="absolute inset-0 bg-[#0f172a] rounded-full" />
                 <div className="absolute inset-0 bg-gradient-to-r from-[#3b82f6] to-[#2563eb] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <span className="relative flex items-center gap-1.5">
@@ -150,7 +150,7 @@ export default function Navbar({ scrollTo }: NavbarProps) {
             </div>
             <div className="px-6 pb-10 flex flex-col gap-3">
               <Link href="/client-login" className="text-center py-3 text-[#0f172a]/50 text-sm border border-[#0f172a]/10 rounded-xl">Log in</Link>
-              <Link href="/client-signup" className="text-center py-3 text-white text-sm bg-[#0f172a] rounded-xl">Get Started</Link>
+              <Link href="/get-started" className="text-center py-3 text-white text-sm bg-[#0f172a] rounded-xl">Get Started</Link>
             </div>
           </motion.div>
         )}

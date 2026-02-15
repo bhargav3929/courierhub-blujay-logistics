@@ -98,7 +98,7 @@ export default function Pricing() {
               </ul>
 
               <Link
-                href="/client-signup"
+                href="/get-started"
                 className={`group flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-[13px] font-medium transition-all duration-300 ${
                   plan.highlight
                     ? 'bg-[#0f172a] text-white hover:bg-[#1e293b]'

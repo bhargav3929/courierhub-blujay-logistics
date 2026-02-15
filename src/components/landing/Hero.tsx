@@ -55,7 +55,7 @@ export default function Hero() {
 
               <div className="mt-10 flex items-center gap-4 flex-wrap">
                 <Link
-                  href="/client-signup"
+                  href="/get-started"
                   className="group relative inline-flex items-center gap-2 px-7 py-3.5 text-[14px] font-semibold text-white rounded-full overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-[#0f172a]" />

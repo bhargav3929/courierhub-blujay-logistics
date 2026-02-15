@@ -25,7 +25,7 @@ export default function CTA() {
           Join 50,000+ Indian businesses. Free to start, no credit card required.
         </p>
         <Link
-          href="/client-signup"
+          href="/get-started"
           className="group inline-flex items-center gap-2 px-8 py-4 text-[14px] font-semibold text-white bg-[#0f172a] rounded-full hover:bg-[#1e293b] transition-colors shadow-lg shadow-[#0f172a]/10"
         >
           Get Started Free

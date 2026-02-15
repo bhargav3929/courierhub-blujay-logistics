@@ -142,7 +142,7 @@ const ClientLogin = () => {
                         <div className="mt-6 text-center space-y-3">
                             <p className="text-[#0f172a]/45 text-sm">
                                 Don&apos;t have an account?{' '}
-                                <Link href="/client-signup" className="text-[#3b82f6] hover:text-[#2563eb] font-medium">
+                                <Link href="/get-started" className="text-[#3b82f6] hover:text-[#2563eb] font-medium">
                                     Sign Up
                                 </Link>
                             </p>

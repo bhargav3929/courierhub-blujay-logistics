@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import { toast } from "sonner";
 import {
   LayoutGrid,
   Users,
+  UserPlus,
   Boxes,
   Truck,
   TrendingUp,
@@ -27,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getPendingRequestsCount } from "@/services/clientRequestService";
 
 const navGroups = [
   {
@@ -40,6 +43,7 @@ const navGroups = [
     label: "Management",
     items: [
       { icon: Users, label: "Clients", path: "/clients" },
+      { icon: UserPlus, label: "Requests", path: "/client-requests" },
       { icon: Boxes, label: "Shipments", path: "/shipments" },
       { icon: Truck, label: "Couriers", path: "/couriers" },
     ]
@@ -57,6 +61,16 @@ export const Sidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchCount = () => {
+      getPendingRequestsCount().then(setPendingCount).catch(() => {});
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0F172A] border-r border-white/5 shadow-2xl z-50 flex flex-col items-center py-6">
@@ -90,6 +104,11 @@ export const Sidebar = () => {
                             "h-5 w-5 transition-colors",
                             isActive ? "text-blue-500" : "text-slate-500 group-hover:text-slate-300"
                           )} />
+                          {item.path === '/client-requests' && pendingCount > 0 && (
+                            <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-[#0F172A]">
+                              {pendingCount > 9 ? '9+' : pendingCount}
+                            </span>
+                          )}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="right" className="bg-slate-900 border-slate-800 text-white ml-2 font-medium">
