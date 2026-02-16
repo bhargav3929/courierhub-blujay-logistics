@@ -89,7 +89,7 @@ export async function GET(request: Request) {
             'shopifyConfig.pendingAt': new Date().toISOString(),
         });
 
-        const scopes = 'read_orders,write_fulfillments';
+        const scopes = 'read_orders,write_fulfillments,read_products';
         const redirectUri = `${APP_URL}/api/integrations/shopify3/callback`;
 
         // Create signed state: base64-encode to avoid URL encoding issues

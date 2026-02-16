@@ -23,7 +23,7 @@ api_version = "2024-10"
   compliance_topics = [ "shop/redact" ]
 
 [access_scopes]
-scopes = "read_orders,write_fulfillments"
+scopes = "read_orders,write_fulfillments,read_products"
 optional_scopes = [ ]
 use_legacy_install_flow = true
 
