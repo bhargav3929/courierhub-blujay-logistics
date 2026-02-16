@@ -1,12 +1,11 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "97dadf377ae8bfe7b1c8cf6bdab5ed7c"
-name = "Blujay Logistics Client 3"
+client_id = "c5d28e2d8d256d67ed1052b3595edccd"
+name = "Blujay Logistics Client 3R"
 application_url = "https://blujaylogistic.com"
 embedded = false
 
 [build]
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2024-10"
