@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "c5d28e2d8d256d67ed1052b3595edccd"
-name = "Blujay Logistics Client 3R"
+client_id = "3ae14d07c4c5cd48c68f9a5cb637901c"
+name = "Blujay Logistics Client 3R1"
 application_url = "https://blujaylogistic.com"
 embedded = false
 
@@ -23,7 +23,6 @@ api_version = "2024-10"
   compliance_topics = [ "shop/redact" ]
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_orders,write_fulfillments"
 optional_scopes = [ ]
 use_legacy_install_flow = true
