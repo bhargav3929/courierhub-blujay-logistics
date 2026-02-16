@@ -188,10 +188,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Shopify not connected' }, { status: 400 });
         }
 
-        // 4. Decrypt access token (app2 uses its own secret for encryption)
-        const accessToken = shopifyConfig.appId === 'app2'
-            ? decryptTokenWithSecret(shopifyConfig.accessToken, process.env.SHOPIFY2_API_SECRET || '')
-            : decryptToken(shopifyConfig.accessToken);
+        // 4. Decrypt access token (app2/app3 use their own secrets for encryption)
+        let accessToken: string;
+        if (shopifyConfig.appId === 'app2') {
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, process.env.SHOPIFY2_API_SECRET || '');
+        } else if (shopifyConfig.appId === 'app3') {
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, process.env.SHOPIFY3_API_SECRET || '');
+        } else {
+            accessToken = decryptToken(shopifyConfig.accessToken);
+        }
         const shop = shopifyConfig.shopUrl;
 
         // 5. Map courier to Shopify tracking info

@@ -1,4 +1,4 @@
-export type ShopifyAppId = 'default' | 'app2';
+export type ShopifyAppId = 'default' | 'app2' | 'app3';
 
 interface ShopifyAppConfig {
     apiKey: string;
@@ -11,6 +11,11 @@ export function getShopifyAppConfig(appId: ShopifyAppId): ShopifyAppConfig {
             return {
                 apiKey: process.env.SHOPIFY2_API_KEY || '',
                 apiSecret: process.env.SHOPIFY2_API_SECRET || '',
+            };
+        case 'app3':
+            return {
+                apiKey: process.env.SHOPIFY3_API_KEY || '',
+                apiSecret: process.env.SHOPIFY3_API_SECRET || '',
             };
         case 'default':
         default:
