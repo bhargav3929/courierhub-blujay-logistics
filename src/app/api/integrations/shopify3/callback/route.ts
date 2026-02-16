@@ -65,8 +65,8 @@ async function writeDebug(step: string, data: Record<string, unknown>) {
 
 export async function GET(request: Request) {
     // Read env vars at call time (not module level) to avoid stale cached values
-    const SHOPIFY3_API_KEY = process.env.SHOPIFY3_API_KEY;
-    const SHOPIFY3_API_SECRET = process.env.SHOPIFY3_API_SECRET;
+    const SHOPIFY3_API_KEY = process.env.SHOPIFY3_API_KEY?.trim();
+    const SHOPIFY3_API_SECRET = process.env.SHOPIFY3_API_SECRET?.trim();
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
     try {
@@ -114,23 +114,17 @@ export async function GET(request: Request) {
             .digest('hex');
 
         // Safe comparison: check length first to prevent timingSafeEqual throw
-        const hmacValid = generatedHmac.length === hmac.length &&
-            crypto.timingSafeEqual(Buffer.from(generatedHmac), Buffer.from(hmac));
-
-        if (!hmacValid) {
-            // Log detailed debug info but continue — we verify via token exchange instead
-            console.warn('[Shopify3 Callback] HMAC mismatch — proceeding with token exchange verification');
-            await writeDebug('2-hmac-warn', {
+        if (generatedHmac.length !== hmac.length ||
+            !crypto.timingSafeEqual(Buffer.from(generatedHmac), Buffer.from(hmac))) {
+            await writeDebug('error-hmac', {
                 generatedLen: generatedHmac.length, receivedLen: hmac.length,
                 secretPrefix: SHOPIFY3_API_SECRET.substring(0, 10),
-                receivedHmac: hmac.substring(0, 16),
-                generatedHmac: generatedHmac.substring(0, 16),
-                fullMessage: message,
             });
-        } else {
-            console.log('[Shopify3 Callback] HMAC verified OK');
-            await writeDebug('2-hmac-ok', { shop });
+            return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=invalid_signature`);
         }
+
+        console.log('[Shopify3 Callback] HMAC verified OK');
+        await writeDebug('2-hmac-ok', { shop });
 
         // 2. Extract userId: try signed state first, fall back to shop domain lookup
         let userId: string | null = null;
