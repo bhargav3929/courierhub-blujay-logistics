@@ -50,9 +50,10 @@ async function registerSingleWebhook(
 
 export async function registerShopifyWebhook(
     shop: string,
-    accessToken: string
+    accessToken: string,
+    webhookBasePath?: string
 ): Promise<{ success: boolean; error?: string }> {
-    const webhookUrl = `${APP_URL}/api/integrations/shopify/webhook`;
+    const webhookUrl = `${APP_URL}${webhookBasePath || '/api/integrations/shopify/webhook'}`;
 
     const topics = ['ORDERS_CREATE', 'APP_UNINSTALLED'];
 

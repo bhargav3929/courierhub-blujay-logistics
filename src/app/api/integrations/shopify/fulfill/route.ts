@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { decryptToken } from '@/lib/shopifyTokenCrypto';
+import { decryptToken, decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
 import { adminAuth } from '@/lib/firebaseAdmin';
 
 export const dynamic = 'force-dynamic';
@@ -188,8 +188,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Shopify not connected' }, { status: 400 });
         }
 
-        // 4. Decrypt access token
-        const accessToken = decryptToken(shopifyConfig.accessToken);
+        // 4. Decrypt access token (app2 uses its own secret for encryption)
+        const accessToken = shopifyConfig.appId === 'app2'
+            ? decryptTokenWithSecret(shopifyConfig.accessToken, process.env.SHOPIFY2_API_SECRET || '')
+            : decryptToken(shopifyConfig.accessToken);
         const shop = shopifyConfig.shopUrl;
 
         // 5. Map courier to Shopify tracking info
