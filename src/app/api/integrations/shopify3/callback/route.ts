@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { encryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
 import { registerShopifyWebhook } from '@/lib/shopifyWebhook';
 
@@ -130,10 +130,24 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=token_exchange_failed`);
     }
 
-    // 4. If no userId, redirect with error (no Custom Distribution for app3)
+    // 4. If no userId — Custom Distribution install (merchant never went through our install route)
+    //    Store the token in a pending collection so it can be claimed later
     if (!userId) {
-        console.error('[Shopify3 Callback] No userId found for shop:', shop);
-        return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=no_user`);
+        console.log('[Shopify3 Callback] No userId found — storing as pending install for shop:', shop);
+        try {
+            await setDoc(doc(db, 'pendingShopifyInstalls', shop), {
+                accessToken: encryptTokenWithSecret(accessToken, SHOPIFY3_API_SECRET),
+                scopes: tokenScopes,
+                installedAt: new Date().toISOString(),
+                claimed: false,
+                appId: 'app3',
+            });
+        } catch (e) {
+            console.error('[Shopify3 Callback] Failed to store pending install:', e);
+        }
+        return NextResponse.redirect(
+            `${APP_URL}/client-integrations?shopifyPending=true&pendingShop=${encodeURIComponent(shop)}`
+        );
     }
 
     // 5. Save encrypted token to user's shopifyConfig with appId
