@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
-        const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
-        const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
+        const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY?.trim();
+        const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET?.trim();
         const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
         const { searchParams } = new URL(request.url);

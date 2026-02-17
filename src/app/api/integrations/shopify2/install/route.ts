@@ -2,14 +2,16 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
+import { registerShopifyWebhook } from '@/lib/shopifyWebhook';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
-        const SHOPIFY2_API_KEY = process.env.SHOPIFY2_API_KEY;
-        const SHOPIFY2_API_SECRET = process.env.SHOPIFY2_API_SECRET;
+        const SHOPIFY2_API_KEY = process.env.SHOPIFY2_API_KEY?.trim();
+        const SHOPIFY2_API_SECRET = process.env.SHOPIFY2_API_SECRET?.trim();
         const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
         const { searchParams } = new URL(request.url);
@@ -34,14 +36,60 @@ export async function GET(request: Request) {
         // Ensure shop format
         const shopUrl = shop.includes('.') ? shop : `${shop}.myshopify.com`;
 
+        // ── Check for pending Custom Distribution install ──
+        // If the merchant already authorized via Shopify's Custom Distribution link,
+        // the token is stored in pendingShopifyInstalls. Claim it directly — no OAuth needed.
+        const pendingRef = doc(db, 'pendingShopifyInstalls', shopUrl);
+        const pendingDoc = await getDoc(pendingRef);
+
+        if (pendingDoc.exists() && !pendingDoc.data().claimed) {
+            console.log('[Shopify2 Install] Found pending install for', shopUrl, '— claiming for user', userId);
+
+            const pendingData = pendingDoc.data();
+            const accessToken = decryptTokenWithSecret(pendingData.accessToken, SHOPIFY2_API_SECRET);
+
+            // Save to user's shopifyConfig (token is already encrypted in pendingData)
+            await updateDoc(doc(db, 'users', userId), {
+                shopifyConfig: {
+                    shopUrl: shopUrl,
+                    accessToken: pendingData.accessToken,
+                    isConnected: true,
+                    updatedAt: new Date().toISOString(),
+                    scopes: pendingData.scopes,
+                    appId: 'app2',
+                }
+            });
+
+            // Register webhook using the decrypted token
+            const webhookResult = await registerShopifyWebhook(shopUrl, accessToken, '/api/integrations/shopify2/webhook');
+            if (!webhookResult.success) {
+                console.error('[Shopify2 Install] Webhook registration failed:', webhookResult.error);
+                await updateDoc(doc(db, 'users', userId), {
+                    'shopifyConfig.webhookStatus': 'failed',
+                    'shopifyConfig.webhookError': webhookResult.error
+                });
+            } else {
+                await updateDoc(doc(db, 'users', userId), {
+                    'shopifyConfig.webhookStatus': 'active'
+                });
+            }
+
+            // Remove the pending install record
+            await deleteDoc(pendingRef);
+
+            console.log('[Shopify2 Install] Pending install claimed successfully for user', userId);
+            return NextResponse.redirect(`${APP_URL}/client-integrations?shopifySuccess=true`, { status: 302 });
+        }
+
+        // ── Normal OAuth flow ──
         // Save pending connection in Firestore so the callback can look up
-        // the userId by shop domain
+        // the userId by shop domain (needed if state verification fails)
         await updateDoc(doc(db, 'users', userId), {
             'shopifyConfig.pendingShopUrl': shopUrl,
             'shopifyConfig.pendingAt': new Date().toISOString(),
         });
 
-        const scopes = 'read_orders,write_fulfillments';
+        const scopes = 'read_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders';
         const redirectUri = `${APP_URL}/api/integrations/shopify2/callback`;
 
         // Create signed state: base64-encode to avoid URL encoding issues

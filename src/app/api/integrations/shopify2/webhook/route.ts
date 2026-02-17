@@ -7,7 +7,7 @@ import { Shipment } from '@/types/types';
 
 export const dynamic = 'force-dynamic';
 
-const SHOPIFY2_API_SECRET = process.env.SHOPIFY2_API_SECRET;
+const SHOPIFY2_API_SECRET = process.env.SHOPIFY2_API_SECRET?.trim();
 
 export async function POST(request: Request) {
     try {
