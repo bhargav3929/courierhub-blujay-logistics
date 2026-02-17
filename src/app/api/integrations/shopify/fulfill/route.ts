@@ -58,7 +58,14 @@ async function getFulfillmentOrderId(
     );
 
     const result = await response.json();
+
+    // Log GraphQL errors
+    if (result.errors) {
+        console.error('[Shopify Fulfill] GraphQL errors for order', orderId, ':', JSON.stringify(result.errors));
+    }
+
     const fulfillmentOrders = result.data?.order?.fulfillmentOrders?.nodes || [];
+    console.log('[Shopify Fulfill] Fulfillment orders for', orderId, ':', JSON.stringify(fulfillmentOrders));
 
     // Find the first OPEN or IN_PROGRESS fulfillment order
     const openOrder = fulfillmentOrders.find(
@@ -191,9 +198,9 @@ export async function POST(request: Request) {
         // 4. Decrypt access token (app2/app3 use their own secrets for encryption)
         let accessToken: string;
         if (shopifyConfig.appId === 'app2') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, process.env.SHOPIFY2_API_SECRET || '');
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY2_API_SECRET || '').trim());
         } else if (shopifyConfig.appId === 'app3') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, process.env.SHOPIFY3_API_SECRET || '');
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY3_API_SECRET || '').trim());
         } else {
             accessToken = decryptToken(shopifyConfig.accessToken);
         }
