@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck } from "lucide-react";
+import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -88,6 +89,68 @@ const ClientShipments = () => {
     const [bulkShipResults, setBulkShipResults] = useState<BulkShipResult[] | null>(null);
     const [bulkShipProgress, setBulkShipProgress] = useState({ completed: 0, total: 0 });
 
+    // Filter state
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [statusFilter, setStatusFilter] = useState<string[]>([]);
+    const [courierFilter, setCourierFilter] = useState<string[]>([]);
+    const [paymentFilter, setPaymentFilter] = useState<string[]>([]);
+    const [typeFilter, setTypeFilter] = useState<string[]>([]);
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+
+    const activeFilterCount = [statusFilter.length > 0, courierFilter.length > 0, paymentFilter.length > 0, typeFilter.length > 0, dateFrom, dateTo].filter(Boolean).length;
+
+    const toggleFilter = (arr: string[], setArr: (v: string[]) => void, value: string) => {
+        setArr(arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]);
+    };
+
+    const clearAllFilters = () => {
+        setStatusFilter([]);
+        setCourierFilter([]);
+        setPaymentFilter([]);
+        setTypeFilter([]);
+        setDateFrom("");
+        setDateTo("");
+    };
+
+    const applyShipmentFilters = (shp: Shipment) => {
+        // Status filter (OR within group)
+        if (statusFilter.length > 0) {
+            const matchesAnyStatus = statusFilter.some(sf => {
+                if (sf === 'shipped') return shp.status === 'pending' || shp.status === 'transit';
+                if (sf === 'delivered') return shp.status === 'delivered';
+                if (sf === 'cancelled') return shp.status === 'cancelled';
+                return false;
+            });
+            if (!matchesAnyStatus) return false;
+        }
+        // Courier filter
+        if (courierFilter.length > 0 && !courierFilter.includes(shp.courier || '')) return false;
+        // Payment filter
+        if (paymentFilter.length > 0) {
+            const isCOD = !!shp.toPayCustomer;
+            const matchesPayment = paymentFilter.some(pf => {
+                if (pf === 'COD') return isCOD;
+                if (pf === 'Prepaid') return !isCOD;
+                return false;
+            });
+            if (!matchesPayment) return false;
+        }
+        // Type filter
+        if (typeFilter.length > 0) {
+            const shipType = shp.shipmentType === 'return' ? 'Return' : 'Forward';
+            if (!typeFilter.includes(shipType)) return false;
+        }
+        // Date range
+        if (dateFrom || dateTo) {
+            const createdMs = shp.createdAt?.toDate ? shp.createdAt.toDate().getTime() : 0;
+            if (!createdMs) return false;
+            if (dateFrom && createdMs < new Date(dateFrom).getTime()) return false;
+            if (dateTo && createdMs > new Date(dateTo).getTime() + 86400000) return false;
+        }
+        return true;
+    };
+
     useEffect(() => {
         if (currentUser?.id) {
             fetchShipments();
@@ -132,8 +195,9 @@ const ClientShipments = () => {
     const newOrders = isFranchise ? [] : shipments.filter(s => s.status === 'shopify_pending');
     const bookedShipments = isFranchise ? shipments : shipments.filter(s => s.status !== 'shopify_pending');
 
-    // Per-tab filtering
-    const filteredNewOrders = newOrders.filter((shp) => {
+    // Per-tab filtering (search + filters)
+    const matchesSearch = (shp: Shipment, includeAwb: boolean) => {
+        if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return (
             shp.shopifyOrderNumber?.toLowerCase().includes(q) ||
@@ -141,22 +205,18 @@ const ClientShipments = () => {
             shp.destination?.name?.toLowerCase().includes(q) ||
             shp.destination?.pincode?.toLowerCase().includes(q) ||
             shp.products?.[0]?.name?.toLowerCase().includes(q) ||
-            shp.id?.toLowerCase().includes(q)
+            shp.id?.toLowerCase().includes(q) ||
+            (includeAwb && shp.courierTrackingId?.toLowerCase().includes(q))
         );
-    });
+    };
 
-    const filteredBookedShipments = bookedShipments.filter((shp) => {
-        const q = searchQuery.toLowerCase();
-        return (
-            shp.shopifyOrderNumber?.toLowerCase().includes(q) ||
-            shp.referenceNo?.toLowerCase().includes(q) ||
-            shp.destination?.name?.toLowerCase().includes(q) ||
-            shp.destination?.pincode?.toLowerCase().includes(q) ||
-            shp.courierTrackingId?.toLowerCase().includes(q) ||
-            shp.products?.[0]?.name?.toLowerCase().includes(q) ||
-            shp.id?.toLowerCase().includes(q)
-        );
-    });
+    const filteredNewOrders = newOrders.filter((shp) =>
+        matchesSearch(shp, false) && applyShipmentFilters(shp)
+    );
+
+    const filteredBookedShipments = bookedShipments.filter((shp) =>
+        matchesSearch(shp, true) && applyShipmentFilters(shp)
+    );
 
     // ==================== SHIPPED TAB: Selection handlers ====================
     const selectableShipments = filteredBookedShipments.filter(s => s.status !== 'declined');
@@ -634,9 +694,146 @@ const ClientShipments = () => {
                             />
                         </div>
                         <div className="flex gap-2 w-full md:w-auto">
-                            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted rounded-lg text-sm font-medium transition-colors">
-                                <Filter className="h-4 w-4" /> Filters
-                            </button>
+                            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                                <PopoverTrigger asChild>
+                                    <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted rounded-lg text-sm font-medium transition-colors relative">
+                                        <Filter className="h-4 w-4" /> Filters
+                                        {activeFilterCount > 0 && (
+                                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-white text-[10px] font-bold">
+                                                {activeFilterCount}
+                                            </span>
+                                        )}
+                                    </button>
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-80 p-5 rounded-xl">
+                                    <div className="space-y-5">
+                                        {/* Header */}
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-bold">Filters</h3>
+                                            {activeFilterCount > 0 && (
+                                                <button onClick={clearAllFilters} className="text-xs text-primary font-semibold hover:underline">
+                                                    Clear All
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Status */}
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {['Shipped', 'Delivered', 'Cancelled'].map(val => (
+                                                    <button
+                                                        key={val}
+                                                        onClick={() => toggleFilter(statusFilter, setStatusFilter, val.toLowerCase())}
+                                                        className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                                                            statusFilter.includes(val.toLowerCase())
+                                                                ? 'bg-primary text-white'
+                                                                : 'bg-muted/50 text-foreground hover:bg-muted'
+                                                        }`}
+                                                    >
+                                                        {val}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Courier */}
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Courier</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {['Blue Dart', 'DTDC'].map(val => (
+                                                    <button
+                                                        key={val}
+                                                        onClick={() => toggleFilter(courierFilter, setCourierFilter, val)}
+                                                        className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                                                            courierFilter.includes(val)
+                                                                ? 'bg-primary text-white'
+                                                                : 'bg-muted/50 text-foreground hover:bg-muted'
+                                                        }`}
+                                                    >
+                                                        {val}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Payment — only for Shopify merchants */}
+                                        {!isFranchise && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Payment</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['COD', 'Prepaid'].map(val => (
+                                                        <button
+                                                            key={val}
+                                                            onClick={() => toggleFilter(paymentFilter, setPaymentFilter, val)}
+                                                            className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                                                                paymentFilter.includes(val)
+                                                                    ? 'bg-primary text-white'
+                                                                    : 'bg-muted/50 text-foreground hover:bg-muted'
+                                                            }`}
+                                                        >
+                                                            {val}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Type */}
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Type</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {['Forward', 'Return'].map(val => (
+                                                    <button
+                                                        key={val}
+                                                        onClick={() => toggleFilter(typeFilter, setTypeFilter, val)}
+                                                        className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                                                            typeFilter.includes(val)
+                                                                ? 'bg-primary text-white'
+                                                                : 'bg-muted/50 text-foreground hover:bg-muted'
+                                                        }`}
+                                                    >
+                                                        {val}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Date Range */}
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Date Range</p>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-muted-foreground font-medium mb-1 block">From</label>
+                                                    <Input
+                                                        type="date"
+                                                        value={dateFrom}
+                                                        onChange={(e) => setDateFrom(e.target.value)}
+                                                        className="h-9 text-xs bg-muted/30 border-none"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-muted-foreground font-medium mb-1 block">To</label>
+                                                    <Input
+                                                        type="date"
+                                                        value={dateTo}
+                                                        onChange={(e) => setDateTo(e.target.value)}
+                                                        className="h-9 text-xs bg-muted/30 border-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Apply */}
+                                        <button
+                                            onClick={() => setFilterOpen(false)}
+                                            className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
+                                        >
+                                            Apply Filters
+                                        </button>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                     </div>
                 </CardHeader>
@@ -656,9 +853,9 @@ const ClientShipments = () => {
                                 </TabsTrigger>
                                 <TabsTrigger value="shipped" className="gap-2 px-5 bg-white border border-border/40 shadow-sm data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:border-primary transition-all">
                                     Shipped
-                                    {bookedShipments.length > 0 && (
+                                    {filteredBookedShipments.length > 0 && (
                                         <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-white/20 text-[10px] font-bold">
-                                            {bookedShipments.length}
+                                            {filteredBookedShipments.length}
                                         </span>
                                     )}
                                 </TabsTrigger>
@@ -992,9 +1189,16 @@ const ClientShipments = () => {
                                                     {isFranchise ? (
                                                         <>
                                                             <td className="px-4 py-4">
-                                                                <span className="font-mono text-sm font-bold text-blue-700">
-                                                                    {shp.courierTrackingId || '-'}
-                                                                </span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-mono text-sm font-bold text-blue-700">
+                                                                        {shp.courierTrackingId || '-'}
+                                                                    </span>
+                                                                    {shp.shipmentType === 'return' && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[9px] font-bold leading-none">
+                                                                            RETURN
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">
                                                                 {shp.createdAt?.toDate ? format(shp.createdAt.toDate(), "dd MMM yyyy") : "N/A"}
@@ -1017,9 +1221,11 @@ const ClientShipments = () => {
                                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
                                                                     shp.status === 'cancelled'
                                                                         ? 'bg-red-100 text-red-700'
-                                                                        : 'bg-primary/10 text-primary'
+                                                                        : shp.status === 'delivered'
+                                                                            ? 'bg-green-100 text-green-700'
+                                                                            : 'bg-primary/10 text-primary'
                                                                 }`}>
-                                                                    {shp.status === 'cancelled' ? 'Cancelled' : 'Shipped'}
+                                                                    {shp.status === 'cancelled' ? 'Cancelled' : shp.status === 'delivered' ? 'Delivered' : 'Shipped'}
                                                                 </span>
                                                             </td>
                                                         </>
@@ -1042,6 +1248,11 @@ const ClientShipments = () => {
                                                                         <span className="font-mono text-sm font-bold text-blue-700">
                                                                             {shp.shopifyOrderNumber ? `#${shp.shopifyOrderNumber}` : shp.referenceNo || '-'}
                                                                         </span>
+                                                                        {shp.shipmentType === 'return' && (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[9px] font-bold leading-none">
+                                                                                RETURN
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                     <span className="font-mono text-[10px] text-muted-foreground">
                                                                         {shp.courierTrackingId || shp.id?.substring(0, 10).toUpperCase()}
@@ -1099,9 +1310,11 @@ const ClientShipments = () => {
                                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
                                                                     shp.status === 'cancelled'
                                                                         ? 'bg-red-100 text-red-700'
-                                                                        : 'bg-primary/10 text-primary'
+                                                                        : shp.status === 'delivered'
+                                                                            ? 'bg-green-100 text-green-700'
+                                                                            : 'bg-primary/10 text-primary'
                                                                 }`}>
-                                                                    {shp.status === 'cancelled' ? 'Cancelled' : 'Shipped'}
+                                                                    {shp.status === 'cancelled' ? 'Cancelled' : shp.status === 'delivered' ? 'Delivered' : 'Shipped'}
                                                                 </span>
                                                             </td>
                                                         </>
@@ -1127,6 +1340,14 @@ const ClientShipments = () => {
                                                                 >
                                                                     <FileTextIcon className="h-4 w-4" /> Manifest
                                                                 </DropdownMenuItem>
+                                                                {shp.status !== 'cancelled' && shp.shipmentType !== 'return' && (
+                                                                    <DropdownMenuItem
+                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-orange-600 focus:text-orange-600 focus:bg-orange-50"
+                                                                        onClick={() => router.push(`/add-shipment?returnShipmentId=${shp.id}`)}
+                                                                    >
+                                                                        <RotateCcw className="h-4 w-4" /> Return Shipment
+                                                                    </DropdownMenuItem>
+                                                                )}
                                                                 {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
                                                                     <DropdownMenuItem
                                                                         className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
