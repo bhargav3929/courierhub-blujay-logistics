@@ -145,6 +145,10 @@ export interface Shipment {
     // Additional info
     notes?: string;
 
+    // Return shipment metadata
+    shipmentType?: 'forward' | 'return';   // undefined = forward (backward compat)
+    parentShipmentId?: string;              // links return to original forward shipment
+
     // ========== BlueDart Excel Export Fields ==========
     // Reference & Billing
     referenceNo?: string;           // Auto-generated ORDER-1, ORDER-2, etc.
