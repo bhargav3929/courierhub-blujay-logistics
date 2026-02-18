@@ -16,6 +16,16 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogCancel,
+    AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
 import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShopifyLabel, printShopifyLabel, printBulkShopifyLabels } from "@/components/shipments/ShopifyLabel";
@@ -66,6 +76,7 @@ const ClientShipments = () => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkPrintMode, setBulkPrintMode] = useState<'thermal' | 'a4'>('thermal');
     const [labelsForBulkPrint, setLabelsForBulkPrint] = useState<Shipment[] | null>(null);
+    const [showExportConfirm, setShowExportConfirm] = useState(false);
 
     // New Orders tab: Bulk ship state
     const [selectedNewOrderIds, setSelectedNewOrderIds] = useState<Set<string>>(new Set());
@@ -479,6 +490,98 @@ const ClientShipments = () => {
         }
     };
 
+    // ==================== EXPORT CSV ====================
+    const handleExportCSV = () => {
+        const shipmentsToExport = selectedIds.size > 0
+            ? filteredBookedShipments.filter(s => selectedIds.has(s.id))
+            : filteredBookedShipments;
+
+        if (shipmentsToExport.length === 0) {
+            toast.error("No shipments to export");
+            return;
+        }
+
+        const escapeCSV = (val: string): string => {
+            if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+                return `"${val.replace(/"/g, '""')}"`;
+            }
+            return val;
+        };
+
+        const safe = (val: any): string => {
+            if (val === null || val === undefined) return '';
+            return String(val).trim();
+        };
+
+        const formatDate = (timestamp: any): string => {
+            if (!timestamp) return '';
+            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+            if (isNaN(date.getTime())) return '';
+            return format(date, 'dd MMM yyyy');
+        };
+
+        const headers = [
+            'Channel', 'Order #', 'Shopify Order ID', 'Date',
+            'Product', 'SKU', 'Qty', 'Declared Value',
+            'Payment', 'COD Amount',
+            'Customer Name', 'Customer Phone', 'Address', 'City', 'State', 'Pincode',
+            'Courier', 'AWB / Tracking ID', 'Weight (kg)',
+            'Status', 'Courier Charge', 'Amount Charged', 'Notes'
+        ];
+
+        const rows = shipmentsToExport.map(s => {
+            const products = s.products || [];
+            const productNames = products.map(p => p.name).filter(Boolean).join(' | ');
+            const productSkus = products.map(p => p.sku).filter(Boolean).join(' | ');
+            const totalQty = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+            const declaredValue = products.reduce((sum, p) => sum + ((p.price || 0) * (p.quantity || 0)), 0);
+            const codAmount = s.collectableAmount || s.dtdcCodAmount || 0;
+            const payment = codAmount > 0 ? 'COD' : 'Prepaid';
+
+            return [
+                s.clientType === 'shopify' ? 'Shopify' : 'Franchise',
+                safe(s.shopifyOrderNumber || s.referenceNo),
+                safe(s.shopifyOrderId),
+                formatDate(s.createdAt),
+                productNames,
+                productSkus,
+                totalQty || '',
+                declaredValue || '',
+                payment,
+                codAmount > 0 ? codAmount : '',
+                safe(s.destination?.name),
+                safe(s.destination?.phone),
+                safe(s.destination?.address),
+                safe(s.destination?.city),
+                safe(s.destination?.state),
+                safe(s.destination?.pincode),
+                safe(s.courier),
+                safe(s.courierTrackingId),
+                s.weight || '',
+                safe(s.status).toUpperCase(),
+                s.courierCharge || '',
+                s.chargedAmount || '',
+                safe(s.notes),
+            ].map(v => escapeCSV(String(v)));
+        });
+
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const filename = `Shipments_Export_${new Date().toISOString().split('T')[0]}.csv`;
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success(`Exported ${shipmentsToExport.length} shipment${shipmentsToExport.length > 1 ? 's' : ''}`, {
+            description: `File: ${filename}`,
+        });
+    };
+
     // Counts for validation dialog
     const validCount = bulkShipValidation?.filter(v => v.isValid).length || 0;
     const invalidCount = bulkShipValidation?.filter(v => !v.isValid).length || 0;
@@ -491,8 +594,24 @@ const ClientShipments = () => {
                     <p className="text-muted-foreground">Manage and track all your outgoing packages</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-muted hover:border-primary/50 rounded-xl text-sm font-bold transition-all text-foreground">
+                    <button
+                        onClick={() => {
+                            if (filteredBookedShipments.length === 0) return;
+                            if (selectedIds.size > 0) {
+                                handleExportCSV();
+                            } else {
+                                setShowExportConfirm(true);
+                            }
+                        }}
+                        disabled={filteredBookedShipments.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-muted hover:border-primary/50 rounded-xl text-sm font-bold transition-all text-foreground disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-muted"
+                    >
                         <Download className="h-4 w-4" /> Export CSV
+                        {selectedIds.size > 0 && (
+                            <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary text-xs px-1.5 py-0">
+                                {selectedIds.size}
+                            </Badge>
+                        )}
                     </button>
                     <Link href="/add-shipment">
                         <button className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/20 transition-all">
@@ -1323,6 +1442,45 @@ const ClientShipments = () => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Export CSV Confirmation Dialog */}
+            <AlertDialog open={showExportConfirm} onOpenChange={setShowExportConfirm}>
+                <AlertDialogContent className="max-w-md rounded-2xl border-0 shadow-2xl bg-white p-0 overflow-hidden">
+                    <div className="px-6 pt-6 pb-4">
+                        <AlertDialogHeader className="space-y-3">
+                            <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <Download className="h-5 w-5 text-primary" />
+                            </div>
+                            <AlertDialogTitle className="text-center text-lg font-bold tracking-tight">
+                                Export All Shipments?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-center text-sm text-muted-foreground leading-relaxed">
+                                You haven&apos;t selected any specific shipments. This will export{' '}
+                                <span className="font-semibold text-foreground">
+                                    all {filteredBookedShipments.length} shipment{filteredBookedShipments.length !== 1 ? 's' : ''}
+                                </span>{' '}
+                                to a CSV file.
+                                <br />
+                                <span className="text-xs mt-2 block text-muted-foreground/80">
+                                    To export specific shipments only, close this and select them using the checkboxes first.
+                                </span>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                    </div>
+                    <AlertDialogFooter className="px-6 py-4 border-t bg-muted/20 flex-row gap-3 sm:gap-3">
+                        <AlertDialogCancel className="flex-1 rounded-xl border-2 border-muted font-semibold hover:bg-muted/50 mt-0">
+                            Go Back & Select
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => handleExportCSV()}
+                            className="flex-1 rounded-xl bg-primary font-semibold hover:bg-primary/90 shadow-md shadow-primary/20"
+                        >
+                            <Download className="h-4 w-4 mr-2" />
+                            Export All
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
