@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { auth, db, initializationError } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { User } from '@/types/types';
+import { User, isPrimaryUser as isPrimaryUserFn, isSubUser as isSubUserFn, canManageSubAccounts as canManageSubAccountsFn } from '@/types/types';
 import { handleFirebaseError, isNetworkError } from '@/lib/firebaseErrorHandler';
 
 interface AuthContextType {
@@ -22,6 +22,11 @@ interface AuthContextType {
     logout: () => Promise<void>;
     isAuthenticated: boolean;
     retryAuth: () => Promise<void>;
+    // Sub-account hierarchy helpers
+    isPrimaryUser: boolean;
+    isSubUser: boolean;
+    canManageSubAccounts: boolean;
+    parentId?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,7 +59,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userDoc = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
             if (userDoc.exists()) {
-                return { id: userDoc.id, ...userDoc.data() } as User;
+                const userData = { id: userDoc.id, ...userDoc.data() } as User;
+
+                // Lazy migration: set default userType for existing users
+                if (!userData.userType) {
+                    try {
+                        await updateDoc(doc(db, 'users', uid), { userType: 'primary' });
+                        userData.userType = 'primary';
+                    } catch (migrationError) {
+                        console.warn('[AuthContext] Failed to migrate userType, will retry next login:', migrationError);
+                        // Don't fail login, just set default locally
+                        userData.userType = 'primary';
+                    }
+                }
+
+                return userData;
             }
             return null;
         } catch (error: any) {
@@ -207,6 +226,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return unsubscribe;
     }, []);
 
+    // Compute hierarchy helpers
+    const isPrimaryUser = isPrimaryUserFn(currentUser);
+    const isSubUser = isSubUserFn(currentUser);
+    const canManageSubAccounts = canManageSubAccountsFn(currentUser);
+    const parentId = isSubUser ? currentUser?.parentId : undefined;
+
     const value: AuthContextType = {
         currentUser,
         firebaseUser,
@@ -215,7 +240,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         retryAuth,
-        isAuthenticated: !!currentUser
+        isAuthenticated: !!currentUser,
+        // Sub-account hierarchy
+        isPrimaryUser,
+        isSubUser,
+        canManageSubAccounts,
+        parentId
     };
 
     // Check for initialization error

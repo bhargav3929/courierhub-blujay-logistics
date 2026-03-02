@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw } from "lucide-react";
+import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw, RefreshCw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     DropdownMenu,
@@ -34,6 +34,8 @@ import { ShipmentManifest, printManifest } from "@/components/shipments/Shipment
 import { Printer, FileText as FileTextIcon } from "lucide-react";
 import { getAllShipments, updateShipmentStatus, updateShipment } from "@/services/shipmentService";
 import { getDefaultPickupAddress } from "@/services/clientService";
+import { getSubAccountIds, getSubAccountsByParent } from "@/services/subAccountService";
+import { Client } from "@/types/types";
 import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES } from "@/config/bluedartConfig";
@@ -60,18 +62,23 @@ interface BulkShipResult {
 
 const ClientShipments = () => {
     const router = useRouter();
-    const { currentUser, firebaseUser } = useAuth();
+    const { currentUser, firebaseUser, canManageSubAccounts } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
     const [selectedShipmentForManifest, setSelectedShipmentForManifest] = useState<Shipment | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [resyncingId, setResyncingId] = useState<string | null>(null);
     const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
     // Tab state (only used by Shopify merchants)
     const isFranchise = currentUser?.role === 'franchise';
     const [activeTab, setActiveTab] = useState<string>('new-orders');
+
+    // Sub-account hierarchy state
+    const [subAccounts, setSubAccounts] = useState<Client[]>([]);
+    const [createdByFilter, setCreatedByFilter] = useState<string>('all'); // 'all', 'me', or subAccountId
 
     // Shipped tab: Bulk selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -98,7 +105,7 @@ const ClientShipments = () => {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
-    const activeFilterCount = [statusFilter.length > 0, courierFilter.length > 0, paymentFilter.length > 0, typeFilter.length > 0, dateFrom, dateTo].filter(Boolean).length;
+    const activeFilterCount = [statusFilter.length > 0, courierFilter.length > 0, paymentFilter.length > 0, typeFilter.length > 0, dateFrom, dateTo, canManageSubAccounts && createdByFilter !== 'all'].filter(Boolean).length;
 
     const toggleFilter = (arr: string[], setArr: (v: string[]) => void, value: string) => {
         setArr(arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]);
@@ -111,9 +118,19 @@ const ClientShipments = () => {
         setTypeFilter([]);
         setDateFrom("");
         setDateTo("");
+        setCreatedByFilter('all');
     };
 
     const applyShipmentFilters = (shp: Shipment) => {
+        // Created by filter (for franchise primary users)
+        if (canManageSubAccounts && createdByFilter !== 'all') {
+            if (createdByFilter === 'me') {
+                if (shp.clientId !== currentUser?.id) return false;
+            } else {
+                // Filter by specific sub-account
+                if (shp.clientId !== createdByFilter) return false;
+            }
+        }
         // Status filter (OR within group)
         if (statusFilter.length > 0) {
             const matchesAnyStatus = statusFilter.some(sf => {
@@ -151,6 +168,28 @@ const ClientShipments = () => {
         return true;
     };
 
+    // Helper to get the creator name for a shipment
+    const getCreatorName = (clientId: string): string => {
+        if (clientId === currentUser?.id) return 'Me';
+        const subAccount = subAccounts.find(s => s.id === clientId);
+        return subAccount?.name || 'Unknown';
+    };
+
+    // Fetch sub-accounts for franchise primary users
+    useEffect(() => {
+        const fetchSubAccounts = async () => {
+            if (canManageSubAccounts && currentUser?.id) {
+                try {
+                    const accounts = await getSubAccountsByParent(currentUser.id);
+                    setSubAccounts(accounts);
+                } catch (error) {
+                    console.error("Error fetching sub-accounts:", error);
+                }
+            }
+        };
+        fetchSubAccounts();
+    }, [canManageSubAccounts, currentUser?.id]);
+
     useEffect(() => {
         if (currentUser?.id) {
             fetchShipments();
@@ -160,7 +199,18 @@ const ClientShipments = () => {
     const fetchShipments = async () => {
         try {
             setLoading(true);
-            const data = await getAllShipments({ clientId: currentUser?.id });
+            let data: Shipment[];
+
+            // For franchise primary users, fetch own + sub-accounts' shipments
+            if (canManageSubAccounts) {
+                const subAccountIds = await getSubAccountIds(currentUser!.id);
+                const allIds = [currentUser!.id, ...subAccountIds];
+                data = await getAllShipments({ clientIds: allIds });
+            } else {
+                // Sub-users and shopify: own shipments only
+                data = await getAllShipments({ clientId: currentUser?.id });
+            }
+
             setShipments(data);
             setSelectedIds(new Set());
             setSelectedNewOrderIds(new Set());
@@ -316,6 +366,31 @@ const ClientShipments = () => {
             });
         } catch (error) {
             console.error('Shopify fulfillment sync error:', error);
+        }
+    };
+
+    const handleRetrySync = async (shipmentId: string) => {
+        setResyncingId(shipmentId);
+        try {
+            const idToken = await firebaseUser?.getIdToken();
+            const res = await fetch('/api/integrations/shopify/fulfill', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(idToken && { 'Authorization': `Bearer ${idToken}` }),
+                },
+                body: JSON.stringify({ shipmentId }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Fulfillment synced to Shopify');
+            } else {
+                toast.error(data.error || 'Sync failed');
+            }
+        } catch (error) {
+            toast.error('Failed to retry sync');
+        } finally {
+            setResyncingId(null);
         }
     };
 
@@ -716,6 +791,32 @@ const ClientShipments = () => {
                                                 </button>
                                             )}
                                         </div>
+
+                                        {/* Created By — only for franchise primary users with sub-accounts */}
+                                        {canManageSubAccounts && subAccounts.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Created By</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {[
+                                                        { id: 'all', label: 'All' },
+                                                        { id: 'me', label: 'Me' },
+                                                        ...subAccounts.map(sa => ({ id: sa.id, label: sa.name }))
+                                                    ].map(option => (
+                                                        <button
+                                                            key={option.id}
+                                                            onClick={() => setCreatedByFilter(option.id)}
+                                                            className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                                                                createdByFilter === option.id
+                                                                    ? 'bg-primary text-white'
+                                                                    : 'bg-muted/50 text-foreground hover:bg-muted'
+                                                            }`}
+                                                        >
+                                                            {option.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Status */}
                                         <div className="space-y-2">
@@ -1340,6 +1441,16 @@ const ClientShipments = () => {
                                                                 >
                                                                     <FileTextIcon className="h-4 w-4" /> Manifest
                                                                 </DropdownMenuItem>
+                                                                {shp.shopifyFulfillmentStatus === 'failed' && shp.courierTrackingId && (
+                                                                    <DropdownMenuItem
+                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-blue-600 focus:text-blue-600 focus:bg-blue-50"
+                                                                        onClick={() => handleRetrySync(shp.id)}
+                                                                        disabled={resyncingId === shp.id}
+                                                                    >
+                                                                        <RefreshCw className={`h-4 w-4 ${resyncingId === shp.id ? 'animate-spin' : ''}`} />
+                                                                        {resyncingId === shp.id ? 'Syncing...' : 'Retry Shopify Sync'}
+                                                                    </DropdownMenuItem>
+                                                                )}
                                                                 {shp.status !== 'cancelled' && shp.shipmentType !== 'return' && (
                                                                     <DropdownMenuItem
                                                                         className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-orange-600 focus:text-orange-600 focus:bg-orange-50"

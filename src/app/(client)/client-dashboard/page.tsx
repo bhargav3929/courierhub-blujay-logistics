@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getAllShipments } from "@/services/shipmentService";
+import { getSubAccountIds } from "@/services/subAccountService";
 import { Shipment } from "@/types/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import { ClientActivityChart, ClientSourceChart } from "@/components/dashboard/C
 import { ClientShipmentsTable } from "@/components/dashboard/ClientShipmentsTable";
 
 const ClientDashboard = () => {
-    const { currentUser } = useAuth();
+    const { currentUser, canManageSubAccounts } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -29,7 +30,18 @@ const ClientDashboard = () => {
     const fetchShipments = async () => {
         try {
             setLoading(true);
-            const data = await getAllShipments({ clientId: currentUser?.id });
+            let data: Shipment[];
+
+            // For franchise primary users, fetch own + sub-accounts' shipments
+            if (canManageSubAccounts) {
+                const subAccountIds = await getSubAccountIds(currentUser!.id);
+                const allIds = [currentUser!.id, ...subAccountIds];
+                data = await getAllShipments({ clientIds: allIds });
+            } else {
+                // Sub-users and shopify: own shipments only
+                data = await getAllShipments({ clientId: currentUser?.id });
+            }
+
             setShipments(data);
         } catch (error) {
             console.error("Error fetching shipments:", error);

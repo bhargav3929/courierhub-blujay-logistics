@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,7 +12,8 @@ import {
     Store,
     User,
     LogOut,
-    ChartColumnBig
+    ChartColumnBig,
+    Users
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -26,7 +28,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 
-const navItems = [
+const baseNavItems = [
     { icon: House, label: "Home", path: "/client-dashboard" },
     { icon: PackageSearch, label: "My Shipments", path: "/client-shipments" },
     { icon: PackagePlus, label: "Book Shipment", path: "/add-shipment" },
@@ -38,7 +40,24 @@ const navItems = [
 export const ClientSidebar = () => {
     const pathname = usePathname();
     const router = useRouter();
-    const { currentUser, logout } = useAuth();
+    const { currentUser, logout, canManageSubAccounts } = useAuth();
+
+    // Build nav items conditionally based on user permissions
+    const navItems = useMemo(() => {
+        const items = [...baseNavItems];
+
+        // Add Sub-accounts menu item for franchise primary users
+        if (canManageSubAccounts) {
+            // Insert before Settings (index 5)
+            items.splice(5, 0, {
+                icon: Users,
+                label: "Sub-accounts",
+                path: "/client-sub-accounts"
+            });
+        }
+
+        return items;
+    }, [canManageSubAccounts]);
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-20 bg-[#0B1120] border-r border-[#1E293B] shadow-2xl flex flex-col items-center py-6 z-50">

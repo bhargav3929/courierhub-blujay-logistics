@@ -16,7 +16,7 @@ import {
     getCountFromServer
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseConfig';
-import { Client, ClientFilters } from '@/types/types';
+import { Client, ClientFilters, UserType } from '@/types/types';
 import { initializeApp, getApp, deleteApp, FirebaseApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
@@ -76,10 +76,12 @@ const createAuthUser = async (email: string, password: string): Promise<string> 
 
 /**
  * Add a new client (Creates Auth User + Firestore Data)
+ * Supports hierarchy params for sub-account creation
  */
 export const addClient = async (
     clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>,
-    password?: string
+    password?: string,
+    hierarchyOptions?: { userType?: UserType; parentId?: string }
 ): Promise<Client> => {
     try {
         let uid = "";
@@ -94,27 +96,41 @@ export const addClient = async (
 
         const timestamp = Timestamp.now();
 
+        // Determine userType (default to 'primary')
+        const userType = hierarchyOptions?.userType || 'primary';
+        const parentId = hierarchyOptions?.parentId;
+
         // 2. Create User Document (For Auth Context / Role Management)
-        await setDoc(doc(db, "users", uid), {
+        const userDoc: Record<string, any> = {
             email: clientData.email,
             name: clientData.name,
             role: clientData.type, // 'franchise' or 'shopify'
             phone: clientData.phone,
             isActive: true,
             createdAt: timestamp,
-            clientId: uid // user ID acts as client ID
-        });
+            updatedAt: timestamp,
+            clientId: uid, // user ID acts as client ID
+            userType: userType
+        };
+        if (parentId) {
+            userDoc.parentId = parentId;
+        }
+        await setDoc(doc(db, "users", uid), userDoc);
 
         // 3. Create Client Document (For Business Logic)
-        // We use setDoc with the same UID so we can easily link them. 
+        // We use setDoc with the same UID so we can easily link them.
         // Previously it was addDoc (auto-ID), but linking by UID is cleaner.
-        const newClient = {
+        const newClient: Record<string, any> = {
             ...clientData,
             id: uid, // Explicitly set ID
             walletBalance: clientData.walletBalance || 0,
             createdAt: timestamp,
-            updatedAt: timestamp
+            updatedAt: timestamp,
+            userType: userType
         };
+        if (parentId) {
+            newClient.parentId = parentId;
+        }
 
         await setDoc(doc(db, CLIENTS_COLLECTION, uid), newClient);
 
@@ -143,6 +159,7 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
 
 /**
  * Get all clients with optional filtering
+ * Supports hierarchy filters (parentId, userType)
  */
 export const getAllClients = async (filters?: ClientFilters): Promise<Client[]> => {
     try {
@@ -154,6 +171,15 @@ export const getAllClients = async (filters?: ClientFilters): Promise<Client[]> 
 
         if (filters?.status) {
             q = query(q, where('status', '==', filters.status));
+        }
+
+        // Hierarchy filters
+        if (filters?.parentId) {
+            q = query(q, where('parentId', '==', filters.parentId));
+        }
+
+        if (filters?.userType) {
+            q = query(q, where('userType', '==', filters.userType));
         }
 
         const querySnapshot = await getDocs(q);

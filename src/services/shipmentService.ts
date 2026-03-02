@@ -60,12 +60,85 @@ export const getShipmentById = async (shipmentId: string): Promise<Shipment | nu
 
 /**
  * Get all shipments with optional filtering
+ * Supports single clientId or multiple clientIds (for sub-account hierarchy)
  */
 export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipment[]> => {
     try {
         // IMPORTANT: Ordering by createdAt + filtering by clientId requires a composite index
         // To avoid index requirement, we order ONLY when not filtering by clientId
         // OR we fetch all and sort client-side
+
+        let shipments: Shipment[] = [];
+
+        // Handle clientIds array (for sub-account hierarchy queries)
+        if (filters?.clientIds && filters.clientIds.length > 0) {
+            // Firestore 'in' query supports up to 30 values
+            // If more, batch the queries
+            const BATCH_SIZE = 30;
+            const batches: string[][] = [];
+            for (let i = 0; i < filters.clientIds.length; i += BATCH_SIZE) {
+                batches.push(filters.clientIds.slice(i, i + BATCH_SIZE));
+            }
+
+            const batchResults = await Promise.all(
+                batches.map(async (batchIds) => {
+                    let q = query(
+                        collection(db, SHIPMENTS_COLLECTION),
+                        where('clientId', 'in', batchIds)
+                    );
+
+                    if (filters?.status) {
+                        q = query(q, where('status', '==', filters.status));
+                    }
+                    if (filters?.courier) {
+                        q = query(q, where('courier', '==', filters.courier));
+                    }
+
+                    const snapshot = await getDocs(q);
+                    return snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    } as Shipment));
+                })
+            );
+
+            shipments = batchResults.flat();
+
+            // Apply date filtering client-side
+            if (filters.startDate) {
+                const startMs = filters.startDate.getTime();
+                shipments = shipments.filter(s => {
+                    const t = s.createdAt?.toMillis?.() || 0;
+                    return t >= startMs;
+                });
+            }
+            if (filters.endDate) {
+                const endMs = filters.endDate.getTime();
+                shipments = shipments.filter(s => {
+                    const t = s.createdAt?.toMillis?.() || 0;
+                    return t <= endMs;
+                });
+            }
+
+            // Sort by createdAt desc client-side
+            shipments.sort((a, b) => {
+                const aTime = a.createdAt?.toMillis?.() || 0;
+                const bTime = b.createdAt?.toMillis?.() || 0;
+                return bTime - aTime;
+            });
+
+            // Apply search filter
+            if (filters?.searchQuery) {
+                const searchLower = filters.searchQuery.toLowerCase();
+                shipments = shipments.filter(shipment =>
+                    shipment.id.toLowerCase().includes(searchLower) ||
+                    shipment.clientName.toLowerCase().includes(searchLower) ||
+                    shipment.courier.toLowerCase().includes(searchLower)
+                );
+            }
+
+            return shipments;
+        }
 
         let q;
 
@@ -97,7 +170,7 @@ export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipme
         }
 
         const querySnapshot = await getDocs(q);
-        let shipments = querySnapshot.docs.map(doc => ({
+        shipments = querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as Shipment));

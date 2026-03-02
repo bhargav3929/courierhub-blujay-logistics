@@ -7,11 +7,16 @@ let adminAuth: Auth;
 try {
     if (!getApps().length) {
         const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}';
-        const serviceAccount = JSON.parse(raw);
+
+        // Dotenv converts \n to actual newlines, but JSON requires escaped \n in strings
+        // Convert actual newlines back to escaped \n for valid JSON parsing
+        const fixedRaw = raw.replace(/\n/g, '\\n');
+        const serviceAccount = JSON.parse(fixedRaw);
 
         adminApp = initializeApp({
             credential: cert(serviceAccount),
         });
+        console.log('✅ Firebase Admin initialized successfully');
     } else {
         adminApp = getApps()[0];
     }

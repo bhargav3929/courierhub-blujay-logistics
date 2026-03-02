@@ -23,6 +23,9 @@ export const isClientRole = (role: UserRole): boolean => {
     return role === 'franchise' || role === 'shopify';
 };
 
+// Sub-account hierarchy type
+export type UserType = 'primary' | 'sub_user';
+
 // User (Admin) Interface
 export interface User {
     id: string;
@@ -45,6 +48,9 @@ export interface User {
         webhookStatus?: 'active' | 'failed';
         webhookError?: string;
     };
+    // Sub-account hierarchy
+    userType?: UserType;  // 'primary' (default) or 'sub_user'
+    parentId?: string;    // Only set for sub_users - franchisee owner's ID
 }
 
 // Client Interface (Franchise Partners & Shopify Merchants)
@@ -64,6 +70,9 @@ export interface Client {
     // Optional Shopify-specific fields
     shopifyStoreUrl?: string;
     shopifyAccessToken?: string;
+    // Sub-account hierarchy
+    userType?: UserType;  // 'primary' (default) or 'sub_user'
+    parentId?: string;    // Only set for sub_users - parent client's ID
 }
 
 // Product within a shipment (supports multiple products per order)
@@ -354,6 +363,7 @@ export interface ClientRequest {
 // Filter types for queries
 export interface ShipmentFilters {
     clientId?: string;
+    clientIds?: string[];  // For fetching multiple clients' shipments (sub-accounts)
     status?: Shipment['status'];
     courier?: string;
     startDate?: Date;
@@ -365,4 +375,16 @@ export interface ClientFilters {
     type?: Client['type'];
     status?: Client['status'];
     searchQuery?: string;
+    parentId?: string;     // Filter sub-accounts by parent
+    userType?: UserType;   // Filter by primary or sub_user
 }
+
+// Sub-account hierarchy helper functions
+export const isPrimaryUser = (user: User | null | undefined): boolean =>
+    user?.userType === 'primary' || !user?.userType;  // Backward compat: undefined = primary
+
+export const isSubUser = (user: User | null | undefined): boolean =>
+    user?.userType === 'sub_user';
+
+export const canManageSubAccounts = (user: User | null | undefined): boolean =>
+    user?.role === 'franchise' && isPrimaryUser(user);
