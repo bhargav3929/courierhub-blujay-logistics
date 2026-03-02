@@ -1,0 +1,37 @@
+# Blujay Logistics - Client Gayatri
+# https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "2f4b8f212b0b39f8a6009691c1b07066"
+name = "Blujay Logistics - Client Gaya"
+application_url = "https://blujaylogistic.com"
+embedded = false
+
+[build]
+
+[webhooks]
+api_version = "2024-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-gayatri/gdpr/customers-data-request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-gayatri/gdpr/customers-redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-gayatri/gdpr/shop-redact"
+  compliance_topics = [ "shop/redact" ]
+
+[access_scopes]
+scopes = "read_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
+optional_scopes = [ ]
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://blujaylogistic.com/api/integrations/shopify-gayatri/callback"
+]
+
+[pos]
+embedded = false
