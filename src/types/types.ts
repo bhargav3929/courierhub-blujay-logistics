@@ -48,6 +48,8 @@ export interface User {
         webhookStatus?: 'active' | 'failed';
         webhookError?: string;
     };
+    // Dedicated Shopify app assignment (set by admin for clients with custom apps)
+    dedicatedShopifyApp?: 'looms' | 'gayatri';
     // Sub-account hierarchy
     userType?: UserType;  // 'primary' (default) or 'sub_user'
     parentId?: string;    // Only set for sub_users - franchisee owner's ID

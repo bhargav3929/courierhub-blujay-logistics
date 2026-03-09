@@ -22,6 +22,18 @@ export function ShopifyConnect() {
     const isConnected = currentUser?.shopifyConfig?.isConnected;
     const connectedShop = currentUser?.shopifyConfig?.shopUrl;
 
+    // Determine the correct install route based on dedicated app assignment
+    const getInstallRoute = () => {
+        const dedicatedApp = currentUser?.dedicatedShopifyApp;
+        if (dedicatedApp === 'looms') {
+            return '/api/integrations/shopify-looms/install';
+        }
+        if (dedicatedApp === 'gayatri') {
+            return '/api/integrations/shopify-gayatri/install';
+        }
+        return '/api/integrations/shopify/install';
+    };
+
     const handleConnect = () => {
         if (!shopUrl) return;
 
@@ -32,7 +44,7 @@ export function ShopifyConnect() {
             cleanShop = `${cleanShop}.myshopify.com`;
         }
 
-        const installUrl = `/api/integrations/shopify/install?shop=${encodeURIComponent(cleanShop)}&userId=${currentUser?.id}`;
+        const installUrl = `${getInstallRoute()}?shop=${encodeURIComponent(cleanShop)}&userId=${currentUser?.id}`;
         window.location.href = installUrl;
     };
 
