@@ -56,6 +56,7 @@ export async function GET(request: Request) {
                     isConnected: true,
                     updatedAt: new Date().toISOString(),
                     scopes: pendingData.scopes,
+                    appId: 'default',
                 }
             });
 

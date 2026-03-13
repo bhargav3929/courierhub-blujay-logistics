@@ -26,7 +26,7 @@ function getTrackingUrl(courier: string, trackingNumber: string): string {
 
 async function getFulfillmentOrderId(
     shop: string, accessToken: string, orderId: string
-): Promise<string | null> {
+): Promise<{ fulfillmentOrderId: string | null; error?: string }> {
     const orderGid = `gid://shopify/Order/${orderId}`;
 
     const query = `
@@ -57,11 +57,25 @@ async function getFulfillmentOrderId(
         }
     );
 
+    // Detect HTTP-level auth errors (invalid/expired token)
+    if (response.status === 401 || response.status === 403) {
+        console.error('[Shopify Fulfill] Auth error for order', orderId, '— HTTP', response.status);
+        return { fulfillmentOrderId: null, error: `Shopify auth error (${response.status}). The store may need to re-authorize the app — go to Integrations and reconnect Shopify.` };
+    }
+
     const result = await response.json();
 
-    // Log GraphQL errors
-    if (result.errors) {
-        console.error('[Shopify Fulfill] GraphQL errors for order', orderId, ':', JSON.stringify(result.errors));
+    // Detect GraphQL-level scope/auth errors
+    if (result.errors?.length) {
+        const errorMessages = result.errors.map((e: any) => e.message).join('; ');
+        console.error('[Shopify Fulfill] GraphQL errors for order', orderId, ':', errorMessages);
+        const isScopeError = errorMessages.toLowerCase().includes('access denied') ||
+            errorMessages.toLowerCase().includes('scope') ||
+            errorMessages.toLowerCase().includes('permission');
+        if (isScopeError) {
+            return { fulfillmentOrderId: null, error: `Shopify scope error: ${errorMessages}. Reconnect Shopify in Integrations to grant updated permissions.` };
+        }
+        return { fulfillmentOrderId: null, error: `Shopify API error: ${errorMessages}` };
     }
 
     const fulfillmentOrders = result.data?.order?.fulfillmentOrders?.nodes || [];
@@ -72,7 +86,11 @@ async function getFulfillmentOrderId(
         (fo: { id: string; status: string }) => fo.status === 'OPEN' || fo.status === 'IN_PROGRESS'
     );
 
-    return openOrder?.id || null;
+    if (!openOrder) {
+        return { fulfillmentOrderId: null, error: 'No open fulfillment order found — may already be fulfilled in Shopify' };
+    }
+
+    return { fulfillmentOrderId: openOrder.id };
 }
 
 async function createFulfillment(
@@ -142,6 +160,7 @@ async function createFulfillment(
 }
 
 export async function POST(request: Request) {
+    let shipmentId: string | undefined;
     try {
         // 0. Verify Firebase auth token
         const authHeader = request.headers.get('Authorization');
@@ -157,7 +176,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
         }
 
-        const { shipmentId } = await request.json();
+        ({ shipmentId } = await request.json());
 
         if (!shipmentId) {
             return NextResponse.json({ error: 'Missing shipmentId' }, { status: 400 });
@@ -212,19 +231,17 @@ export async function POST(request: Request) {
         const trackingUrl = getTrackingUrl(shipment.courier, trackingNumber);
 
         // 6. Get fulfillment order ID from Shopify
-        const fulfillmentOrderId = await getFulfillmentOrderId(
+        const { fulfillmentOrderId, error: foError } = await getFulfillmentOrderId(
             shop, accessToken, shipment.shopifyOrderId
         );
 
         if (!fulfillmentOrderId) {
-            // Order may already be fulfilled manually in Shopify
+            const errorMsg = foError || 'No open fulfillment order found';
             await updateDoc(doc(db, 'shipments', shipmentId), {
                 shopifyFulfillmentStatus: 'failed',
-                shopifyFulfillmentError: 'No open fulfillment order found — may already be fulfilled in Shopify',
+                shopifyFulfillmentError: errorMsg,
             });
-            return NextResponse.json({
-                error: 'No open fulfillment order found in Shopify. It may already be fulfilled.'
-            }, { status: 400 });
+            return NextResponse.json({ error: errorMsg }, { status: 400 });
         }
 
         // 7. Create fulfillment via GraphQL
@@ -249,6 +266,17 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error('[Shopify Fulfill] Error:', error);
+
+        // Persist error to shipment so the UI shows SYNC FAILED with the reason
+        if (shipmentId) {
+            try {
+                await updateDoc(doc(db, 'shipments', shipmentId), {
+                    shopifyFulfillmentStatus: 'failed',
+                    shopifyFulfillmentError: error.message || 'Fulfillment sync failed',
+                });
+            } catch { /* best-effort */ }
+        }
+
         return NextResponse.json({
             error: error.message || 'Fulfillment sync failed'
         }, { status: 500 });

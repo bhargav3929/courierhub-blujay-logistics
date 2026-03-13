@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw, RefreshCw } from "lucide-react";
+import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw, RefreshCw, MapPin, Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     DropdownMenu,
@@ -95,6 +95,12 @@ const ClientShipments = () => {
     const [isBulkShipping, setIsBulkShipping] = useState(false);
     const [bulkShipResults, setBulkShipResults] = useState<BulkShipResult[] | null>(null);
     const [bulkShipProgress, setBulkShipProgress] = useState({ completed: 0, total: 0 });
+
+    // Tracking state
+    const [trackingShipment, setTrackingShipment] = useState<Shipment | null>(null);
+    const [trackingData, setTrackingData] = useState<any>(null);
+    const [trackingLoading, setTrackingLoading] = useState(false);
+    const [trackingError, setTrackingError] = useState<string | null>(null);
 
     // Filter state
     const [filterOpen, setFilterOpen] = useState(false);
@@ -623,6 +629,81 @@ const ClientShipments = () => {
         } catch {
             toast.error("Failed to decline order");
         }
+    };
+
+    // ==================== TRACKING ====================
+    const handleTrackShipment = async (shipment: Shipment) => {
+        if (!shipment.courierTrackingId) {
+            toast.error("No AWB/tracking ID available for this shipment");
+            return;
+        }
+
+        setTrackingShipment(shipment);
+        setTrackingData(null);
+        setTrackingError(null);
+        setTrackingLoading(true);
+
+        try {
+            let data;
+            if (shipment.courier === 'DTDC') {
+                data = await dtdcService.trackShipment(shipment.courierTrackingId);
+            } else {
+                data = await blueDartService.trackShipment(shipment.courierTrackingId);
+            }
+            setTrackingData(data);
+        } catch (error: any) {
+            console.error('Tracking error:', error);
+            const msg = error.response?.data?.error || error.response?.data?.details || error.message || 'Failed to fetch tracking information';
+            setTrackingError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        } finally {
+            setTrackingLoading(false);
+        }
+    };
+
+    // Parse Blue Dart tracking scans from response
+    const parseBlueDartScans = (data: any): Array<{ date: string; time: string; location: string; activity: string; statusCode?: string }> => {
+        if (!data) return [];
+        // Blue Dart response: ShipmentData[].Shipment.Scans[].ScanDetail
+        const shipmentData = data?.ShipmentData?.[0] || data?.shipmentData?.[0];
+        const scans = shipmentData?.Shipment?.Scans || shipmentData?.shipment?.Scans || [];
+        return scans.map((scan: any) => {
+            const detail = scan?.ScanDetail || scan?.scanDetail || scan;
+            const dateTime = detail?.ScanDateTime || detail?.scanDateTime || '';
+            const [datePart, timePart] = dateTime.includes('T') ? dateTime.split('T') : [dateTime, ''];
+            return {
+                date: datePart || '',
+                time: timePart?.replace('Z', '') || '',
+                location: detail?.ScannedLocation || detail?.scannedLocation || '',
+                activity: detail?.Instructions || detail?.instructions || detail?.Scan || detail?.scan || '',
+                statusCode: detail?.ScanCode || detail?.scanCode || '',
+            };
+        }).reverse(); // Most recent first
+    };
+
+    // Parse DTDC tracking scans from response
+    const parseDtdcScans = (data: any): Array<{ date: string; time: string; location: string; activity: string; statusCode?: string }> => {
+        if (!data) return [];
+        const trackDetails = data?.trackDetails || data?.TrackDetails || [];
+        if (Array.isArray(trackDetails)) {
+            return trackDetails.map((event: any) => ({
+                date: event?.strActionDate || event?.date || '',
+                time: event?.strActionTime || event?.time || '',
+                location: event?.strOrigin || event?.origin || '',
+                activity: event?.strAction || event?.activity || event?.status || '',
+                statusCode: event?.strStatusCode || '',
+            })).reverse();
+        }
+        return [];
+    };
+
+    const getTrackingCurrentStatus = (data: any, courier: string): string => {
+        if (!data) return 'Unknown';
+        if (courier === 'DTDC') {
+            return data?.trackHeader?.strStatus || data?.statusCode || 'Unknown';
+        }
+        // Blue Dart
+        const shipment = data?.ShipmentData?.[0]?.Shipment || data?.shipmentData?.[0]?.shipment;
+        return shipment?.Status || shipment?.status || 'Unknown';
     };
 
     // ==================== EXPORT CSV ====================
@@ -1426,7 +1507,10 @@ const ClientShipments = () => {
                                                                 <MoreVertical className="h-4 w-4" />
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
-                                                                <DropdownMenuItem className="flex items-center gap-2 cursor-pointer p-3 rounded-lg">
+                                                                <DropdownMenuItem
+                                                                    className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
+                                                                    onClick={() => handleTrackShipment(shp)}
+                                                                >
                                                                     <ExternalLink className="h-4 w-4" /> Track Package
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem
@@ -1813,6 +1897,139 @@ const ClientShipments = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Tracking Dialog */}
+            <Dialog open={!!trackingShipment} onOpenChange={(open) => { if (!open) { setTrackingShipment(null); setTrackingData(null); setTrackingError(null); } }}>
+                <DialogContent className="max-w-lg bg-white p-0 overflow-hidden rounded-2xl">
+                    <div className="p-5 border-b bg-muted/20">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-base font-bold tracking-tight">Track Shipment</h2>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="font-mono text-xs text-muted-foreground">AWB: {trackingShipment?.courierTrackingId}</span>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted font-bold text-muted-foreground">{trackingShipment?.courier || 'Blue Dart'}</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => { setTrackingShipment(null); setTrackingData(null); setTrackingError(null); }}
+                                className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            >
+                                <span className="text-lg leading-none">&times;</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[65vh] overflow-y-auto">
+                        {trackingLoading && (
+                            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                <p className="text-sm text-muted-foreground font-medium">Fetching tracking details...</p>
+                            </div>
+                        )}
+
+                        {trackingError && (
+                            <div className="p-6">
+                                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100">
+                                    <XCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
+                                    <div>
+                                        <p className="text-sm font-semibold text-red-800">Tracking Failed</p>
+                                        <p className="text-xs text-red-600 mt-1 leading-relaxed">{trackingError}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {trackingData && !trackingLoading && (
+                            <div className="p-5 space-y-5">
+                                {/* Current Status */}
+                                <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10">
+                                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                        <Truck className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Current Status</p>
+                                        <p className="text-sm font-bold text-foreground mt-0.5">
+                                            {getTrackingCurrentStatus(trackingData, trackingShipment?.courier || '')}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Shipment Info */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    {trackingShipment?.destination?.name && (
+                                        <div className="p-3 rounded-lg bg-muted/30">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Receiver</p>
+                                            <p className="text-sm font-semibold mt-0.5">{trackingShipment.destination.name}</p>
+                                        </div>
+                                    )}
+                                    {trackingShipment?.destination?.city && (
+                                        <div className="p-3 rounded-lg bg-muted/30">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Destination</p>
+                                            <p className="text-sm font-semibold mt-0.5">{trackingShipment.destination.city} — {trackingShipment.destination.pincode}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Timeline */}
+                                {(() => {
+                                    const scans = trackingShipment?.courier === 'DTDC'
+                                        ? parseDtdcScans(trackingData)
+                                        : parseBlueDartScans(trackingData);
+
+                                    if (scans.length > 0) {
+                                        return (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Tracking Timeline</p>
+                                                <div className="space-y-0">
+                                                    {scans.map((scan, idx) => (
+                                                        <div key={idx} className="flex gap-3">
+                                                            {/* Timeline line */}
+                                                            <div className="flex flex-col items-center">
+                                                                <div className={`h-3 w-3 rounded-full shrink-0 mt-1 ${idx === 0 ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/30'}`} />
+                                                                {idx < scans.length - 1 && (
+                                                                    <div className="w-px flex-1 bg-border min-h-[32px]" />
+                                                                )}
+                                                            </div>
+                                                            {/* Content */}
+                                                            <div className="pb-5 min-w-0">
+                                                                <p className={`text-sm font-semibold leading-tight ${idx === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                                                    {scan.activity || 'Update'}
+                                                                </p>
+                                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                                    {scan.location && (
+                                                                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                                            <MapPin className="h-3 w-3" /> {scan.location}
+                                                                        </span>
+                                                                    )}
+                                                                    {(scan.date || scan.time) && (
+                                                                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                                            <Clock className="h-3 w-3" /> {scan.date} {scan.time}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    // No parsed scans — show raw data
+                                    return (
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Raw Tracking Data</p>
+                                            <pre className="text-xs bg-muted/30 p-4 rounded-xl overflow-x-auto max-h-60 text-muted-foreground font-mono leading-relaxed">
+                                                {JSON.stringify(trackingData, null, 2)}
+                                            </pre>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

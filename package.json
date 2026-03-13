@@ -4,8 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/validate-license.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/validate-license.mjs",
     "build": "next build",
+    "prestart": "node scripts/validate-license.mjs",
     "start": "next start",
     "lint": "next lint"
   },

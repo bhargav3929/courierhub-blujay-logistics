@@ -232,15 +232,15 @@ class BlueDartService {
     /**
      * trackShipment
      * Step 3.6: Tracking API
+     * Calls Next.js API route (tracking license key is handled server-side)
      */
     public async trackShipment(awbNumber: string) {
         try {
-            // Note: If you haven't created a route for this, it will fail.
-            // We should create a route later.
-            console.warn("Tracking API route not yet implemented");
-            return null;
+            console.log(`Tracking Blue Dart shipment ${awbNumber}...`);
+            const response = await axios.get(`/api/bluedart/track-shipment?awb=${awbNumber}`);
+            return response.data;
         } catch (error) {
-            console.error('Tracking failed:', error);
+            console.error('Blue Dart tracking failed:', error);
             throw error;
         }
     }

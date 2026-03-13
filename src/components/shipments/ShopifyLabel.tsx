@@ -10,11 +10,12 @@ interface ShopifyLabelProps {
 
 export const ShopifyLabel = ({ shipment }: ShopifyLabelProps) => {
     const orderNumber = shipment.shopifyOrderNumber || shipment.referenceNo || 'N/A';
+    const dateFormatOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: '2-digit' };
     const orderDate = shipment.shopifyOrderDate
-        ? new Date(shipment.shopifyOrderDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' })
+        ? new Date(shipment.shopifyOrderDate).toLocaleDateString('en-IN', dateFormatOpts)
         : shipment.createdAt?.toDate
-            ? new Date(shipment.createdAt.toDate()).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' })
-            : new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
+            ? new Date(shipment.createdAt.toDate()).toLocaleDateString('en-IN', dateFormatOpts)
+            : 'N/A';
 
     // Prefer new products array, fallback to shopifyLineItems, then legacy fields
     const lineItems = shipment.products && shipment.products.length > 0
@@ -97,6 +98,24 @@ export const ShopifyLabel = ({ shipment }: ShopifyLabelProps) => {
                     </div>
                 </div>
             </div>
+
+            {/* Return Shipment Banner */}
+            {shipment.shipmentType === 'return' && (
+                <div style={{
+                    backgroundColor: '#000',
+                    color: '#fff',
+                    textAlign: 'center',
+                    padding: '1.5mm 0',
+                    fontSize: '14px',
+                    fontWeight: 900,
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                    borderBottom: '2px solid black',
+                    marginBottom: '2mm',
+                }}>
+                    RETURN SHIPMENT
+                </div>
+            )}
 
             {/* Payment Mode Badge */}
             <div style={{

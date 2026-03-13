@@ -100,7 +100,10 @@ const AddShipment = () => {
     const lookupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const shopifyShipmentId = searchParams.get('shopifyShipmentId');
+    const returnShipmentId = searchParams.get('returnShipmentId');
     const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
+    const [isReturn, setIsReturn] = useState(false);
+    const [parentShipmentId, setParentShipmentId] = useState<string | null>(null);
 
     // Fire-and-forget call to sync fulfillment to Shopify after AWB is assigned
     const triggerShopifyFulfillment = async (shipmentId: string) => {
@@ -133,7 +136,7 @@ const AddShipment = () => {
     // Load saved default pickup address on mount (skip if loading a Shopify order)
     useEffect(() => {
         const loadDefaultPickup = async () => {
-            if (currentUser?.id && !shopifyShipmentId) {
+            if (currentUser?.id && !shopifyShipmentId && !returnShipmentId) {
                 const savedAddress = await getDefaultPickupAddress(currentUser.id);
                 if (savedAddress) {
                     setPickup(savedAddress);
@@ -228,6 +231,88 @@ const AddShipment = () => {
         };
         loadShopifyOrder();
     }, [shopifyShipmentId, currentUser?.id]);
+
+    // Load return shipment data — swap origin/destination
+    useEffect(() => {
+        const loadReturnShipment = async () => {
+            if (!returnShipmentId || !currentUser?.id) return;
+            const shipment = await getShipmentById(returnShipmentId);
+            if (!shipment || shipment.status === 'cancelled') {
+                toast.error("Cancelled shipments cannot be returned");
+                router.push('/client-shipments');
+                return;
+            }
+
+            // SWAP: customer (destination) becomes pickup sender for return
+            setPickup({
+                name: shipment.destination?.name || "",
+                phone: shipment.destination?.phone || "",
+                pincode: shipment.destination?.pincode || "",
+                address: shipment.destination?.address || "",
+                city: shipment.destination?.city || "",
+                state: shipment.destination?.state || "",
+                country: "India",
+            });
+
+            // SWAP: warehouse (origin) becomes delivery destination for return
+            // Prefer saved default pickup address (warehouse), fallback to original origin
+            const savedAddress = await getDefaultPickupAddress(currentUser.id);
+            if (savedAddress) {
+                setDelivery({
+                    name: savedAddress.name || "",
+                    phone: savedAddress.phone || "",
+                    pincode: savedAddress.pincode || "",
+                    address: savedAddress.address || "",
+                    city: savedAddress.city || "",
+                    state: savedAddress.state || "",
+                    country: "India",
+                });
+            } else {
+                setDelivery({
+                    name: shipment.origin?.name || "",
+                    phone: shipment.origin?.phone || "",
+                    pincode: shipment.origin?.pincode || "",
+                    address: shipment.origin?.address || "",
+                    city: shipment.origin?.city || "",
+                    state: shipment.origin?.state || "",
+                    country: "India",
+                });
+            }
+
+            // Copy weight, dimensions, products from original
+            if (shipment.weight) setActualWeight(shipment.weight.toString());
+            if (shipment.dimensions) {
+                setDimensions({
+                    length: shipment.dimensions.length?.toString() || "10",
+                    width: shipment.dimensions.width?.toString() || "10",
+                    height: shipment.dimensions.height?.toString() || "10",
+                });
+            }
+            if (shipment.products && shipment.products.length > 0) {
+                setProducts(shipment.products);
+            }
+
+            // Pre-select same courier
+            if (shipment.courier === 'DTDC') {
+                setSelectedCourier('DTDC');
+            } else {
+                setSelectedCourier('Blue Dart');
+            }
+
+            // Set order ID with RET- prefix
+            const originalRef = shipment.shopifyOrderNumber
+                ? `#${shipment.shopifyOrderNumber}`
+                : shipment.referenceNo || '';
+            setOrderID(`RET-${originalRef}`);
+
+            // Force disable COD for returns
+            setEnableCOD(false);
+
+            setIsReturn(true);
+            setParentShipmentId(shipment.id);
+        };
+        loadReturnShipment();
+    }, [returnShipmentId, currentUser?.id, router]);
 
     // Debounced receiver phone lookup for auto-fill
     const handleReceiverPhoneChange = useCallback((phone: string) => {
@@ -578,6 +663,7 @@ const AddShipment = () => {
             packType: selectedService.packType || '',
             codEnabled: enableCOD,
             collectableAmount: codAmountValue,
+            ...(isReturn && parentShipmentId ? { shipmentType: 'return' as const, parentShipmentId } : {}),
         };
 
         if (shopifySourceId) {
@@ -680,6 +766,7 @@ const AddShipment = () => {
             dtdcChargeableWeight: dtdcChargeableWeight,
             dtdcStatus: 'Created',
             dtdcCommodityId: DTDC_PREDEFINED.commodityId,
+            ...(isReturn && parentShipmentId ? { shipmentType: 'return' as const, parentShipmentId } : {}),
         };
 
         if (shopifySourceId) {
@@ -721,11 +808,15 @@ const AddShipment = () => {
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
             {/* Header */}
             <div className="relative text-center space-y-3">
-                <div className="inline-flex p-3 rounded-2xl bg-primary/5 border border-primary/10">
-                    <Truck className="h-7 w-7 text-primary" />
+                <div className={`inline-flex p-3 rounded-2xl border ${isReturn ? 'bg-orange-500/5 border-orange-500/10' : 'bg-primary/5 border-primary/10'}`}>
+                    <Truck className={`h-7 w-7 ${isReturn ? 'text-orange-500' : 'text-primary'}`} />
                 </div>
                 <h1 className="text-4xl font-black tracking-tighter text-foreground">
-                    Book <span className="text-primary">Shipment</span>
+                    {isReturn ? (
+                        <>Return <span className="text-orange-500">Shipment</span></>
+                    ) : (
+                        <>Book <span className="text-primary">Shipment</span></>
+                    )}
                 </h1>
                 <p className="text-muted-foreground font-medium">Simple {isB2C ? '4' : '3'}-step booking</p>
             </div>
@@ -734,6 +825,14 @@ const AddShipment = () => {
                 <div className="bg-[#95BF47]/10 border border-[#95BF47] rounded-xl p-4 text-center">
                     <p className="text-sm font-bold text-[#5e8e3e]">
                         Pre-filled from Shopify Order — review details and fill any missing fields before booking.
+                    </p>
+                </div>
+            )}
+
+            {isReturn && (
+                <div className="bg-orange-50 border border-orange-300 rounded-xl p-4 text-center">
+                    <p className="text-sm font-bold text-orange-700">
+                        Return Shipment — Addresses swapped from original order. COD is disabled for returns.
                     </p>
                 </div>
             )}
@@ -1176,13 +1275,14 @@ const AddShipment = () => {
                                                 <div>
                                                     <div className="font-bold text-sm">Cash on Delivery (COD)</div>
                                                     <div className="text-[10px] text-muted-foreground">
-                                                        Available with Blue Dart Air & Blue Dart Surface
+                                                        {isReturn ? 'COD not available for returns' : 'Available with Blue Dart Air & Blue Dart Surface'}
                                                     </div>
                                                 </div>
                                             </div>
                                             <Switch
                                                 checked={enableCOD}
                                                 onCheckedChange={setEnableCOD}
+                                                disabled={isReturn}
                                             />
                                         </div>
                                         )}
@@ -1272,7 +1372,7 @@ const AddShipment = () => {
                         {step === 4 && (
                             <Button onClick={handleBook} disabled={loading} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
                                 {loading ? <Loader2 className="animate-spin" /> : <Truck className="h-5 w-5" />}
-                                Book via {selectedCourier}
+                                {isReturn ? `Book Return via ${selectedCourier}` : `Book via ${selectedCourier}`}
                             </Button>
                         )}
                     </div>

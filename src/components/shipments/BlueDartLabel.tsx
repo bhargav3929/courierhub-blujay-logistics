@@ -9,10 +9,12 @@ interface BlueDartLabelProps {
 }
 
 export const BlueDartLabel = ({ shipment }: BlueDartLabelProps) => {
-    // Format date
+    // Format date — use pickupDate if available, otherwise fall back to shipment creation date
     const dateStr = shipment.pickupDate
         ? new Date(shipment.pickupDate).toLocaleDateString()
-        : new Date().toLocaleDateString();
+        : shipment.createdAt?.toDate
+            ? new Date(shipment.createdAt.toDate()).toLocaleDateString()
+            : new Date().toLocaleDateString();
 
     const routingCode = `${shipment.destinationArea || ''} ${shipment.destinationLocation ? `/ ${shipment.destinationLocation}` : ''}`;
 
@@ -62,6 +64,23 @@ export const BlueDartLabel = ({ shipment }: BlueDartLabelProps) => {
                     <div style={{ fontSize: '10px' }}>{dateStr}</div>
                 </div>
             </div>
+
+            {/* Return Shipment Banner */}
+            {shipment.shipmentType === 'return' && (
+                <div style={{
+                    backgroundColor: '#000',
+                    color: '#fff',
+                    textAlign: 'center',
+                    padding: '4px 0',
+                    fontSize: '16px',
+                    fontWeight: 900,
+                    letterSpacing: '0.2em',
+                    textTransform: 'uppercase',
+                    marginBottom: '0.5rem',
+                }}>
+                    RETURN SHIPMENT
+                </div>
+            )}
 
             {/* Routing Code - BIG */}
             <div style={{

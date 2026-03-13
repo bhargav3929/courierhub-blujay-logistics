@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "./providers";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import LicenseGuard from "@/components/LicenseGuard";
 
 export const metadata: Metadata = {
     title: "Blujay Logistics",
@@ -18,11 +19,13 @@ export default function RootLayout({
         <html lang="en">
             <body>
                 <div className="bg-background min-h-screen font-sans antialiased">
-                    <Providers>
-                        {children}
-                        <Toaster />
-                        <Sonner />
-                    </Providers>
+                    <LicenseGuard>
+                        <Providers>
+                            {children}
+                            <Toaster />
+                            <Sonner />
+                        </Providers>
+                    </LicenseGuard>
                 </div>
             </body>
         </html>
