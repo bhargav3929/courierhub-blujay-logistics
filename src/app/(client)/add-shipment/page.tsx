@@ -69,13 +69,91 @@ const calculatePrice = (weight: number) => {
 const AddShipment = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { currentUser, firebaseUser } = useAuth();
+    const { currentUser, currentClient, firebaseUser, whiteLabelConfig } = useAuth();
     const isB2C = currentUser?.role === 'shopify';
+    const isWhiteLabel = currentUser?.role === 'white_label';
+
+    // Attach the current client id so courier services call our API routes
+    // with the right `clientId` param — the routes will use that client's
+    // connected courier credentials when present, falling back to platform
+    // env vars otherwise.
+    useEffect(() => {
+        blueDartService.setClientId(currentUser?.id);
+        dtdcService.setClientId(currentUser?.id);
+        return () => {
+            blueDartService.setClientId(undefined);
+            dtdcService.setClientId(undefined);
+        };
+    }, [currentUser?.id]);
+
+    // Couriers the client is allowed to book with.
+    // A courier is bookable when:
+    //   1. it's in `client.allowedCouriers` (admin-granted), AND
+    //   2. the platform has default creds (Blue Dart / DTDC today) OR the
+    //      client has connected their own credentials via Integrations.
+    const bookableCouriers = useMemo(() => {
+        const allowed = new Set(currentClient?.allowedCouriers || ['Blue Dart']);
+        const integrations = currentClient?.courierIntegrations || {};
+        const list: Array<{ name: string; connected: boolean }> = [];
+        // Blue Dart — always has platform fallback
+        if (allowed.has('Blue Dart')) {
+            list.push({ name: 'Blue Dart', connected: integrations.bluedart?.status === 'connected' });
+        }
+        // DTDC — always has platform fallback
+        if (allowed.has('DTDC')) {
+            list.push({ name: 'DTDC', connected: integrations.dtdc?.status === 'connected' });
+        }
+        // Future: Delhivery / Ecom Express / Xpressbees — only when the tenant
+        // connected their own (no platform fallback). Booking handlers for
+        // these will be added once sandbox creds are validated.
+        return list;
+    }, [currentClient?.allowedCouriers, currentClient?.courierIntegrations]);
+
+    // Effective origin defaults — white-label tenants use their onboarding config;
+    // all other clients fall back to the platform-wide hardcoded values.
+    const originDefaults = useMemo(() => {
+        if (whiteLabelConfig) {
+            return {
+                shipperName: whiteLabelConfig.brandName || BLUEDART_PREDEFINED.shipperName,
+                senderName: whiteLabelConfig.brandName || BLUEDART_PREDEFINED.senderName,
+                pickupAddress: whiteLabelConfig.returnAddress.line1 || BLUEDART_PREDEFINED.pickupAddress,
+                pickupPincode: whiteLabelConfig.returnAddress.pincode || BLUEDART_PREDEFINED.pickupPincode,
+                pickupCity: whiteLabelConfig.returnAddress.city || DTDC_PREDEFINED.pickupCity,
+                pickupState: whiteLabelConfig.returnAddress.state || DTDC_PREDEFINED.pickupState,
+                senderMobile: whiteLabelConfig.senderMobile || BLUEDART_PREDEFINED.senderMobile,
+            };
+        }
+        return {
+            shipperName: BLUEDART_PREDEFINED.shipperName,
+            senderName: BLUEDART_PREDEFINED.senderName,
+            pickupAddress: BLUEDART_PREDEFINED.pickupAddress,
+            pickupPincode: BLUEDART_PREDEFINED.pickupPincode,
+            pickupCity: DTDC_PREDEFINED.pickupCity,
+            pickupState: DTDC_PREDEFINED.pickupState,
+            senderMobile: BLUEDART_PREDEFINED.senderMobile,
+        };
+    }, [whiteLabelConfig]);
+
+    // clientType stamped on shipment — preserves franchise/shopify/white_label provenance
+    const shipmentClientType: 'franchise' | 'shopify' | 'white_label' =
+        currentUser?.role === 'shopify' ? 'shopify' :
+        currentUser?.role === 'white_label' ? 'white_label' :
+        'franchise';
 
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [savingDefault, setSavingDefault] = useState(false);
     const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
+
+    // If the currently-selected courier isn't in the bookable list, switch to
+    // the first one that is (e.g. a client who only has DTDC enabled).
+    useEffect(() => {
+        if (bookableCouriers.length === 0) return;
+        if (!bookableCouriers.some((c) => c.name === selectedCourier)) {
+            setSelectedCourier(bookableCouriers[0].name as 'Blue Dart' | 'DTDC');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bookableCouriers]);
 
     // Blue Dart service options
     const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
@@ -133,18 +211,30 @@ const AddShipment = () => {
         }
     };
 
-    // Load saved default pickup address on mount (skip if loading a Shopify order)
+    // Load saved default pickup address on mount (skip if loading a Shopify order).
+    // For white-label tenants with no saved default, seed the pickup from their
+    // onboarding-provided return address so they don't have to re-enter it.
     useEffect(() => {
         const loadDefaultPickup = async () => {
             if (currentUser?.id && !shopifyShipmentId && !returnShipmentId) {
                 const savedAddress = await getDefaultPickupAddress(currentUser.id);
                 if (savedAddress) {
                     setPickup(savedAddress);
+                } else if (whiteLabelConfig) {
+                    setPickup({
+                        name: whiteLabelConfig.brandName,
+                        phone: whiteLabelConfig.senderMobile,
+                        pincode: whiteLabelConfig.returnAddress.pincode,
+                        address: whiteLabelConfig.returnAddress.line1,
+                        city: whiteLabelConfig.returnAddress.city,
+                        state: whiteLabelConfig.returnAddress.state,
+                        country: "India",
+                    });
                 }
             }
         };
         loadDefaultPickup();
-    }, [currentUser?.id, shopifyShipmentId]);
+    }, [currentUser?.id, shopifyShipmentId, returnShipmentId, whiteLabelConfig]);
 
     // Load Shopify order data if coming from Proceed button
     useEffect(() => {
@@ -547,16 +637,16 @@ const AddShipment = () => {
                     ConsigneeAttention: delivery.name
                 },
                 Shipper: {
-                    CustomerName: BLUEDART_PREDEFINED.shipperName,
+                    CustomerName: originDefaults.shipperName,
                     CustomerCode: isB2C ? BLUEDART_PREDEFINED.billingCustomerCode : BLUEDART_PREDEFINED.billingCustomerCodeB2B,
-                    CustomerAddress1: BLUEDART_PREDEFINED.pickupAddress.slice(0, 30),
-                    CustomerAddress2: BLUEDART_PREDEFINED.pickupAddress.slice(30, 60) || "",
-                    CustomerAddress3: "HYD",
-                    CustomerPincode: BLUEDART_PREDEFINED.pickupPincode,
-                    CustomerMobile: BLUEDART_PREDEFINED.senderMobile,
-                    CustomerTelephone: BLUEDART_PREDEFINED.senderMobile,
+                    CustomerAddress1: (pickup.address || originDefaults.pickupAddress).slice(0, 30),
+                    CustomerAddress2: (pickup.address || originDefaults.pickupAddress).slice(30, 60) || "",
+                    CustomerAddress3: (pickup.city || originDefaults.pickupCity || "HYD").slice(0, 30),
+                    CustomerPincode: pickup.pincode || originDefaults.pickupPincode,
+                    CustomerMobile: cleanSenderMobile || originDefaults.senderMobile,
+                    CustomerTelephone: cleanSenderMobile || originDefaults.senderMobile,
                     OriginArea: BLUEDART_PREDEFINED.billingArea,
-                    Sender: pickup.name || BLUEDART_PREDEFINED.senderName,
+                    Sender: pickup.name || originDefaults.senderName,
                     isToPayCustomer: false,
                 },
                 Services: {
@@ -620,7 +710,7 @@ const AddShipment = () => {
         const shipmentData = {
             clientId: currentUser?.id || 'guest',
             clientName: currentUser?.name || pickup.name,
-            clientType: (currentUser?.role === 'shopify' || shopifySourceId) ? 'shopify' as const : 'franchise' as const,
+            clientType: (shopifySourceId ? 'shopify' : shipmentClientType) as 'franchise' | 'shopify' | 'white_label',
             courier: 'Blue Dart',
             courierTrackingId: awbNo,
             status: 'pending' as const,
@@ -635,14 +725,14 @@ const AddShipment = () => {
             billingArea: BLUEDART_PREDEFINED.billingArea,
             billingCustomerCode: isB2C ? BLUEDART_PREDEFINED.billingCustomerCode : BLUEDART_PREDEFINED.billingCustomerCodeB2B,
             pickupTime: BLUEDART_PREDEFINED.pickupTime,
-            shipperName: BLUEDART_PREDEFINED.shipperName,
-            pickupAddress: pickup.address,
-            pickupPincode: pickup.pincode,
+            shipperName: originDefaults.shipperName,
+            pickupAddress: pickup.address || originDefaults.pickupAddress,
+            pickupPincode: pickup.pincode || originDefaults.pickupPincode,
             companyName: delivery.name,
             receiverName: delivery.name,
             receiverMobile: delivery.phone,
-            senderName: pickup.name,
-            senderMobile: pickup.phone,
+            senderName: pickup.name || originDefaults.senderName,
+            senderMobile: pickup.phone || originDefaults.senderMobile,
             productCode: selectedService.code,
             productType: BLUEDART_PREDEFINED.productType,
             pieceCount: BLUEDART_PREDEFINED.defaultPieceCount,
@@ -699,12 +789,12 @@ const AddShipment = () => {
             commodity_id: DTDC_PREDEFINED.commodityId,
             is_risk_surcharge_applicable: DTDC_PREDEFINED.isRiskSurchargeApplicable,
             origin_details: {
-                name: pickup.name || DTDC_PREDEFINED.shipperName,
-                phone: cleanSenderMobile,
-                address_line_1: pickup.address || DTDC_PREDEFINED.pickupAddress1,
-                pincode: pickup.pincode || DTDC_PREDEFINED.pickupPincode,
-                city: pickup.city || DTDC_PREDEFINED.pickupCity,
-                state: pickup.state || DTDC_PREDEFINED.pickupState,
+                name: pickup.name || originDefaults.senderName,
+                phone: cleanSenderMobile || originDefaults.senderMobile,
+                address_line_1: pickup.address || originDefaults.pickupAddress,
+                pincode: pickup.pincode || originDefaults.pickupPincode,
+                city: pickup.city || originDefaults.pickupCity,
+                state: pickup.state || originDefaults.pickupState,
             },
             destination_details: {
                 name: delivery.name,
@@ -739,7 +829,7 @@ const AddShipment = () => {
         const shipmentData = {
             clientId: currentUser?.id || 'guest',
             clientName: currentUser?.name || pickup.name,
-            clientType: (currentUser?.role === 'shopify' || shopifySourceId) ? 'shopify' as const : 'franchise' as const,
+            clientType: (shopifySourceId ? 'shopify' : shipmentClientType) as 'franchise' | 'shopify' | 'white_label',
             courier: 'DTDC',
             courierTrackingId: dtdcAwb,
             status: 'pending' as const,
@@ -752,8 +842,8 @@ const AddShipment = () => {
             marginAmount: 0,
             receiverName: delivery.name,
             receiverMobile: delivery.phone,
-            senderName: pickup.name,
-            senderMobile: pickup.phone,
+            senderName: pickup.name || originDefaults.senderName,
+            senderMobile: pickup.phone || originDefaults.senderMobile,
             declaredValue: totalDeclaredValue || parseFloat(DTDC_PREDEFINED.defaultDeclaredValue),
             commodityDetail1: products[0]?.name || '',
             products: products,
@@ -1172,59 +1262,70 @@ const AddShipment = () => {
 
                                 {/* Courier Cards */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedCourier('Blue Dart')}
-                                        className={`group relative p-6 rounded-2xl border-2 transition-all text-left ${
-                                            selectedCourier === 'Blue Dart'
-                                                ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-white shadow-xl shadow-blue-100/50 scale-[1.02]'
-                                                : 'border-muted hover:border-blue-300 hover:shadow-md bg-white'
-                                        }`}
-                                    >
-                                        {selectedCourier === 'Blue Dart' && (
-                                            <div className="absolute top-3 right-3">
-                                                <BadgeCheck className="h-6 w-6 text-blue-500" />
-                                            </div>
-                                        )}
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1">
-                                                <Image src="/logos/bluedart.jpg" alt="Blue Dart" width={48} height={48} className="object-contain" />
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-lg">Blue Dart</div>
-                                                <div className="text-xs text-muted-foreground">Premium Express Delivery</div>
-                                            </div>
+                                    {bookableCouriers.length === 0 && (
+                                        <div className="sm:col-span-2 p-8 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-900 text-center">
+                                            <div className="font-bold mb-1">No courier available</div>
+                                            <p className="text-xs">
+                                                Connect a courier in Integrations or ask your admin to enable one for your account.
+                                            </p>
                                         </div>
-                                        <div className="mt-4 flex flex-wrap gap-2">
-                                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">Next-Day</span>
-                                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">COD Available</span>
-                                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">Pan India</span>
-                                        </div>
-                                    </button>
-
-                                    <div
-                                        className="group relative p-6 rounded-2xl border-2 border-muted bg-muted/10 text-left opacity-60 cursor-not-allowed"
-                                    >
-                                        <div className="absolute top-3 right-3">
-                                            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide">
-                                                Coming Soon
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1 grayscale">
-                                                <Image src="/logos/dtdc.jpg" alt="DTDC" width={48} height={48} className="object-contain" />
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-lg text-muted-foreground">DTDC</div>
-                                                <div className="text-xs text-muted-foreground">Smart Express Delivery</div>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 flex flex-wrap gap-2">
-                                            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">Economical</span>
-                                            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">Wide Network</span>
-                                            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">B2C Express</span>
-                                        </div>
-                                    </div>
+                                    )}
+                                    {bookableCouriers.map((c) => {
+                                        const isSelected = selectedCourier === c.name;
+                                        const isBlue = c.name === 'Blue Dart';
+                                        const isOwnAccount = !!c.connected;
+                                        return (
+                                            <button
+                                                key={c.name}
+                                                type="button"
+                                                onClick={() => setSelectedCourier(c.name as 'Blue Dart' | 'DTDC')}
+                                                className={`group relative p-6 rounded-2xl border-2 transition-all text-left ${
+                                                    isSelected
+                                                        ? `border-${isBlue ? 'blue' : 'red'}-500 bg-gradient-to-br from-${isBlue ? 'blue' : 'red'}-50 to-white shadow-xl scale-[1.02]`
+                                                        : `border-muted hover:border-${isBlue ? 'blue' : 'red'}-300 hover:shadow-md bg-white`
+                                                }`}
+                                            >
+                                                {isSelected && (
+                                                    <div className="absolute top-3 right-3">
+                                                        <BadgeCheck className={`h-6 w-6 ${isBlue ? 'text-blue-500' : 'text-red-500'}`} />
+                                                    </div>
+                                                )}
+                                                {isOwnAccount && !isSelected && (
+                                                    <div className="absolute top-3 right-3">
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700">
+                                                            Your account
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1">
+                                                        <Image src={isBlue ? '/logos/bluedart.jpg' : '/logos/dtdc.jpg'} alt={c.name} width={48} height={48} className="object-contain" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-lg">{c.name}</div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {isBlue ? 'Premium Express Delivery' : 'Smart Express Delivery'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    {(isBlue
+                                                        ? ['Next-Day', 'COD Available', 'Pan India']
+                                                        : ['Economical', 'Wide Network', 'B2C Express']
+                                                    ).map((tag) => (
+                                                        <span
+                                                            key={tag}
+                                                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                                isBlue ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+                                                            }`}
+                                                        >
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Blue Dart Service Type Selection */}

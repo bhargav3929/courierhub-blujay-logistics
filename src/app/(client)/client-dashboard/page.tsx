@@ -19,7 +19,8 @@ const ClientDashboard = () => {
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const isFranchise = currentUser?.role === 'franchise';
+    // Franchise + white-label tenants share the same "non-Shopify" dashboard layout
+    const isFranchise = currentUser?.role === 'franchise' || currentUser?.role === 'white_label';
 
     useEffect(() => {
         if (currentUser?.id) {

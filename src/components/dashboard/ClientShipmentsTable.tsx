@@ -21,7 +21,7 @@ const isRecentOrder = (shp: Shipment): boolean => {
 };
 
 export const ClientShipmentsTable = ({ shipments, totalPendingCount, userRole }: ClientShipmentsTableProps) => {
-    const isFranchise = userRole === 'franchise';
+    const isFranchise = userRole === 'franchise' || userRole === 'white_label';
 
     const title = isFranchise ? "Recent Shipments" : "New Orders";
     const emptyTitle = isFranchise ? "No shipments yet" : "All caught up! No new orders.";

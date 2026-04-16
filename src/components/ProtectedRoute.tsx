@@ -1,28 +1,45 @@
 // Protected Route Component
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
-    allowedRoles?: string[]; // Array of allowed roles (e.g., ['admin'], ['franchise', 'shopify'])
+    allowedRoles?: string[]; // Array of allowed roles (e.g., ['admin'], ['franchise', 'shopify', 'white_label'])
+    /** If true, the onboarding gate is not enforced for this route (e.g. the onboarding page itself). */
+    skipOnboardingGate?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-    const { isAuthenticated, loading, currentUser } = useAuth();
+const ONBOARDING_PATH = '/white-label-onboarding';
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, skipOnboardingGate }) => {
+    const { isAuthenticated, loading, currentUser, needsWhiteLabelOnboarding } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
-        if (!loading && !isAuthenticated) {
+        if (loading) return;
+
+        if (!isAuthenticated) {
             router.push('/');
-        } else if (!loading && isAuthenticated && allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
-            if (currentUser.role === 'admin') {
+            return;
+        }
+
+        if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
+            if (currentUser.role === 'admin' || currentUser.role === 'super_admin') {
                 router.push('/admin-dashboard');
             } else {
                 router.push('/client-dashboard');
             }
+            return;
         }
-    }, [isAuthenticated, loading, currentUser, allowedRoles, router]);
+
+        // White-label onboarding gate: any authenticated white-label primary user
+        // who hasn't finished onboarding is redirected to the onboarding form.
+        if (!skipOnboardingGate && needsWhiteLabelOnboarding && pathname !== ONBOARDING_PATH) {
+            router.push(ONBOARDING_PATH);
+        }
+    }, [isAuthenticated, loading, currentUser, allowedRoles, router, skipOnboardingGate, needsWhiteLabelOnboarding, pathname]);
 
     if (loading) {
         return (
@@ -35,9 +52,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
         );
     }
 
-    if (!isAuthenticated) return null; // Logic handled in useEffect
+    if (!isAuthenticated) return null;
 
     if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) return null;
+
+    // Block children while the onboarding redirect is in-flight
+    if (!skipOnboardingGate && needsWhiteLabelOnboarding && pathname !== ONBOARDING_PATH) return null;
 
     return <>{children}</>;
 };

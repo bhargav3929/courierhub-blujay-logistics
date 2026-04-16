@@ -54,30 +54,31 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
         const totalRevenue = await safeGetSum(shipmentsRef, 'marginAmount');
         const activeClients = await safeGetCount(query(clientsRef, where('status', '==', 'active')));
 
-        // 2. Complex Queries (Parallel) - Optimized: Removed unused status counts
+        // 2. Complex Queries (Parallel)
         const [
             franchise,
             shopify,
+            whiteLabel,
         ] = await Promise.all([
-            safeGetCount(query(clientsRef, where('type', '==', 'franchise'))), // Removing 'active' filter for robustness if status missing
+            safeGetCount(query(clientsRef, where('type', '==', 'franchise'))),
             safeGetCount(query(clientsRef, where('type', '==', 'shopify'))),
+            safeGetCount(query(clientsRef, where('type', '==', 'white_label'))),
         ]);
 
         // 3. Revenue Breakdowns (Likely to fail if no index)
-        // We will mock this distribution relative to client counts if aggregations fail, 
-        // OR just return 0 to avoid breaking the page.
-        // For now, let's try to fetch safely.
-
         let franchiseRevenue = 0;
         let shopifyRevenue = 0;
+        let whiteLabelRevenue = 0;
 
         try {
-            // These require composite indexes (clientType + marginAmount). 
-            // If they fail, we just show 0 explicitly rather than crashing.
-            const fSnap = await getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'franchise')), { rev: sum('marginAmount') });
-            const sSnap = await getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'shopify')), { rev: sum('marginAmount') });
+            const [fSnap, sSnap, wSnap] = await Promise.all([
+                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'franchise')), { rev: sum('marginAmount') }),
+                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'shopify')), { rev: sum('marginAmount') }),
+                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'white_label')), { rev: sum('marginAmount') }),
+            ]);
             franchiseRevenue = fSnap.data().rev || 0;
             shopifyRevenue = sSnap.data().rev || 0;
+            whiteLabelRevenue = wSnap.data().rev || 0;
         } catch (e) {
             console.warn("Revenue breakdown failed (missing index likely)", e);
         }
@@ -86,20 +87,21 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
             totalShipments,
             totalRevenue,
             activeClients,
-            deliveredThisMonth: 0, // Removed usage
-            deliveredPercentage: 0, // Removed usage
+            deliveredThisMonth: 0,
+            deliveredPercentage: 0,
             franchiseClients: franchise,
             shopifyClients: shopify,
-            shipmentsByStatus: { delivered: 0, transit: 0, pending: 0, cancelled: 0 }, // Deprecated
+            whiteLabelClients: whiteLabel,
+            shipmentsByStatus: { delivered: 0, transit: 0, pending: 0, cancelled: 0 },
             revenueByType: {
                 franchise: franchiseRevenue,
-                shopify: shopifyRevenue
+                shopify: shopifyRevenue,
+                white_label: whiteLabelRevenue,
             }
         };
 
     } catch (error) {
         console.error('CRITICAL: Error getting dashboard metrics:', error);
-        // Return zeros instead of throwing to allow the dashboard to render at least the structure
         return {
             totalShipments: 0,
             totalRevenue: 0,
@@ -108,8 +110,9 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
             deliveredPercentage: 0,
             franchiseClients: 0,
             shopifyClients: 0,
+            whiteLabelClients: 0,
             shipmentsByStatus: { delivered: 0, transit: 0, pending: 0, cancelled: 0 },
-            revenueByType: { franchise: 0, shopify: 0 }
+            revenueByType: { franchise: 0, shopify: 0, white_label: 0 }
         };
     }
 };

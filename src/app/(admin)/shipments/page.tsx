@@ -38,7 +38,8 @@ import {
     FileSpreadsheet,
     Trash2,
     FileText,
-    Printer
+    Printer,
+    MapPin
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -61,6 +62,7 @@ import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShopifyLabel, printShopifyLabel } from "@/components/shipments/ShopifyLabel";
 import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
+import { getTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
 
 const Shipments = () => {
     const [loading, setLoading] = useState(true);
@@ -256,13 +258,20 @@ const Shipments = () => {
         try {
             setIsDeleting(true);
 
-            // 1. Cancel with courier API if AWB exists
+            // 1. Cancel with courier API if AWB exists.
+            //    Temporarily bind the services to the shipment's owning client
+            //    so per-client integration credentials are used.
             if (shipmentToDelete.courierTrackingId) {
+                const ownerId = shipmentToDelete.clientId;
                 try {
                     if (shipmentToDelete.courier === 'DTDC') {
-                        await dtdcService.cancelShipment(shipmentToDelete.courierTrackingId);
+                        dtdcService.setClientId(ownerId);
+                        try { await dtdcService.cancelShipment(shipmentToDelete.courierTrackingId); }
+                        finally { dtdcService.setClientId(undefined); }
                     } else {
-                        await blueDartService.cancelWaybill(shipmentToDelete.courierTrackingId);
+                        blueDartService.setClientId(ownerId);
+                        try { await blueDartService.cancelWaybill(shipmentToDelete.courierTrackingId); }
+                        finally { blueDartService.setClientId(undefined); }
                     }
                 } catch (apiError: any) {
                     console.warn("Courier API cancel failed (proceeding with delete):", apiError.message);
@@ -419,6 +428,7 @@ const Shipments = () => {
                                         <TableHead>Registered On</TableHead>
                                         <TableHead>Origin / Dest</TableHead>
                                         <TableHead>Courier</TableHead>
+                                        <TableHead>Status</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -459,6 +469,26 @@ const Shipments = () => {
                                                 <Badge variant="secondary" className="font-normal text-xs bg-muted">
                                                     {shipment.courier}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {(() => {
+                                                    const ts: TrackingStatus = (shipment.trackingStatus as TrackingStatus) || legacyStatusToTracking(shipment.status);
+                                                    const display = getTrackingDisplay(ts);
+                                                    return (
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide w-fit ${display.bg} ${display.text}`}>
+                                                                <span className={`h-1.5 w-1.5 rounded-full ${display.dotColor}`} />
+                                                                {display.label}
+                                                            </span>
+                                                            {shipment.lastTrackingLocation && (
+                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
+                                                                    <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                                                    <span className="truncate max-w-[120px]">{shipment.lastTrackingLocation}</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>

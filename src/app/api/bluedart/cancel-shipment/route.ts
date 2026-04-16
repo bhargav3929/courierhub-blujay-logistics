@@ -1,46 +1,37 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { resolveBlueDartCreds } from '@/services/server/resolveCourierCreds';
 
-// Determine base URL based on environment
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_BLUEDART_ENV?.toLowerCase() === 'production';
-const BLUEDART_BASE_URL = IS_PRODUCTION
-    ? 'https://apigateway.bluedart.com/in/transportation'
-    : 'https://apigateway-sandbox.bluedart.com/in/transportation';
+const SANDBOX_URL = 'https://apigateway-sandbox.bluedart.com/in/transportation';
+const PROD_URL = 'https://apigateway.bluedart.com/in/transportation';
 
-let cachedToken: string | null = null;
-let tokenExpiry: Date | null = null;
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getAuthToken(): Promise<string> {
-    if (cachedToken && tokenExpiry && new Date() < tokenExpiry) {
-        return cachedToken;
+async function getAuthToken(cacheKey: string, creds: { clientId: string; clientSecret: string; isProduction: boolean }): Promise<string> {
+    const cached = tokenCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.token;
     }
-
-    const CLIENT_ID = process.env.NEXT_PUBLIC_BLUEDART_CLIENT_ID;
-    const CLIENT_SECRET = process.env.NEXT_PUBLIC_BLUEDART_CLIENT_SECRET;
-
-    if (!CLIENT_ID || !CLIENT_SECRET) {
-        throw new Error('Blue Dart credentials not configured');
+    if (!creds.clientId || !creds.clientSecret) {
+        throw new Error('Blue Dart credentials not configured for this account');
     }
-
+    const baseUrl = creds.isProduction ? PROD_URL : SANDBOX_URL;
     try {
-        console.log(`[API] Authenticating with Blue Dart for Cancellation (${IS_PRODUCTION ? 'PROD' : 'SANDBOX'})...`);
-
         const response = await axios.get(
-            `${BLUEDART_BASE_URL}/token/v1/login`,
+            `${baseUrl}/token/v1/login`,
             {
                 headers: {
                     'accept': 'application/json',
-                    'ClientID': CLIENT_ID,
-                    'clientSecret': CLIENT_SECRET
-                }
+                    'ClientID': creds.clientId,
+                    'clientSecret': creds.clientSecret,
+                },
+                timeout: 20000,
             }
         );
-
-        cachedToken = response.data.JWTToken || response.data.token;
-        tokenExpiry = new Date(Date.now() + 23 * 60 * 60 * 1000); // 23h expiry
-        console.log(`[API] Token obtained successfully`);
-        return cachedToken!;
+        const token = response.data.JWTToken || response.data.token;
+        if (!token) throw new Error('Blue Dart did not return a token');
+        tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 23 * 60 * 60 * 1000 });
+        return token;
     } catch (error: any) {
         console.error('[API] Blue Dart authentication failed:', error.response?.data || error.message);
         throw new Error('Failed to authenticate with Blue Dart');
@@ -50,7 +41,7 @@ async function getAuthToken(): Promise<string> {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { awb, reason } = body;
+        const { awb, clientId } = body;
 
         if (!awb) {
             return NextResponse.json(
@@ -59,19 +50,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const token = await getAuthToken();
+        const creds = await resolveBlueDartCreds(clientId);
+        const cacheKey = clientId || 'platform';
+        const token = await getAuthToken(cacheKey, creds);
+        const BLUEDART_BASE_URL = creds.isProduction ? PROD_URL : SANDBOX_URL;
 
-        console.log(`[API] Cancelling Waybill ${awb}...`);
-
-        // Construct payload for cancellation
-        // Based on standard Blue Dart Waybill Cancellation Request
         const payload = {
             Request: {
                 AWBNo: awb
             },
             Profile: {
-                LoginID: process.env.NEXT_PUBLIC_BLUEDART_LOGIN_ID,
-                LicenceKey: process.env.NEXT_PUBLIC_BLUEDART_LICENSE_KEY,
+                LoginID: creds.loginId,
+                LicenceKey: creds.licenseKey,
                 Api_type: 'S',
                 Version: '1.10'
             }
@@ -84,11 +74,10 @@ export async function POST(request: NextRequest) {
                 headers: {
                     'JWTToken': token,
                     'Content-Type': 'application/json'
-                }
+                },
+                timeout: 30000,
             }
         );
-
-        console.log('[API] Cancel Waybill Response:', response.data);
 
         return NextResponse.json(response.data);
     } catch (error: any) {

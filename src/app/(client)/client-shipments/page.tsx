@@ -40,6 +40,7 @@ import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES } from "@/config/bluedartConfig";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
+import { normalizeTrackingStatus, getTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
 import { Shipment } from "@/types/types";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,9 +73,19 @@ const ClientShipments = () => {
     const [resyncingId, setResyncingId] = useState<string | null>(null);
     const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
-    // Tab state (only used by Shopify merchants)
-    const isFranchise = currentUser?.role === 'franchise';
+    // Tab state (only used by Shopify merchants). White-label + franchise behave identically here.
+    const isFranchise = currentUser?.role === 'franchise' || currentUser?.role === 'white_label';
     const [activeTab, setActiveTab] = useState<string>('new-orders');
+
+    // Hook courier services up to this client's connected integrations.
+    useEffect(() => {
+        blueDartService.setClientId(currentUser?.id);
+        dtdcService.setClientId(currentUser?.id);
+        return () => {
+            blueDartService.setClientId(undefined);
+            dtdcService.setClientId(undefined);
+        };
+    }, [currentUser?.id]);
 
     // Sub-account hierarchy state
     const [subAccounts, setSubAccounts] = useState<Client[]>([]);
@@ -137,12 +148,22 @@ const ClientShipments = () => {
                 if (shp.clientId !== createdByFilter) return false;
             }
         }
-        // Status filter (OR within group)
+        // Status filter (OR within group) — uses tracking status when available
         if (statusFilter.length > 0) {
+            const ts = shp.trackingStatus || '';
             const matchesAnyStatus = statusFilter.some(sf => {
-                if (sf === 'shipped') return shp.status === 'pending' || shp.status === 'transit';
-                if (sf === 'delivered') return shp.status === 'delivered';
-                if (sf === 'cancelled') return shp.status === 'cancelled';
+                if (sf === 'shipped') {
+                    if (ts) return ['booked', 'picked_up', 'in_transit', 'out_for_delivery'].includes(ts);
+                    return shp.status === 'pending' || shp.status === 'transit';
+                }
+                if (sf === 'delivered') {
+                    if (ts) return ts === 'delivered';
+                    return shp.status === 'delivered';
+                }
+                if (sf === 'cancelled') {
+                    if (ts) return ts === 'cancelled';
+                    return shp.status === 'cancelled';
+                }
                 return false;
             });
             if (!matchesAnyStatus) return false;
@@ -632,6 +653,96 @@ const ClientShipments = () => {
     };
 
     // ==================== TRACKING ====================
+
+    /** Helper: get the effective tracking status for a shipment */
+    const getEffectiveTrackingStatus = (shp: Shipment): TrackingStatus => {
+        if (shp.trackingStatus) return shp.trackingStatus as TrackingStatus;
+        if (shp.status === 'cancelled' || shp.status === 'declined') return 'cancelled';
+        if (shp.status === 'delivered') return 'delivered';
+        if (shp.courierTrackingId) return 'booked';
+        return legacyStatusToTracking(shp.status);
+    };
+
+    /** Sync tracking status to Firestore and local state after fetching tracking data */
+    const syncTrackingStatus = async (shipment: Shipment, trackingData: any) => {
+        try {
+            const courier = shipment.courier || 'Blue Dart';
+
+            // Extract raw status — handle multiple response shapes
+            let rawStatus = '';
+            if (courier === 'DTDC') {
+                rawStatus = trackingData?.trackHeader?.strStatus || trackingData?.statusCode || '';
+            } else {
+                const sd = trackingData?.ShipmentData?.[0] || trackingData?.shipmentData?.[0];
+                const si = sd?.Shipment || sd?.shipment || trackingData?.Shipment || trackingData;
+                rawStatus = si?.Status || si?.status || si?.StatusCode || '';
+            }
+
+            if (!rawStatus) return;
+
+            const normalizedStatus = normalizeTrackingStatus(rawStatus, courier);
+
+            // Get last scan info
+            let lastLocation = '';
+            let lastActivity = '';
+            let lastTime = '';
+
+            if (courier === 'DTDC') {
+                const scans = trackingData?.trackDetails || trackingData?.TrackDetails || [];
+                if (Array.isArray(scans) && scans.length > 0) {
+                    const latest = scans[scans.length - 1];
+                    lastLocation = latest?.strOrigin || latest?.origin || '';
+                    lastActivity = latest?.strAction || latest?.activity || latest?.status || '';
+                    lastTime = `${latest?.strActionDate || ''} ${latest?.strActionTime || ''}`.trim();
+                }
+            } else {
+                // Blue Dart — handle multiple nesting shapes (JSON vs XML-parsed)
+                const sd = trackingData?.ShipmentData?.[0] || trackingData?.shipmentData?.[0];
+                const si = sd?.Shipment || sd?.shipment || trackingData?.Shipment || trackingData;
+                let scans = si?.Scans || si?.scans || [];
+
+                // JSON may nest as { Scans: { ScanDetail: [...] } }
+                if (!Array.isArray(scans) && typeof scans === 'object') {
+                    const inner = scans?.ScanDetail || scans?.scanDetail;
+                    scans = Array.isArray(inner) ? inner.map((s: any) => ({ ScanDetail: s })) : inner ? [{ ScanDetail: inner }] : [];
+                }
+
+                if (Array.isArray(scans) && scans.length > 0) {
+                    const latest = scans[scans.length - 1];
+                    const detail = latest?.ScanDetail || latest?.scanDetail || latest;
+                    lastLocation = detail?.ScannedLocation || detail?.scannedLocation || detail?.Location || '';
+                    lastActivity = detail?.Instructions || detail?.instructions || detail?.Scan || detail?.scan || detail?.Activity || '';
+                    lastTime = detail?.ScanDateTime || detail?.scanDateTime || detail?.DateTime || '';
+                }
+            }
+
+            // Update Firestore
+            const updates: Partial<Shipment> = {
+                trackingStatus: normalizedStatus,
+                lastTrackingLocation: lastLocation,
+                lastTrackingActivity: lastActivity,
+                lastTrackingTime: lastTime,
+                trackingLastSyncedAt: new Date().toISOString(),
+            };
+
+            // Also sync the main status field for delivered/cancelled
+            if (normalizedStatus === 'delivered' && shipment.status !== 'delivered') {
+                updates.status = 'delivered';
+            }
+
+            await updateShipment(shipment.id, updates as any);
+
+            // Update local state
+            setShipments(prev => prev.map(s =>
+                s.id === shipment.id
+                    ? { ...s, ...updates }
+                    : s
+            ));
+        } catch (err) {
+            console.error('Failed to sync tracking status:', err);
+        }
+    };
+
     const handleTrackShipment = async (shipment: Shipment) => {
         if (!shipment.courierTrackingId) {
             toast.error("No AWB/tracking ID available for this shipment");
@@ -651,6 +762,9 @@ const ClientShipments = () => {
                 data = await blueDartService.trackShipment(shipment.courierTrackingId);
             }
             setTrackingData(data);
+
+            // Auto-sync tracking status to Firestore
+            syncTrackingStatus(shipment, data);
         } catch (error: any) {
             console.error('Tracking error:', error);
             const msg = error.response?.data?.error || error.response?.data?.details || error.message || 'Failed to fetch tracking information';
@@ -660,22 +774,88 @@ const ClientShipments = () => {
         }
     };
 
+    /** Bulk refresh tracking for all non-terminal shipments (silent background sync) */
+    const [isRefreshingTracking, setIsRefreshingTracking] = useState(false);
+    const handleRefreshAllTracking = async () => {
+        const activeShipments = bookedShipments.filter(s =>
+            s.courierTrackingId &&
+            s.status !== 'cancelled' &&
+            s.status !== 'declined' &&
+            s.trackingStatus !== 'delivered' &&
+            s.trackingStatus !== 'rto_delivered' &&
+            s.trackingStatus !== 'cancelled'
+        );
+
+        if (activeShipments.length === 0) {
+            toast.info("No active shipments to refresh");
+            return;
+        }
+
+        setIsRefreshingTracking(true);
+        toast.info(`Refreshing tracking for ${activeShipments.length} shipments...`);
+
+        let successCount = 0;
+        for (const shp of activeShipments) {
+            try {
+                let data;
+                if (shp.courier === 'DTDC') {
+                    data = await dtdcService.trackShipment(shp.courierTrackingId!);
+                } else {
+                    data = await blueDartService.trackShipment(shp.courierTrackingId!);
+                }
+                await syncTrackingStatus(shp, data);
+                successCount++;
+            } catch {
+                // Silently skip failed ones
+            }
+            // Small delay to avoid rate limiting
+            await new Promise(r => setTimeout(r, 300));
+        }
+
+        setIsRefreshingTracking(false);
+        toast.success(`Updated tracking for ${successCount}/${activeShipments.length} shipments`);
+    };
+
     // Parse Blue Dart tracking scans from response
+    // Handles both JSON format (from GET endpoint) and XML-parsed format (from POST fallback)
     const parseBlueDartScans = (data: any): Array<{ date: string; time: string; location: string; activity: string; statusCode?: string }> => {
         if (!data) return [];
-        // Blue Dart response: ShipmentData[].Shipment.Scans[].ScanDetail
+
+        // Find the shipment object — multiple possible paths
         const shipmentData = data?.ShipmentData?.[0] || data?.shipmentData?.[0];
-        const scans = shipmentData?.Shipment?.Scans || shipmentData?.shipment?.Scans || [];
+        const shipment = shipmentData?.Shipment || shipmentData?.shipment || data?.Shipment || data;
+
+        // Find scans array — Blue Dart nests differently in JSON vs XML
+        let scans = shipment?.Scans || shipment?.scans || [];
+
+        // JSON format may have scans as direct array of objects (not wrapped in ScanDetail)
+        if (!Array.isArray(scans) && typeof scans === 'object') {
+            // Sometimes Scans is { ScanDetail: [...] } or { ScanDetail: { ... } }
+            const innerScans = scans?.ScanDetail || scans?.scanDetail;
+            scans = Array.isArray(innerScans) ? innerScans.map((s: any) => ({ ScanDetail: s })) : innerScans ? [{ ScanDetail: innerScans }] : [];
+        }
+
+        if (!Array.isArray(scans) || scans.length === 0) return [];
+
         return scans.map((scan: any) => {
             const detail = scan?.ScanDetail || scan?.scanDetail || scan;
-            const dateTime = detail?.ScanDateTime || detail?.scanDateTime || '';
-            const [datePart, timePart] = dateTime.includes('T') ? dateTime.split('T') : [dateTime, ''];
+            const dateTime = detail?.ScanDateTime || detail?.scanDateTime || detail?.DateTime || '';
+            let datePart = '';
+            let timePart = '';
+            if (dateTime.includes('T')) {
+                [datePart, timePart] = dateTime.split('T');
+                timePart = timePart?.replace('Z', '') || '';
+            } else if (dateTime.includes(' ')) {
+                [datePart, timePart] = dateTime.split(' ');
+            } else {
+                datePart = dateTime;
+            }
             return {
-                date: datePart || '',
-                time: timePart?.replace('Z', '') || '',
-                location: detail?.ScannedLocation || detail?.scannedLocation || '',
-                activity: detail?.Instructions || detail?.instructions || detail?.Scan || detail?.scan || '',
-                statusCode: detail?.ScanCode || detail?.scanCode || '',
+                date: datePart || detail?.StatusDate || detail?.statusDate || '',
+                time: timePart || detail?.StatusTime || detail?.statusTime || '',
+                location: detail?.ScannedLocation || detail?.scannedLocation || detail?.Location || '',
+                activity: detail?.Instructions || detail?.instructions || detail?.Scan || detail?.scan || detail?.Activity || '',
+                statusCode: detail?.ScanCode || detail?.scanCode || detail?.ScanType || '',
             };
         }).reverse(); // Most recent first
     };
@@ -701,9 +881,10 @@ const ClientShipments = () => {
         if (courier === 'DTDC') {
             return data?.trackHeader?.strStatus || data?.statusCode || 'Unknown';
         }
-        // Blue Dart
-        const shipment = data?.ShipmentData?.[0]?.Shipment || data?.shipmentData?.[0]?.shipment;
-        return shipment?.Status || shipment?.status || 'Unknown';
+        // Blue Dart — handle multiple response shapes
+        const shipmentData = data?.ShipmentData?.[0] || data?.shipmentData?.[0];
+        const shipment = shipmentData?.Shipment || shipmentData?.shipment || data?.Shipment || data;
+        return shipment?.Status || shipment?.status || shipment?.StatusCode || 'Unknown';
     };
 
     // ==================== EXPORT CSV ====================
@@ -810,6 +991,14 @@ const ClientShipments = () => {
                     <p className="text-muted-foreground">Manage and track all your outgoing packages</p>
                 </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={handleRefreshAllTracking}
+                        disabled={isRefreshingTracking || bookedShipments.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-muted hover:border-primary/50 rounded-xl text-sm font-bold transition-all text-foreground disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-muted"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isRefreshingTracking ? 'animate-spin' : ''}`} />
+                        {isRefreshingTracking ? 'Syncing...' : 'Sync Tracking'}
+                    </button>
                     <button
                         onClick={() => {
                             if (filteredBookedShipments.length === 0) return;
@@ -1400,15 +1589,24 @@ const ClientShipments = () => {
                                                                     : '-'}
                                                             </td>
                                                             <td className="px-4 py-4">
-                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                                                                    shp.status === 'cancelled'
-                                                                        ? 'bg-red-100 text-red-700'
-                                                                        : shp.status === 'delivered'
-                                                                            ? 'bg-green-100 text-green-700'
-                                                                            : 'bg-primary/10 text-primary'
-                                                                }`}>
-                                                                    {shp.status === 'cancelled' ? 'Cancelled' : shp.status === 'delivered' ? 'Delivered' : 'Shipped'}
-                                                                </span>
+                                                                {(() => {
+                                                                    const ts = getEffectiveTrackingStatus(shp);
+                                                                    const display = getTrackingDisplay(ts);
+                                                                    return (
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${display.bg} ${display.text}`}>
+                                                                                <span className={`h-1.5 w-1.5 rounded-full ${display.dotColor}`} />
+                                                                                {display.label}
+                                                                            </span>
+                                                                            {shp.lastTrackingLocation && (
+                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
+                                                                                    <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                                                                    <span className="truncate max-w-[120px]">{shp.lastTrackingLocation}</span>
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </td>
                                                         </>
                                                     ) : (
@@ -1489,15 +1687,24 @@ const ClientShipments = () => {
                                                                     : '-'}
                                                             </td>
                                                             <td className="px-4 py-4">
-                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                                                                    shp.status === 'cancelled'
-                                                                        ? 'bg-red-100 text-red-700'
-                                                                        : shp.status === 'delivered'
-                                                                            ? 'bg-green-100 text-green-700'
-                                                                            : 'bg-primary/10 text-primary'
-                                                                }`}>
-                                                                    {shp.status === 'cancelled' ? 'Cancelled' : shp.status === 'delivered' ? 'Delivered' : 'Shipped'}
-                                                                </span>
+                                                                {(() => {
+                                                                    const ts = getEffectiveTrackingStatus(shp);
+                                                                    const display = getTrackingDisplay(ts);
+                                                                    return (
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${display.bg} ${display.text}`}>
+                                                                                <span className={`h-1.5 w-1.5 rounded-full ${display.dotColor}`} />
+                                                                                {display.label}
+                                                                            </span>
+                                                                            {shp.lastTrackingLocation && (
+                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
+                                                                                    <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                                                                    <span className="truncate max-w-[120px]">{shp.lastTrackingLocation}</span>
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </td>
                                                         </>
                                                     )}
@@ -1942,17 +2149,28 @@ const ClientShipments = () => {
                         {trackingData && !trackingLoading && (
                             <div className="p-5 space-y-5">
                                 {/* Current Status */}
-                                <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/10">
-                                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                        <Truck className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Current Status</p>
-                                        <p className="text-sm font-bold text-foreground mt-0.5">
-                                            {getTrackingCurrentStatus(trackingData, trackingShipment?.courier || '')}
-                                        </p>
-                                    </div>
-                                </div>
+                                {(() => {
+                                    const rawStatus = getTrackingCurrentStatus(trackingData, trackingShipment?.courier || '');
+                                    const normalized = normalizeTrackingStatus(rawStatus, trackingShipment?.courier || '');
+                                    const display = getTrackingDisplay(normalized);
+                                    return (
+                                        <div className={`flex items-center gap-3 p-4 rounded-xl ${display.bg} border ${display.border}`}>
+                                            <div className={`h-10 w-10 rounded-full ${display.bg} flex items-center justify-center shrink-0`}>
+                                                <Truck className={`h-5 w-5 ${display.text}`} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Current Status</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${display.bg} ${display.text}`}>
+                                                        <span className={`h-2 w-2 rounded-full ${display.dotColor}`} />
+                                                        {display.label}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">{rawStatus}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Shipment Info */}
                                 <div className="grid grid-cols-2 gap-3">

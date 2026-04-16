@@ -35,8 +35,8 @@ async function verifyFranchiseOwner(request: NextRequest): Promise<{ userId: str
     }
 
     const user = userDoc.data() as User;
-    if (user.role !== 'franchise') {
-        return NextResponse.json({ error: 'Only franchise owners can access sub-accounts' }, { status: 403 });
+    if (user.role !== 'franchise' && user.role !== 'white_label') {
+        return NextResponse.json({ error: 'Only franchise or white-label owners can access sub-accounts' }, { status: 403 });
     }
     if (user.userType === 'sub_user') {
         return NextResponse.json({ error: 'Sub-accounts cannot manage sub-accounts' }, { status: 403 });

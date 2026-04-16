@@ -1,19 +1,17 @@
 // Next.js API Route - DTDC Shipping Label (via Shipsy Platform)
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { resolveDtdcCreds } from '@/services/server/resolveCourierCreds';
 
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_DTDC_ENV?.toLowerCase() === 'production';
-const SHIPSY_BASE_URL = IS_PRODUCTION
-    ? 'https://dtdcapi.shipsy.io'
-    : 'https://alphademodashboardapi.shipsy.io';
-
-const API_KEY = process.env.NEXT_PUBLIC_DTDC_API_KEY;
+const PROD_URL = 'https://dtdcapi.shipsy.io';
+const STAGING_URL = 'https://alphademodashboardapi.shipsy.io';
 
 export async function GET(request: NextRequest) {
     try {
         const referenceNumber = request.nextUrl.searchParams.get('referenceNumber');
         const labelCode = request.nextUrl.searchParams.get('labelCode') || 'SHIP_LABEL_4X6';
         const labelFormat = request.nextUrl.searchParams.get('labelFormat') || 'pdf';
+        const clientId = request.nextUrl.searchParams.get('clientId') || undefined;
 
         if (!referenceNumber) {
             return NextResponse.json(
@@ -22,14 +20,14 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        if (!API_KEY) {
-            throw new Error('DTDC API key not configured');
+        const creds = await resolveDtdcCreds(clientId);
+        if (!creds.apiKey) {
+            throw new Error('DTDC API key not configured for this account');
         }
-
-        console.log(`[DTDC API] Fetching label for ${referenceNumber} (${labelCode}, ${labelFormat})...`);
+        const baseUrl = creds.isProduction ? PROD_URL : STAGING_URL;
 
         const response = await axios.get(
-            `${SHIPSY_BASE_URL}/api/customer/integration/consignment/shippinglabel/stream`,
+            `${baseUrl}/api/customer/integration/consignment/shippinglabel/stream`,
             {
                 params: {
                     reference_number: referenceNumber,
@@ -37,7 +35,7 @@ export async function GET(request: NextRequest) {
                     label_format: labelFormat,
                 },
                 headers: {
-                    'api-key': API_KEY,
+                    'api-key': creds.apiKey,
                 },
                 responseType: labelFormat === 'pdf' ? 'arraybuffer' : 'json',
                 timeout: 30000,
@@ -45,7 +43,6 @@ export async function GET(request: NextRequest) {
         );
 
         if (labelFormat === 'pdf') {
-            // Return raw PDF data with proper headers
             return new NextResponse(response.data, {
                 headers: {
                     'Content-Type': 'application/pdf',
@@ -54,7 +51,6 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // For base64 format, return JSON response directly
         return NextResponse.json(response.data);
     } catch (error: any) {
         console.error('[DTDC API] Label error:', error.response?.data || error.message);

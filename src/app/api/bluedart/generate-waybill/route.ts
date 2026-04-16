@@ -1,47 +1,50 @@
 // Next.js API Route - Blue Dart Generate Waybill (Create Shipment)
+//
+// Resolution: if the request includes a `clientId` in the body, we try to use
+// that client's stored Blue Dart credentials (from the Integrations page).
+// Otherwise we fall back to the platform-wide env vars.
+
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { resolveBlueDartCreds } from '@/services/server/resolveCourierCreds';
 
-// Determine base URL based on environment - Default to Sandbox for testing
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_BLUEDART_ENV?.toLowerCase() === 'production';
-const BLUEDART_BASE_URL = IS_PRODUCTION
-    ? 'https://apigateway.bluedart.com/in/transportation'
-    : 'https://apigateway-sandbox.bluedart.com/in/transportation';
+const SANDBOX_URL = 'https://apigateway-sandbox.bluedart.com/in/transportation';
+const PROD_URL = 'https://apigateway.bluedart.com/in/transportation';
 
-let cachedToken: string | null = null;
-let tokenExpiry: Date | null = null;
+// Per-credential-set token cache (keyed by clientId or 'platform').
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getAuthToken(): Promise<string> {
-    if (cachedToken && tokenExpiry && new Date() < tokenExpiry) {
-        return cachedToken;
+async function getAuthToken(cacheKey: string, creds: { clientId: string; clientSecret: string; isProduction: boolean }): Promise<string> {
+    const cached = tokenCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.token;
     }
 
-    const CLIENT_ID = process.env.NEXT_PUBLIC_BLUEDART_CLIENT_ID;
-    const CLIENT_SECRET = process.env.NEXT_PUBLIC_BLUEDART_CLIENT_SECRET;
-
-    if (!CLIENT_ID || !CLIENT_SECRET) {
-        throw new Error('Blue Dart credentials not configured');
+    if (!creds.clientId || !creds.clientSecret) {
+        throw new Error('Blue Dart credentials not configured for this account');
     }
+
+    const baseUrl = creds.isProduction ? PROD_URL : SANDBOX_URL;
 
     try {
-        console.log(`[API] Authenticating with Blue Dart (${IS_PRODUCTION ? 'PROD' : 'SANDBOX'})...`);
-
-        // CRITICAL FIX: Blue Dart requires ClientID and clientSecret as HEADERS, not query params
+        console.log(`[API] Authenticating with Blue Dart (${creds.isProduction ? 'PROD' : 'SANDBOX'})...`);
         const response = await axios.get(
-            `${BLUEDART_BASE_URL}/token/v1/login`,
+            `${baseUrl}/token/v1/login`,
             {
                 headers: {
                     'accept': 'application/json',
-                    'ClientID': CLIENT_ID,      // Header name is ClientID (capital C, capital ID)
-                    'clientSecret': CLIENT_SECRET  // Header name is clientSecret (camelCase)
-                }
+                    'ClientID': creds.clientId,
+                    'clientSecret': creds.clientSecret,
+                },
+                timeout: 20000,
             }
         );
-
-        cachedToken = response.data.JWTToken || response.data.token;
-        tokenExpiry = new Date(Date.now() + 23 * 60 * 60 * 1000); // 23h expiry
-        console.log(`[API] Token obtained successfully`);
-        return cachedToken!;
+        const token = response.data.JWTToken || response.data.token;
+        if (!token) throw new Error('Blue Dart did not return a token');
+        // 23h expiry to be safe
+        tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 23 * 60 * 60 * 1000 });
+        console.log('[API] Token obtained successfully');
+        return token;
     } catch (error: any) {
         console.error('[API] Blue Dart authentication failed:', error.response?.data || error.message);
         throw new Error('Failed to authenticate with Blue Dart');
@@ -51,24 +54,42 @@ async function getAuthToken(): Promise<string> {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const token = await getAuthToken();
-
-        console.log('[API] Generating Waybill...');
-        console.log('[API] Request has Profile:', !!body.Profile);
-        if (body.Profile) {
-            console.log('[API] Profile LoginID:', body.Profile.LoginID);
-        } else {
-            console.warn('[API] Warning: No Profile block in request body!');
+        const clientId: string | undefined = body?.__clientId;
+        // Strip the internal routing field before sending to Blue Dart
+        if (clientId !== undefined) {
+            delete body.__clientId;
         }
 
+        const creds = await resolveBlueDartCreds(clientId);
+        const cacheKey = clientId || 'platform';
+        const token = await getAuthToken(cacheKey, creds);
+
+        const baseUrl = creds.isProduction ? PROD_URL : SANDBOX_URL;
+
+        // Ensure the Profile block carries the right LoginID/LicenceKey.
+        // Callers may send them already, but if the request is using per-client
+        // creds we override.
+        if (clientId) {
+            body.Profile = {
+                ...(body.Profile || {}),
+                LoginID: creds.loginId,
+                LicenceKey: creds.licenseKey,
+                Api_type: body.Profile?.Api_type || 'S',
+                Version: body.Profile?.Version || '1.10',
+            };
+        }
+
+        console.log('[API] Generating Waybill (', cacheKey, ')…');
+
         const response = await axios.post(
-            `${BLUEDART_BASE_URL}/waybill/v1/GenerateWayBill`,
+            `${baseUrl}/waybill/v1/GenerateWayBill`,
             body,
             {
                 headers: {
-                    'JWTToken': token,  // Blue Dart requires JWTToken header, NOT Authorization: Bearer
-                    'Content-Type': 'application/json'
-                }
+                    'JWTToken': token,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 30000,
             }
         );
 

@@ -25,4 +25,4 @@ try {
     console.error('Firebase Admin init failed:', error);
 }
 
-export { adminAuth };
+export { adminApp, adminAuth };

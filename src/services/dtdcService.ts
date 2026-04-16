@@ -66,8 +66,18 @@ interface DTDCOrderPayload {
 class DTDCService {
     private config: DTDCConfig;
 
+    /**
+     * Which logged-in client's DTDC credentials to use. `undefined` means the
+     * server should fall back to platform env vars.
+     */
+    public clientId: string | undefined;
+
     constructor(config: DTDCConfig) {
         this.config = config;
+    }
+
+    public setClientId(id: string | undefined) {
+        this.clientId = id || undefined;
     }
 
     /**
@@ -78,7 +88,9 @@ class DTDCService {
     public async createOrder(orderData: DTDCOrderPayload) {
         try {
             console.log('Creating DTDC order...');
-            const response = await axios.post('/api/dtdc/create-order', orderData);
+            const payload: any = { ...orderData };
+            if (this.clientId) payload.__clientId = this.clientId;
+            const response = await axios.post('/api/dtdc/create-order', payload);
             return response.data;
         } catch (error) {
             console.error('DTDC order creation failed:', error);
@@ -94,7 +106,8 @@ class DTDCService {
         try {
             console.log(`Cancelling DTDC shipment ${awbNumber}...`);
             const response = await axios.post('/api/dtdc/cancel-shipment', {
-                awb: awbNumber
+                awb: awbNumber,
+                ...(this.clientId ? { clientId: this.clientId } : {}),
             });
             return response.data;
         } catch (error) {
@@ -111,7 +124,9 @@ class DTDCService {
     public async trackShipment(awbNumber: string) {
         try {
             console.log(`Tracking DTDC shipment ${awbNumber}...`);
-            const response = await axios.get(`/api/dtdc/track-shipment?awb=${awbNumber}`);
+            const params = new URLSearchParams({ awb: awbNumber });
+            if (this.clientId) params.set('clientId', this.clientId);
+            const response = await axios.get(`/api/dtdc/track-shipment?${params.toString()}`);
             return response.data;
         } catch (error) {
             console.error('DTDC tracking failed:', error);
@@ -130,8 +145,10 @@ class DTDCService {
     ) {
         try {
             console.log(`Fetching DTDC label for ${referenceNumber}...`);
+            const params: any = { referenceNumber, labelCode, labelFormat };
+            if (this.clientId) params.clientId = this.clientId;
             const response = await axios.get('/api/dtdc/shipping-label', {
-                params: { referenceNumber, labelCode, labelFormat },
+                params,
                 responseType: labelFormat === 'pdf' ? 'blob' : 'json'
             });
             return response.data;

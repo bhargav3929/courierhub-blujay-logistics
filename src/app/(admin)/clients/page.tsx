@@ -39,11 +39,14 @@ import { toast } from "sonner";
 import { getAllClients, addClient, toggleClientStatus, deleteClient } from "@/services/clientService";
 import { Client } from "@/types/types";
 
+type ClientType = "franchise" | "shopify" | "white_label";
+
 const Clients = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [franchiseClients, setFranchiseClients] = useState<Client[]>([]);
     const [shopifyClients, setShopifyClients] = useState<Client[]>([]);
+    const [whiteLabelClients, setWhiteLabelClients] = useState<Client[]>([]);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -52,9 +55,9 @@ const Clients = () => {
     const [formData, setFormData] = useState({
         name: "",
         email: "",
-        password: "", // Added password field
+        password: "",
         phone: "",
-        type: "franchise" as "franchise" | "shopify",
+        type: "franchise" as ClientType,
         marginType: "flat" as "flat" | "percentage",
         marginValue: "",
         allowedCouriers: [] as string[]
@@ -67,12 +70,14 @@ const Clients = () => {
     const fetchClients = async () => {
         try {
             setLoading(true);
-            const [franchise, shopify] = await Promise.all([
+            const [franchise, shopify, whiteLabel] = await Promise.all([
                 getAllClients({ type: "franchise" }),
-                getAllClients({ type: "shopify" })
+                getAllClients({ type: "shopify" }),
+                getAllClients({ type: "white_label" })
             ]);
             setFranchiseClients(franchise);
             setShopifyClients(shopify);
+            setWhiteLabelClients(whiteLabel);
         } catch (error: any) {
             console.error("Error fetching clients:", error);
             toast.error("Failed to load clients");
@@ -83,8 +88,16 @@ const Clients = () => {
 
     const handleAddClient = async () => {
         try {
-            if (!formData.name || !formData.email || !formData.phone || !formData.marginValue) {
+            if (!formData.name || !formData.email || !formData.password || !formData.phone || !formData.marginValue) {
                 toast.error("Please fill in all required fields");
+                return;
+            }
+            if (formData.password.length < 6) {
+                toast.error("Password must be at least 6 characters");
+                return;
+            }
+            if (formData.allowedCouriers.length === 0) {
+                toast.error("Select at least one allowed courier");
                 return;
             }
 
@@ -100,13 +113,17 @@ const Clients = () => {
                 walletBalance: 0
             }, formData.password);
 
-            toast.success("Client added successfully!");
+            const typeLabel =
+                formData.type === "franchise" ? "Franchise Partner" :
+                formData.type === "shopify" ? "Shopify Merchant" :
+                "White Label Partner";
+            toast.success(`${typeLabel} added successfully!`);
             setIsDialogOpen(false);
             // Reset form
             setFormData({
                 name: "",
                 email: "",
-                password: "", // Reset password
+                password: "",
                 phone: "",
                 type: "franchise",
                 marginType: "flat",
@@ -143,8 +160,10 @@ const Clients = () => {
             // Remove from local state
             if (clientToDelete.type === 'franchise') {
                 setFranchiseClients(prev => prev.filter(c => c.id !== clientToDelete.id));
-            } else {
+            } else if (clientToDelete.type === 'shopify') {
                 setShopifyClients(prev => prev.filter(c => c.id !== clientToDelete.id));
+            } else {
+                setWhiteLabelClients(prev => prev.filter(c => c.id !== clientToDelete.id));
             }
 
             toast.success("Client deleted successfully");
@@ -263,7 +282,7 @@ const Clients = () => {
                         <DialogHeader className="bg-gradient-to-r from-blujay-dark to-blujay-light rounded-t-lg p-6 -m-6 mb-6">
                             <DialogTitle className="text-white text-xl">Add New Client</DialogTitle>
                             <DialogDescription className="text-white/80">
-                                Create a new client account for franchise or Shopify merchant
+                                Create a new account for a Franchise Partner, Shopify Merchant, or White Label Partner
                             </DialogDescription>
                         </DialogHeader>
 
@@ -317,17 +336,29 @@ const Clients = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="client-type">Client Type *</Label>
-                                    <Select value={formData.type} onValueChange={(value: "franchise" | "shopify") => setFormData({ ...formData, type: value })}>
+                                    <Select value={formData.type} onValueChange={(value: ClientType) => setFormData({ ...formData, type: value })}>
                                         <SelectTrigger className="focus:ring-primary">
                                             <SelectValue placeholder="Select type" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="franchise">Franchise Partner</SelectItem>
                                             <SelectItem value="shopify">Shopify Merchant</SelectItem>
+                                            <SelectItem value="white_label">White Label Partner</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
+
+                            {formData.type === "white_label" && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+                                    <p className="font-semibold mb-1">White Label Partner</p>
+                                    <p className="text-amber-800/90 leading-relaxed">
+                                        This partner will see their own brand throughout the portal. On first login, they
+                                        must complete a mandatory onboarding form (logo, brand name, return address,
+                                        sender mobile, support email & phone) before they can use the dashboard.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <Label>Allowed Couriers *</Label>
@@ -387,12 +418,15 @@ const Clients = () => {
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="franchise" className="w-full">
-                        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+                        <TabsList className="grid w-full max-w-2xl grid-cols-3 mb-6">
                             <TabsTrigger value="franchise" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                                Franchise Partners ({franchiseClients.length})
+                                Franchise ({franchiseClients.length})
                             </TabsTrigger>
                             <TabsTrigger value="shopify" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                                Shopify Merchants ({shopifyClients.length})
+                                Shopify ({shopifyClients.length})
+                            </TabsTrigger>
+                            <TabsTrigger value="white_label" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+                                White Label ({whiteLabelClients.length})
                             </TabsTrigger>
                         </TabsList>
 
@@ -402,6 +436,10 @@ const Clients = () => {
 
                         <TabsContent value="shopify">
                             <ClientTable clients={shopifyClients} />
+                        </TabsContent>
+
+                        <TabsContent value="white_label">
+                            <ClientTable clients={whiteLabelClients} />
                         </TabsContent>
                     </Tabs>
                 </CardContent>
@@ -422,7 +460,11 @@ const Clients = () => {
                                     <div className="mt-3 p-3 bg-muted rounded-md text-sm space-y-1">
                                         <div><strong>Name:</strong> {clientToDelete.name}</div>
                                         <div><strong>Email:</strong> {clientToDelete.email}</div>
-                                        <div><strong>Type:</strong> {clientToDelete.type === 'franchise' ? 'Franchise Partner' : 'Shopify Merchant'}</div>
+                                        <div><strong>Type:</strong> {
+                                            clientToDelete.type === 'franchise' ? 'Franchise Partner' :
+                                            clientToDelete.type === 'shopify' ? 'Shopify Merchant' :
+                                            'White Label Partner'
+                                        }</div>
                                         <div><strong>Wallet Balance:</strong> ₹{clientToDelete.walletBalance.toLocaleString()}</div>
                                     </div>
                                 )}

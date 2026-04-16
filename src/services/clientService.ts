@@ -16,7 +16,7 @@ import {
     getCountFromServer
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseConfig';
-import { Client, ClientFilters, UserType } from '@/types/types';
+import { Client, ClientFilters, UserType, WhiteLabelConfig } from '@/types/types';
 import { initializeApp, getApp, deleteApp, FirebaseApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
@@ -104,7 +104,7 @@ export const addClient = async (
         const userDoc: Record<string, any> = {
             email: clientData.email,
             name: clientData.name,
-            role: clientData.type, // 'franchise' or 'shopify'
+            role: clientData.type, // 'franchise' | 'shopify' | 'white_label'
             phone: clientData.phone,
             isActive: true,
             createdAt: timestamp,
@@ -119,7 +119,6 @@ export const addClient = async (
 
         // 3. Create Client Document (For Business Logic)
         // We use setDoc with the same UID so we can easily link them.
-        // Previously it was addDoc (auto-ID), but linking by UID is cleaner.
         const newClient: Record<string, any> = {
             ...clientData,
             id: uid, // Explicitly set ID
@@ -130,6 +129,20 @@ export const addClient = async (
         };
         if (parentId) {
             newClient.parentId = parentId;
+        }
+
+        // For white-label primary accounts, seed an empty whiteLabelConfig so
+        // the onboarding gate has a consistent shape to check against.
+        if (clientData.type === 'white_label' && userType === 'primary' && !newClient.whiteLabelConfig) {
+            newClient.whiteLabelConfig = {
+                brandName: '',
+                logoUrl: '',
+                returnAddress: { line1: '', city: '', state: '', pincode: '' },
+                senderMobile: '',
+                supportEmail: '',
+                supportPhone: '',
+                onboardingComplete: false,
+            };
         }
 
         await setDoc(doc(db, CLIENTS_COLLECTION, uid), newClient);
@@ -206,9 +219,9 @@ export const getAllClients = async (filters?: ClientFilters): Promise<Client[]> 
 };
 
 /**
- * Get clients by type (franchise or shopify)
+ * Get clients by type (franchise, shopify, or white_label)
  */
-export const getClientsByType = async (type: 'franchise' | 'shopify'): Promise<Client[]> => {
+export const getClientsByType = async (type: 'franchise' | 'shopify' | 'white_label'): Promise<Client[]> => {
     try {
         const q = query(
             collection(db, CLIENTS_COLLECTION),
@@ -325,6 +338,56 @@ export const getActiveClientsCount = async (): Promise<number> => {
         console.error('Error getting active clients count:', error);
         return 0;
     }
+};
+
+// ==================== WHITE LABEL CONFIG ====================
+
+/**
+ * Save / complete white-label tenant configuration.
+ * Called from the onboarding page on first login.
+ */
+export const saveWhiteLabelConfig = async (
+    clientId: string,
+    config: WhiteLabelConfig
+): Promise<void> => {
+    try {
+        await updateDoc(doc(db, CLIENTS_COLLECTION, clientId), {
+            whiteLabelConfig: config,
+            updatedAt: Timestamp.now()
+        });
+    } catch (error) {
+        console.error('Error saving white-label config:', error);
+        throw new Error('Failed to save white-label configuration');
+    }
+};
+
+/**
+ * Resolve the effective white-label config for any client.
+ * For sub-users, reads the parent's config.
+ * Returns null for non-white-label clients or when config is missing.
+ */
+export const getEffectiveWhiteLabelConfig = async (
+    client: Client | null | undefined
+): Promise<WhiteLabelConfig | null> => {
+    if (!client) return null;
+    if (client.type !== 'white_label') return null;
+
+    // Sub-user: read parent's config
+    if (client.userType === 'sub_user' && client.parentId) {
+        try {
+            const parentDoc = await getDoc(doc(db, CLIENTS_COLLECTION, client.parentId));
+            if (parentDoc.exists()) {
+                const parent = parentDoc.data() as Client;
+                return parent.whiteLabelConfig || null;
+            }
+        } catch (err) {
+            console.error('Error fetching parent white-label config:', err);
+            return null;
+        }
+        return null;
+    }
+
+    return client.whiteLabelConfig || null;
 };
 
 // ==================== BUSINESS PROFILE ====================

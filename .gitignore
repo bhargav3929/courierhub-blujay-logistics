@@ -47,3 +47,4 @@ BLUEDART_*.md
 # API documentation
 *.pdf
 *.docx
+.playwright-mcp/

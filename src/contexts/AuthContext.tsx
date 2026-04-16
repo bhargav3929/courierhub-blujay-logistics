@@ -10,11 +10,12 @@ import {
 } from 'firebase/auth';
 import { auth, db, initializationError } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { User, isPrimaryUser as isPrimaryUserFn, isSubUser as isSubUserFn, canManageSubAccounts as canManageSubAccountsFn } from '@/types/types';
+import { User, Client, WhiteLabelConfig, isPrimaryUser as isPrimaryUserFn, isSubUser as isSubUserFn, canManageSubAccounts as canManageSubAccountsFn, needsWhiteLabelOnboarding as needsWhiteLabelOnboardingFn } from '@/types/types';
 import { handleFirebaseError, isNetworkError } from '@/lib/firebaseErrorHandler';
 
 interface AuthContextType {
     currentUser: User | null;
+    currentClient: Client | null;
     firebaseUser: FirebaseUser | null;
     loading: boolean;
     error: string | null;
@@ -22,11 +23,16 @@ interface AuthContextType {
     logout: () => Promise<void>;
     isAuthenticated: boolean;
     retryAuth: () => Promise<void>;
+    refreshClient: () => Promise<void>;
     // Sub-account hierarchy helpers
     isPrimaryUser: boolean;
     isSubUser: boolean;
     canManageSubAccounts: boolean;
     parentId?: string;
+    // White-label
+    isWhiteLabel: boolean;
+    needsWhiteLabelOnboarding: boolean;
+    whiteLabelConfig: WhiteLabelConfig | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,11 +47,44 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [currentClient, setCurrentClient] = useState<Client | null>(null);
     const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
     const MAX_RETRIES = 3;
+
+    // Fetch client doc — used for whiteLabelConfig and other business fields.
+    // For sub_users we resolve the parent's client doc so inherited config flows through.
+    const fetchClientData = async (user: User): Promise<Client | null> => {
+        try {
+            // Admins don't have a client doc
+            if (user.role === 'admin' || user.role === 'super_admin') return null;
+
+            // Primary users: read own client doc by uid
+            const ownSnap = await getDoc(doc(db, 'clients', user.id));
+            const own = ownSnap.exists() ? ({ id: ownSnap.id, ...ownSnap.data() } as Client) : null;
+
+            // Sub-users inherit whiteLabelConfig from parent
+            if (own && own.userType === 'sub_user' && own.parentId && own.type === 'white_label') {
+                try {
+                    const parentSnap = await getDoc(doc(db, 'clients', own.parentId));
+                    if (parentSnap.exists()) {
+                        const parent = parentSnap.data() as Client;
+                        // Hydrate whiteLabelConfig from parent while keeping the sub-user's own record
+                        return { ...own, whiteLabelConfig: parent.whiteLabelConfig };
+                    }
+                } catch (err) {
+                    console.warn('[AuthContext] Failed to load parent client for sub_user:', err);
+                }
+            }
+
+            return own;
+        } catch (err) {
+            console.error('[AuthContext] Error fetching client doc:', err);
+            return null;
+        }
+    };
 
     // Fetch user data from Firestore with retry logic
     const fetchUserData = async (uid: string, attempt: number = 0): Promise<User | null> => {
@@ -139,8 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 throw new Error('Account is inactive. Please contact administrator.');
             }
 
+            // Load client doc in parallel with last-login update
+            const clientData = await fetchClientData(userData);
+
             // Successfully authenticated
             setCurrentUser(userData);
+            setCurrentClient(clientData);
             setFirebaseUser(userCredential.user);
             setError(null);
 
@@ -160,6 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             await signOut(auth);
             setCurrentUser(null);
+            setCurrentClient(null);
             setFirebaseUser(null);
             setError(null);
         } catch (error: any) {
@@ -177,12 +221,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const userData = await fetchUserData(firebaseUser.uid);
                 if (userData) {
                     setCurrentUser(userData);
+                    const clientData = await fetchClientData(userData);
+                    setCurrentClient(clientData);
                 }
             } catch (error: any) {
                 const errorInfo = handleFirebaseError(error, 'Retry Auth');
                 setError(errorInfo.message);
             }
         }
+    };
+
+    // Re-fetch the current client doc (e.g. after onboarding submit)
+    const refreshClient = async () => {
+        if (!currentUser) return;
+        const clientData = await fetchClientData(currentUser);
+        setCurrentClient(clientData);
     };
 
     // Listen to auth state changes
@@ -198,21 +251,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                     if (userData) {
                         console.log('[AuthContext] Profile loaded successfully');
+                        const clientData = await fetchClientData(userData);
                         setCurrentUser(userData);
+                        setCurrentClient(clientData);
                         setError(null);
                     } else {
                         // Critical: User exists in Auth but profile missing in Firestore
-                        // This happens with cached sessions from failed logins
                         console.warn('[AuthContext] Cached user has no profile - signing out');
-                        await signOut(auth); // Clean up the invalid session
+                        await signOut(auth);
                         setFirebaseUser(null);
                         setCurrentUser(null);
+                        setCurrentClient(null);
                         setError(null);
                     }
                 } else {
                     console.log('[AuthContext] No user session');
                     setFirebaseUser(null);
                     setCurrentUser(null);
+                    setCurrentClient(null);
                     setError(null);
                 }
             } catch (error: any) {
@@ -232,20 +288,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const canManageSubAccounts = canManageSubAccountsFn(currentUser);
     const parentId = isSubUser ? currentUser?.parentId : undefined;
 
+    // White-label flags
+    const isWhiteLabel = currentUser?.role === 'white_label';
+    const needsOnboarding = needsWhiteLabelOnboardingFn(currentUser, currentClient);
+    const whiteLabelConfig = (isWhiteLabel && currentClient?.whiteLabelConfig?.onboardingComplete)
+        ? currentClient.whiteLabelConfig
+        : null;
+
     const value: AuthContextType = {
         currentUser,
+        currentClient,
         firebaseUser,
         loading,
         error,
         login,
         logout,
         retryAuth,
+        refreshClient,
         isAuthenticated: !!currentUser,
         // Sub-account hierarchy
         isPrimaryUser,
         isSubUser,
         canManageSubAccounts,
-        parentId
+        parentId,
+        // White label
+        isWhiteLabel,
+        needsWhiteLabelOnboarding: needsOnboarding,
+        whiteLabelConfig
     };
 
     // Check for initialization error

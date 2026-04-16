@@ -6,7 +6,7 @@ import { Timestamp } from 'firebase/firestore';
  * Unified User Role Type
  * Covers all user types in the system: admins and clients
  */
-export type UserRole = 'admin' | 'super_admin' | 'franchise' | 'shopify';
+export type UserRole = 'admin' | 'super_admin' | 'franchise' | 'shopify' | 'white_label';
 
 /**
  * Role hierarchy and permissions
@@ -14,13 +14,14 @@ export type UserRole = 'admin' | 'super_admin' | 'franchise' | 'shopify';
  * - admin: Admin dashboard access
  * - franchise: Franchise partner client access
  * - shopify: Shopify merchant client access
+ * - white_label: White-label tenant client access (customized branding)
  */
 export const isAdminRole = (role: UserRole): boolean => {
     return role === 'admin' || role === 'super_admin';
 };
 
 export const isClientRole = (role: UserRole): boolean => {
-    return role === 'franchise' || role === 'shopify';
+    return role === 'franchise' || role === 'shopify' || role === 'white_label';
 };
 
 // Sub-account hierarchy type
@@ -55,13 +56,61 @@ export interface User {
     parentId?: string;    // Only set for sub_users - franchisee owner's ID
 }
 
-// Client Interface (Franchise Partners & Shopify Merchants)
+// White Label Tenant Configuration
+// Captured via the white-label onboarding flow on first login.
+export interface WhiteLabelConfig {
+    brandName: string;
+    logoUrl: string;
+    // Return / pickup address used when generating courier labels for this tenant
+    returnAddress: {
+        line1: string;
+        city: string;
+        state: string;
+        pincode: string;
+    };
+    senderMobile: string;      // 10-digit mobile number used on labels
+    supportEmail: string;      // Displayed in client-facing support/contact areas
+    supportPhone: string;      // Displayed in client-facing support/contact areas
+    onboardingComplete: boolean; // false until the tenant completes setup
+}
+
+// --- Courier Integration (per-client) ---------------------------------------
+// Couriers we know how to integrate with — keep identifiers stable; they're the
+// Firestore keys and also stamped onto Shipment.courier strings.
+export type CourierId =
+    | 'bluedart'
+    | 'dtdc'
+    | 'delhivery'
+    | 'ecom_express'
+    | 'xpressbees';
+
+export type CourierIntegrationStatus = 'connected' | 'error';
+
+// Stored inside `Client.courierIntegrations[courierId]`.
+// `credentials` is an AES-256-CBC encrypted JSON blob (shape is per-courier).
+export interface CourierIntegration {
+    courierId: CourierId;
+    status: CourierIntegrationStatus;
+    credentials: string;              // encrypted JSON
+    connectedAt: Timestamp;
+    updatedAt: Timestamp;
+    lastTestedAt?: Timestamp;
+    lastErrorMessage?: string;
+    // Optional public metadata safe to expose to the frontend without decrypting
+    publicMeta?: {
+        label?: string;               // e.g. "Blue Dart - CC 302282"
+        environment?: 'sandbox' | 'production';
+        accountIdentifier?: string;   // customer code, client name, etc. — the "which account" display string
+    };
+}
+
+// Client Interface (Franchise Partners, Shopify Merchants, White Label Tenants)
 export interface Client {
     id: string;
     name: string;
     email: string;
     phone: string;
-    type: 'franchise' | 'shopify';
+    type: 'franchise' | 'shopify' | 'white_label';
     status: 'active' | 'inactive';
     marginType: 'flat' | 'percentage';
     marginValue: number; // In rupees if flat, or percentage if percentage
@@ -72,6 +121,10 @@ export interface Client {
     // Optional Shopify-specific fields
     shopifyStoreUrl?: string;
     shopifyAccessToken?: string;
+    // Optional White Label-specific fields
+    whiteLabelConfig?: WhiteLabelConfig;
+    // Courier integrations — map keyed by CourierId. Credentials blob is encrypted.
+    courierIntegrations?: Partial<Record<CourierId, CourierIntegration>>;
     // Sub-account hierarchy
     userType?: UserType;  // 'primary' (default) or 'sub_user'
     parentId?: string;    // Only set for sub_users - parent client's ID
@@ -91,7 +144,7 @@ export interface Shipment {
     id: string;
     clientId: string;
     clientName: string;
-    clientType: 'franchise' | 'shopify';
+    clientType: 'franchise' | 'shopify' | 'white_label';
 
     // Shipment details
     courier: string;
@@ -207,6 +260,13 @@ export interface Shipment {
     specialInstruction?: string;    // Special instructions
     officeClosureTime?: string;     // Office closure time format: 2100
 
+    // ========== Tracking Status (auto-synced from courier API) ==========
+    trackingStatus?: string;            // Normalized tracking status (see trackingStatusConfig.ts)
+    lastTrackingLocation?: string;      // Last scanned location
+    lastTrackingActivity?: string;      // Last scan activity/description
+    lastTrackingTime?: string;          // Last scan timestamp (ISO string)
+    trackingLastSyncedAt?: string;      // When tracking was last fetched (ISO string)
+
     // ========== API Response Fields ==========
     awbNo?: string;                 // Generated AWB Number
     blueDartStatus?: string;        // Status returned by Blue Dart API
@@ -277,6 +337,7 @@ export interface DashboardMetrics {
     // Breakdowns
     franchiseClients: number;
     shopifyClients: number;
+    whiteLabelClients: number;
 
     // Status breakdown
     shipmentsByStatus: {
@@ -290,6 +351,7 @@ export interface DashboardMetrics {
     revenueByType: {
         franchise: number;
         shopify: number;
+        white_label: number;
     };
 }
 
@@ -304,7 +366,7 @@ export interface ShipmentTrend {
 export interface TopClient {
     clientId: string;
     name: string;
-    type: 'franchise' | 'shopify';
+    type: 'franchise' | 'shopify' | 'white_label';
     shipments: number;
     revenue: number;
 }
@@ -339,7 +401,7 @@ export interface ClientRequest {
     email: string;
     phone: string;
     companyName: string;
-    type: 'franchise' | 'shopify';
+    type: 'franchise' | 'shopify' | 'white_label';
     status: 'pending' | 'accepted' | 'rejected';
 
     // Business details for admin review
@@ -389,4 +451,15 @@ export const isSubUser = (user: User | null | undefined): boolean =>
     user?.userType === 'sub_user';
 
 export const canManageSubAccounts = (user: User | null | undefined): boolean =>
-    user?.role === 'franchise' && isPrimaryUser(user);
+    (user?.role === 'franchise' || user?.role === 'white_label') && isPrimaryUser(user);
+
+// True for white-label tenants that still need to complete onboarding
+export const needsWhiteLabelOnboarding = (
+    user: User | null | undefined,
+    client: Client | null | undefined
+): boolean => {
+    if (!user || user.role !== 'white_label') return false;
+    // Sub-users inherit parent's tenant config — they do NOT run onboarding
+    if (user.userType === 'sub_user') return false;
+    return !client?.whiteLabelConfig?.onboardingComplete;
+};

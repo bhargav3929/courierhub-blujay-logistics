@@ -123,13 +123,31 @@ class BlueDartService {
     }
 
     /**
+     * Which logged-in client's Blue Dart credentials to use for the API
+     * routes. Set before booking/tracking/cancelling via `setClientId()`.
+     * `undefined` means the server should use platform defaults.
+     */
+    public clientId: string | undefined;
+
+    /**
+     * Call this from your page as soon as you know the logged-in client's
+     * id, so subsequent booking/tracking/cancel calls use their integration.
+     * Passing a falsy value resets back to platform defaults.
+     */
+    public setClientId(id: string | undefined) {
+        this.clientId = id || undefined;
+    }
+
+    /**
      * validatePincode
      * Step 3.1: Location Finder
      * UPDATED: Now calls Next.js API route to avoid CORS
      */
     public async validatePincode(pincode: string) {
         try {
-            const response = await axios.get(`/api/bluedart/validate-pincode?pincode=${pincode}`);
+            const params = new URLSearchParams({ pincode });
+            if (this.clientId) params.set('clientId', this.clientId);
+            const response = await axios.get(`/api/bluedart/validate-pincode?${params.toString()}`);
             return response.data;
         } catch (error) {
             console.error('Pincode validation failed:', error);
@@ -188,12 +206,7 @@ class BlueDartService {
      */
     public async generateWaybill(shipmentData: any) {
         try {
-            // Ensure Profile is present (API route might handle auth, but we pass full payload)
-            // Ideally core payload is clean, but let's pass what we constructed.
-            // The API route expects the DIRECT Blue Dart payload structure or constructs it.
-            // Assuming API route simply proxies the body + adds Auth.
-
-            const payload = {
+            const payload: any = {
                 ...shipmentData,
                 Profile: {
                     LoginID: this.config.loginId,
@@ -202,8 +215,11 @@ class BlueDartService {
                     Version: '1.10'
                 }
             };
-
-            // Call Next.js API Route
+            // If a clientId is set, include it so the server uses that client's
+            // connected Blue Dart account (falls back to platform if none).
+            if (this.clientId) {
+                payload.__clientId = this.clientId;
+            }
             const response = await axios.post('/api/bluedart/generate-waybill', payload);
             return response.data;
         } catch (error) {
@@ -237,7 +253,9 @@ class BlueDartService {
     public async trackShipment(awbNumber: string) {
         try {
             console.log(`Tracking Blue Dart shipment ${awbNumber}...`);
-            const response = await axios.get(`/api/bluedart/track-shipment?awb=${awbNumber}`);
+            const params = new URLSearchParams({ awb: awbNumber });
+            if (this.clientId) params.set('clientId', this.clientId);
+            const response = await axios.get(`/api/bluedart/track-shipment?${params.toString()}`);
             return response.data;
         } catch (error) {
             console.error('Blue Dart tracking failed:', error);
@@ -253,7 +271,8 @@ class BlueDartService {
         try {
             console.log(`Cancelling shipment ${awbNumber}...`);
             const response = await axios.post('/api/bluedart/cancel-shipment', {
-                awb: awbNumber
+                awb: awbNumber,
+                ...(this.clientId ? { clientId: this.clientId } : {}),
             });
             return response.data;
         } catch (error) {

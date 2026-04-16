@@ -1,19 +1,15 @@
 // Next.js API Route - DTDC Cancel Shipment (via Shipsy Platform)
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { resolveDtdcCreds } from '@/services/server/resolveCourierCreds';
 
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_DTDC_ENV?.toLowerCase() === 'production';
-const SHIPSY_BASE_URL = IS_PRODUCTION
-    ? 'https://dtdcapi.shipsy.io'
-    : 'https://alphademodashboardapi.shipsy.io';
-
-const API_KEY = process.env.NEXT_PUBLIC_DTDC_API_KEY;
-const CUSTOMER_CODE = process.env.NEXT_PUBLIC_DTDC_CUSTOMER_CODE;
+const PROD_URL = 'https://dtdcapi.shipsy.io';
+const STAGING_URL = 'https://alphademodashboardapi.shipsy.io';
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { awb } = body;
+        const { awb, clientId } = body;
 
         if (!awb) {
             return NextResponse.json(
@@ -22,30 +18,28 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!API_KEY) {
-            throw new Error('DTDC API key not configured');
+        const creds = await resolveDtdcCreds(clientId);
+        if (!creds.apiKey) {
+            throw new Error('DTDC API key not configured for this account');
         }
-
-        console.log(`[DTDC API] Cancelling shipment ${awb} (${IS_PRODUCTION ? 'PROD' : 'STAGING'})...`);
+        const baseUrl = creds.isProduction ? PROD_URL : STAGING_URL;
 
         const payload = {
             AWBNo: [awb],
-            customerCode: CUSTOMER_CODE,
+            customerCode: creds.customerCode,
         };
 
         const response = await axios.post(
-            `${SHIPSY_BASE_URL}/api/customer/integration/consignment/cancel`,
+            `${baseUrl}/api/customer/integration/consignment/cancel`,
             payload,
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'api-key': API_KEY,
+                    'api-key': creds.apiKey,
                 },
                 timeout: 30000,
             }
         );
-
-        console.log('[DTDC API] Cancel response:', JSON.stringify(response.data));
 
         return NextResponse.json(response.data);
     } catch (error: any) {

@@ -87,7 +87,7 @@ const ClientRequests = () => {
         email: "",
         password: "",
         phone: "",
-        type: "franchise" as "franchise" | "shopify",
+        type: "franchise" as "franchise" | "shopify" | "white_label",
         marginType: "flat" as "flat" | "percentage",
         marginValue: "",
         allowedCouriers: [] as string[]
@@ -523,7 +523,7 @@ const ClientRequests = () => {
                                 <Label htmlFor="client-type">Client Type *</Label>
                                 <Select
                                     value={formData.type}
-                                    onValueChange={(value: "franchise" | "shopify") => setFormData({ ...formData, type: value })}
+                                    onValueChange={(value: "franchise" | "shopify" | "white_label") => setFormData({ ...formData, type: value })}
                                     disabled={formSubmitting}
                                 >
                                     <SelectTrigger className="focus:ring-primary">

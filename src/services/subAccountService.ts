@@ -91,14 +91,14 @@ export const createSubAccount = async (
     password: string
 ): Promise<Client> => {
     try {
-        // Validate parent exists and is a primary franchise user
+        // Validate parent exists and is a primary user that supports sub-accounts
         const parentUserDoc = await getDoc(doc(db, USERS_COLLECTION, parentId));
         if (!parentUserDoc.exists()) {
             throw new Error('Parent user not found');
         }
         const parentUser = parentUserDoc.data() as User;
-        if (parentUser.role !== 'franchise') {
-            throw new Error('Only franchise owners can create sub-accounts');
+        if (parentUser.role !== 'franchise' && parentUser.role !== 'white_label') {
+            throw new Error('Only franchise or white-label owners can create sub-accounts');
         }
         if (parentUser.userType === 'sub_user') {
             throw new Error('Sub-accounts cannot create their own sub-accounts');
@@ -122,11 +122,15 @@ export const createSubAccount = async (
         const uid = await createAuthUser(data.email, password);
         const timestamp = Timestamp.now();
 
+        // Sub-account inherits parent's role/type so it sees the same portal flavor
+        const childRole = parentUser.role; // 'franchise' | 'white_label'
+        const childType = childRole as 'franchise' | 'white_label';
+
         // 2. Create User document
         const userDoc: Partial<User> = {
             email: data.email,
             name: data.name,
-            role: 'franchise',
+            role: childRole,
             phone: data.phone,
             isActive: true,
             createdAt: timestamp,
@@ -143,7 +147,7 @@ export const createSubAccount = async (
             name: data.name,
             email: data.email,
             phone: data.phone,
-            type: 'franchise',
+            type: childType,
             status: 'active',
             marginType: data.marginType,
             marginValue: data.marginValue,

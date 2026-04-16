@@ -10,7 +10,7 @@ export default function ClientLayout({
     children: React.ReactNode;
 }) {
     return (
-        <ProtectedRoute allowedRoles={['franchise', 'shopify']}>
+        <ProtectedRoute allowedRoles={['franchise', 'shopify', 'white_label']}>
             <div className="flex min-h-screen w-full bg-slate-50">
                 <ClientSidebar />
                 <div className="flex-1 flex flex-col pl-20 min-h-screen w-full">

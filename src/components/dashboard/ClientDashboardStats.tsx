@@ -24,7 +24,7 @@ interface ClientDashboardStatsProps {
 }
 
 export const ClientDashboardStats = ({ metrics, loading, userRole }: ClientDashboardStatsProps) => {
-    const isFranchise = userRole === 'franchise';
+    const isFranchise = userRole === 'franchise' || userRole === 'white_label';
 
     const statsCards = isFranchise
         ? [
