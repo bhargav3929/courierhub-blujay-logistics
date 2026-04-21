@@ -532,10 +532,22 @@ const ClientRequests = () => {
                                     <SelectContent>
                                         <SelectItem value="franchise">Franchise Partner</SelectItem>
                                         <SelectItem value="shopify">Shopify Merchant</SelectItem>
+                                        <SelectItem value="white_label">White Label Partner</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
+
+                        {formData.type === "white_label" && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+                                <p className="font-semibold mb-1">White Label Partner</p>
+                                <p className="text-amber-800/90 leading-relaxed">
+                                    This partner will see their own brand throughout the portal. On first login, they
+                                    must complete a mandatory onboarding form (logo, brand name, return address,
+                                    sender mobile, support email & phone) before they can use the dashboard.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label>Allowed Couriers *</Label>
