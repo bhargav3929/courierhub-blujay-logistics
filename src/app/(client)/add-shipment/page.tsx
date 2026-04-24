@@ -783,7 +783,7 @@ const AddShipment = () => {
             height: dimensions.height,
             weight_unit: DTDC_PREDEFINED.weightUnit,
             weight: weights.actual.toString(),
-            declared_value: totalDeclaredValue.toString() || DTDC_PREDEFINED.defaultDeclaredValue,
+            declared_value: totalDeclaredValue || parseFloat(DTDC_PREDEFINED.defaultDeclaredValue),
             num_pieces: DTDC_PREDEFINED.defaultPieceCount,
             customer_reference_number: referenceNo,
             commodity_id: DTDC_PREDEFINED.commodityId,

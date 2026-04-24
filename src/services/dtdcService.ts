@@ -18,7 +18,7 @@ interface DTDCOrderPayload {
     height: string;
     weight_unit: string;
     weight: string;
-    declared_value: string;
+    declared_value: number;
     num_pieces: string;
     origin_details: {
         name: string;

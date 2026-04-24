@@ -518,7 +518,7 @@ const ClientShipments = () => {
                     length: "10", width: "10", height: "10",
                     weight_unit: DTDC_PREDEFINED.weightUnit,
                     weight: weight.toString(),
-                    declared_value: declaredValue.toString(),
+                    declared_value: declaredValue,
                     num_pieces: DTDC_PREDEFINED.defaultPieceCount,
                     customer_reference_number: referenceNo,
                     commodity_id: DTDC_PREDEFINED.commodityId,
