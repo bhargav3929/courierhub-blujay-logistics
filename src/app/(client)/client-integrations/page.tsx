@@ -102,7 +102,7 @@ const platforms = [
 ];
 
 const ClientIntegrations = () => {
-    const { currentUser, retryAuth } = useAuth();
+    const { currentUser, retryAuth, refreshClient } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
     const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
 
@@ -509,7 +509,7 @@ const ClientIntegrations = () => {
                 courier={courierDialogFor}
                 open={!!courierDialogFor}
                 onOpenChange={(open) => !open && setCourierDialogFor(null)}
-                onConnected={loadCourierIntegrations}
+                onConnected={async () => { await Promise.all([loadCourierIntegrations(), refreshClient()]); }}
             />
 
             {/* Disconnect Confirmation */}
