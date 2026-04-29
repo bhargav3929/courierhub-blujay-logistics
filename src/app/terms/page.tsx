@@ -26,7 +26,7 @@ export default function TermsPage() {
       <main className="max-w-[800px] mx-auto px-6 py-16">
         <div className="mb-12">
           <h1 className="text-3xl sm:text-4xl font-bold text-[#0f172a] tracking-[-0.03em] mb-3">Terms & Conditions</h1>
-          <p className="text-[14px] text-[#0f172a]/40">Last updated: January 29, 2026</p>
+          <p className="text-[14px] text-[#0f172a]/40">Last updated: April 29, 2026</p>
         </div>
 
         <div className="prose-custom space-y-10">
@@ -90,7 +90,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2>5. Wallet & Payments</h2>
+            <h2>5. Wallet, Payments & Pricing</h2>
             <p>
               The Platform operates on a prepaid wallet system. You must maintain a sufficient wallet balance to book shipments. Wallet top-ups can be made via UPI, net banking, credit/debit cards, or other supported payment methods.
             </p>
@@ -99,6 +99,14 @@ export default function TermsPage() {
             </p>
             <p>
               COD remittances from courier partners will be credited to your wallet after the applicable remittance cycle (typically 2&ndash;7 business days after delivery, depending on the courier partner). Blujay is not responsible for delays in COD remittance caused by courier partners.
+            </p>
+
+            <h3>5.1 Shopify App Subscription</h3>
+            <p>
+              The Blujay Logistics app distributed via the Shopify App Store is currently <strong>free</strong> to install and use. We may introduce paid tiers in future releases; in that event, we will provide at least 30 days&rsquo; advance notice via email and via the in-app dashboard before any new paid tier becomes mandatory. Existing free-tier users will not be retroactively charged for past usage.
+            </p>
+            <p>
+              You may cancel at any time by uninstalling the Blujay Logistics app from your Shopify admin (Settings &rarr; Apps &rarr; Uninstall). Uninstallation immediately revokes our access to your store data and triggers Shopify&rsquo;s standard <code>app/uninstalled</code> and (after 48 hours) <code>shop/redact</code> webhooks, after which we anonymise the associated data per our Privacy Policy.
             </p>
           </section>
 
@@ -139,7 +147,25 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2>8. Intellectual Property</h2>
+            <h2>8. Indemnification</h2>
+            <p>
+              You agree to indemnify, defend, and hold harmless Blujay, its officers, directors, employees, agents, and sub-processors from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys&rsquo; fees) arising from or related to:
+            </p>
+            <ul>
+              <li>Your shipment of prohibited, restricted, hazardous, or counterfeit goods</li>
+              <li>False or misleading declarations made on shipment manifests, customs documents, or AWBs</li>
+              <li>Intellectual property infringement claims arising from the goods you ship or content you upload</li>
+              <li>Customs, taxation, or regulatory violations attributable to your shipments</li>
+              <li>Claims by recipients or end-customers relating to data you provided to us in connection with a shipment</li>
+              <li>Your breach of these Terms or violation of applicable law</li>
+            </ul>
+            <p>
+              We will promptly notify you of any such claim and reasonably cooperate in your defense at your expense. You may not settle any claim that imposes obligations on Blujay without our prior written consent.
+            </p>
+          </section>
+
+          <section>
+            <h2>9. Intellectual Property</h2>
             <p>
               All content, features, and functionality of the Platform &mdash; including its design, code, logos, trademarks, text, graphics, and data &mdash; are owned by Blujay Logistics and are protected by copyright, trademark, and other intellectual property laws.
             </p>
@@ -149,7 +175,23 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2>9. Termination</h2>
+            <h2>10. Service Level &amp; Availability</h2>
+            <p>
+              We target <strong>99.5% monthly uptime</strong> for the Platform&rsquo;s core booking, label-generation, and tracking-sync functions, measured on a calendar-month basis and excluding:
+            </p>
+            <ul>
+              <li>Scheduled maintenance announced at least 48 hours in advance</li>
+              <li>Outages of upstream courier APIs (Blue Dart, DTDC, Delhivery, etc.) &mdash; these are outside our control and we do not warrant carrier uptime</li>
+              <li>Outages of Shopify, payment gateways, or other third-party platforms we depend on</li>
+              <li>Force majeure events including but not limited to natural disasters, government action, internet backbone outages, and large-scale cyber-attacks</li>
+            </ul>
+            <p>
+              Severity-1 incidents (Platform fully unreachable for paying merchants) are responded to within 4 working hours during India business hours (09:30&ndash;19:00 IST, Mon&ndash;Sat). Status updates are published via email to affected merchants. We provide no monetary SLA credits at the free tier; future paid tiers may include credit terms which will be disclosed at the time those plans launch.
+            </p>
+          </section>
+
+          <section>
+            <h2>11. Termination</h2>
             <p>
               Either party may terminate this agreement at any time. You may close your account by contacting our support team. Blujay may suspend or terminate your account if you violate these Terms, engage in fraudulent activity, or for any other reason at our sole discretion.
             </p>
@@ -159,9 +201,9 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2>10. Governing Law & Dispute Resolution</h2>
+            <h2>12. Governing Law & Dispute Resolution</h2>
             <p>
-              These Terms are governed by and construed in accordance with the laws of India. Any disputes arising from or relating to these Terms shall be subject to the exclusive jurisdiction of the courts in Bangalore, Karnataka, India.
+              These Terms are governed by and construed in accordance with the laws of India. Any disputes arising from or relating to these Terms shall be subject to the exclusive jurisdiction of the courts in Hyderabad, Telangana, India.
             </p>
             <p>
               Before initiating any legal proceedings, the parties agree to attempt to resolve disputes through good-faith negotiation and, if necessary, mediation administered by a mutually agreed mediator.
@@ -169,22 +211,22 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2>11. Changes to These Terms</h2>
+            <h2>13. Changes to These Terms</h2>
             <p>
               We may update these Terms from time to time. When we make changes, we will update the &ldquo;Last updated&rdquo; date at the top of this page and notify registered users via email. Continued use of the Platform after changes constitute acceptance of the revised Terms.
             </p>
           </section>
 
           <section>
-            <h2>12. Contact Us</h2>
+            <h2>14. Contact Us</h2>
             <p>
               If you have questions about these Terms, please contact us at:
             </p>
             <p>
               <strong>Blujay Logistics Private Limited</strong><br />
-              Koramangala, Bangalore<br />
-              Karnataka, India 560034<br />
-              Email: <a href="mailto:support@blujaylogistics.in">support@blujaylogistics.in</a><br />
+              6th Floor, Oh Park, Madhapur<br />
+              Hyderabad, Telangana, India 500081<br />
+              Email: <a href="mailto:blujaylsolution@gmail.com">blujaylsolution@gmail.com</a><br />
               Phone: +91 80 4567 8900
             </p>
           </section>
@@ -199,6 +241,13 @@ export default function TermsPage() {
           color: #0f172a;
           margin-bottom: 0.75rem;
           letter-spacing: -0.01em;
+        }
+        .prose-custom h3 {
+          font-size: 1rem;
+          font-weight: 600;
+          color: rgba(15, 23, 42, 0.8);
+          margin-bottom: 0.5rem;
+          margin-top: 1rem;
         }
         .prose-custom p {
           font-size: 0.875rem;
@@ -225,6 +274,14 @@ export default function TermsPage() {
         }
         .prose-custom strong {
           color: rgba(15, 23, 42, 0.75);
+        }
+        .prose-custom code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 0.8125rem;
+          background: rgba(15, 23, 42, 0.05);
+          color: rgba(15, 23, 42, 0.75);
+          padding: 0.125rem 0.375rem;
+          border-radius: 0.25rem;
         }
       `}</style>
     </div>

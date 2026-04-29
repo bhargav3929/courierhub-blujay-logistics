@@ -28,7 +28,9 @@ export async function POST(request: Request) {
             .update(rawBody)
             .digest('base64');
 
-        if (!crypto.timingSafeEqual(Buffer.from(generatedHmac), Buffer.from(hmac))) {
+        const a = Buffer.from(generatedHmac);
+        const b = Buffer.from(hmac);
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
             return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
         }
 

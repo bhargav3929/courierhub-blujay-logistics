@@ -1,0 +1,74 @@
+# PUBLIC APP CONFIG — Blujay Logistics (Shopify App Store listing)
+#
+# This is a TEMPLATE. To activate:
+#   1. Run `shopify app config link --config public` (interactive — see SUBMISSION-WALKTHROUGH.md)
+#      OR create the app manually in Partner Dashboard
+#   2. The CLI will write a real `shopify.app.public.toml` with the new client_id
+#   3. Compare to this template to confirm all settings, esp. webhooks + scopes + redirect URL
+#   4. Run `shopify app deploy --config=public`
+#
+# This config is intentionally separate from the existing per-client configs
+# (shopify.app.toml, shopify.app.client2.toml, shopify.app.client3.toml,
+# shopify.app.looms.toml, shopify.app.gayatri.toml) which serve existing
+# Custom Distribution clients and must remain untouched.
+#
+# All routes for this app live under /api/integrations/shopify-public/*
+# (mirrored from /shopify-looms/* using SHOPIFY_PUBLIC_API_KEY / SECRET).
+
+client_id = "REPLACE_WITH_NEW_PUBLIC_APP_CLIENT_ID"
+name = "Blujay Logistics"
+handle = "blujay-logistics"
+application_url = "https://blujaylogistic.com"
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = false
+include_config_on_deploy = true
+
+[webhooks]
+api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-public/gdpr/customers-data-request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-public/gdpr/customers-redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-public/gdpr/shop-redact"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/api/integrations/shopify-public/webhook"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/create" ]
+  uri = "/api/integrations/shopify-public/webhook"
+
+[access_scopes]
+# Minimum scopes for shipment creation + fulfillment.
+# Each scope must be justifiable in the listing review:
+#   read_orders                                 — ingest new orders to create shipments
+#   write_fulfillments                          — mark orders fulfilled with carrier tracking
+#   read_merchant_managed_fulfillment_orders    — read fulfillment orders the merchant owns
+#   write_merchant_managed_fulfillment_orders   — accept/close those fulfillment orders
+scopes = "read_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
+optional_scopes = []
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://blujaylogistic.com/api/integrations/shopify-public/callback"
+]
+
+[pos]
+embedded = false
+
+[app_proxy]
+# Not used — uncomment if you later add a public storefront proxy.
+# url = "https://blujaylogistic.com/api/integrations/shopify-public/proxy"
+# subpath = "tracking"
+# prefix = "apps"

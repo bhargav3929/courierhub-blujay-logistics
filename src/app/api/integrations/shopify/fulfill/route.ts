@@ -6,7 +6,7 @@ import { adminAuth } from '@/lib/firebaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
-const SHOPIFY_API_VERSION = '2024-10';
+const SHOPIFY_API_VERSION = '2026-01';
 
 function mapCourierToShopifyCompany(courier: string): string {
     const mapping: Record<string, string> = {

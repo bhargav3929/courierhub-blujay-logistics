@@ -6,7 +6,7 @@ application_url = "https://blujaylogistic.com"
 embedded = false
 
 [webhooks]
-api_version = "2024-10"
+api_version = "2026-01"
 
   [[webhooks.subscriptions]]
   uri = "/api/integrations/shopify/gdpr/customers-data-request"

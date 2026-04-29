@@ -1,6 +1,6 @@
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
-const SHOPIFY_API_VERSION = '2024-10';
+const SHOPIFY_API_VERSION = '2026-01';
 
 async function registerSingleWebhook(
     shop: string,

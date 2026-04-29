@@ -1,0 +1,123 @@
+# Shopify App Store — Listing Copy
+
+App name: **Blujay Logistics**
+App handle: `blujay-logistics`
+Primary category: Orders & shipping → Shipping labels
+Secondary categories: Order tracking, Shipping rate calculators
+Pricing: **Free** (v1 — paid tiers post-approval)
+
+---
+
+## Tagline (≤100 chars)
+
+> Multi-courier shipping for India: Blue Dart, DTDC & more in one click.
+
+`64 / 100 chars` ✓
+
+---
+
+## Intro / Short description (≤500 chars)
+
+> Ship every Shopify order with India's biggest carriers — Blue Dart, DTDC, and Delhivery — without leaving your store. Connect once, auto-sync orders, generate AWB labels in seconds, push tracking back to Shopify, and let customers track shipments from order confirmation to doorstep. Built for D2C brands that want carrier choice, transparent rates, and a single dashboard for every shipment.
+
+`471 / 500 chars` ✓
+
+---
+
+## Detailed description (≤2000 chars, light Markdown allowed)
+
+> **Stop juggling courier portals.** Blujay Logistics brings every Indian shipping carrier into one Shopify-native workflow. Orders flow in automatically, you pick a courier, and we generate the AWB, the printable label, and push tracking back to the customer — all in under 30 seconds.
+>
+> **Carriers supported (and growing):**
+> - Blue Dart — Apex (next-day) and Surfaceline, B2C eTail with COD support
+> - DTDC — domestic surface and air, full Shipsy platform integration
+> - Delhivery — coming Q2 2026
+>
+> **What you get:**
+> - **One-click order sync.** New Shopify orders appear in Blujay automatically via webhooks. No CSV exports.
+> - **Smart courier picker.** Compare rates and ETAs side-by-side before you ship.
+> - **AWB labels in seconds.** Real label PDFs straight from the carrier — print on A4 or thermal.
+> - **COD-ready.** Cash-on-delivery shipments with reconciliation built in.
+> - **Tracking pushed back.** Fulfillment marked in Shopify with the carrier's tracking number, so the customer's order page lights up.
+> - **Shipment history that actually works.** Filter by courier, status, or date. Export anything to Excel.
+> - **GDPR + DPDP compliant.** Your customer data is encrypted at rest, processed only for fulfillment, and we honor every Shopify privacy webhook.
+>
+> **Built for Indian D2C.** GST-aware, COD-native, multi-warehouse pickup, return labels, and rate-card transparency. No surprise fees, no hidden margins.
+>
+> **Zero contracts. Free to install.** Start shipping in five minutes; paid plans for high-volume merchants are coming soon.
+
+`1,693 / 2000 chars` ✓
+
+---
+
+## Key benefits (3 × ≤80 chars each)
+
+1. `Ship Shopify orders via Blue Dart, DTDC & more from one dashboard.` (66)
+2. `Auto-sync orders, generate carrier AWB labels, push tracking back instantly.` (76)
+3. `COD-ready, GST-aware, GDPR-compliant — built for Indian D2C from day one.` (73)
+
+---
+
+## Feature bullets (up to 10 × ≤80 chars each)
+
+1. `Auto-sync new Shopify orders via real-time webhooks` (52)
+2. `One-click AWB label generation — Blue Dart, DTDC, Delhivery` (60)
+3. `Side-by-side carrier rate & ETA comparison before you ship` (58)
+4. `Cash-on-delivery shipments with reconciliation` (47)
+5. `Tracking number pushed back to Shopify fulfillment` (51)
+6. `Print-ready PDF labels for A4 and thermal printers` (51)
+7. `Shipment history with filters and Excel export` (47)
+8. `Multi-warehouse pickup support for distributed inventory` (56)
+9. `Wallet-based prepaid model with transparent carrier rates` (57)
+10. `GDPR + DPDP compliant, AES-256 token encryption` (49)
+
+---
+
+## Search terms (5 keywords, no app-name repeats)
+
+1. `shipping`
+2. `courier`
+3. `awb`
+4. `india`
+5. `blue dart`
+
+---
+
+## Pricing display (v1 — Free)
+
+| Plan | Price | Description |
+|---|---|---|
+| Free | $0/month | Unlimited shipments. You only pay carriers for actual shipping rates (loaded into wallet via Razorpay). All features included. |
+
+> Note: On approval, we'll add a paid Pro tier ($X/month) post-launch via `AppSubscription`. For v1 submission, "Free" is the only listed plan to maximize first-attempt approval odds.
+
+---
+
+## Support
+
+- **Support email**: blujaylsolution@gmail.com
+- **Privacy email**: blujaylsolution@gmail.com
+- **Support URL**: https://blujaylogistic.com/support  *(needs to be created — see submission walkthrough)*
+- **Response SLA**: 1 business day weekdays
+
+---
+
+## Compliance notices required by Shopify
+
+- ✅ Privacy policy URL: `https://blujaylogistic.com/privacy`
+- ✅ Terms of service URL: `https://blujaylogistic.com/terms`
+- ⚠️ DPA URL: `https://blujaylogistic.com/dpa`  *(needs to be created — see legal-audit-report)*
+- ✅ GDPR mandatory webhooks: implemented at `/api/integrations/shopify/gdpr/*`
+
+---
+
+## App requirements & scope justification (paste into review)
+
+| Scope | Why needed |
+|---|---|
+| `read_orders` | Ingest new Shopify orders so the merchant can ship them via our integrated carriers. Without this, no orders flow into the dashboard. |
+| `read_merchant_managed_fulfillment_orders` | Identify which fulfillment orders the merchant controls (vs FBM/Shopify Fulfillment Network). We only act on merchant-managed ones. |
+| `write_merchant_managed_fulfillment_orders` | Accept the fulfillment order before posting tracking, per Shopify's fulfillment lifecycle. |
+| `write_fulfillments` | Create the fulfillment record with the carrier's AWB tracking number so the customer's order page reflects shipping status. |
+
+**No customer-data scopes requested.** We never call `read_customers`. Customer PII (name, address, phone) is read only as part of the order payload for label printing — required and minimum necessary.
