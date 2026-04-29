@@ -63,7 +63,7 @@ export const Header = () => {
           </div>
         ) : (
           <Image
-            src="/logos/blujay-logo.svg"
+            src="/logos/blujay-logo.png"
             alt="Blujay Logistics"
             width={160}
             height={34}
