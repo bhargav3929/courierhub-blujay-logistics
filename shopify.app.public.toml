@@ -1,0 +1,55 @@
+# Public app config — Blujay Logistics (Shopify App Store listing)
+# Generated 2026-04-30 by `shopify app config link -c public`,
+# then patched to override Shopify's default placeholder values
+# (application_url, embedded, scopes, redirect_urls, webhooks).
+
+client_id = "95baa3d91176756d42f46422b2af6dae"
+name = "Blujay Logistics"
+handle = "blujay-logistics"
+application_url = "https://blujaylogistic.com"
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = false
+include_config_on_deploy = true
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-public/gdpr/customers-data-request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-public/gdpr/customers-redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/integrations/shopify-public/gdpr/shop-redact"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/api/integrations/shopify-public/webhook"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/create" ]
+  uri = "/api/integrations/shopify-public/webhook"
+
+[access_scopes]
+# Each scope is justifiable in the listing review:
+#   read_orders                                 — ingest new orders to create shipments
+#   write_fulfillments                          — mark orders fulfilled with carrier tracking
+#   read_merchant_managed_fulfillment_orders    — read fulfillment orders the merchant owns
+#   write_merchant_managed_fulfillment_orders   — accept/close those fulfillment orders
+scopes = "read_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
+optional_scopes = []
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://blujaylogistic.com/api/integrations/shopify-public/callback"
+]
+
+[pos]
+embedded = false
