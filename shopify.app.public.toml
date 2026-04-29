@@ -11,7 +11,6 @@ embedded = false
 
 [build]
 automatically_update_urls_on_dev = false
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-07"
@@ -32,9 +31,15 @@ api_version = "2026-07"
   topics = [ "app/uninstalled" ]
   uri = "/api/integrations/shopify-public/webhook"
 
-  [[webhooks.subscriptions]]
-  topics = [ "orders/create" ]
-  uri = "/api/integrations/shopify-public/webhook"
+  # NOTE: orders/create is intentionally OMITTED until Protected Customer
+  # Data (PCD) approval lands. Shopify rejects deploys subscribing to
+  # customer-data topics before PCD is granted. After PCD approval (24–72h
+  # turnaround on the Partner Dashboard application form), uncomment the
+  # block below and re-run `shopify app deploy --config public`.
+  #
+  # [[webhooks.subscriptions]]
+  # topics = [ "orders/create" ]
+  # uri = "/api/integrations/shopify-public/webhook"
 
 [access_scopes]
 # Each scope is justifiable in the listing review:
