@@ -5,7 +5,11 @@
 
 client_id = "95baa3d91176756d42f46422b2af6dae"
 name = "Blujay Logistics"
-handle = "blujay-logistics"
+# handle = ... (omitted — `blujay-logistics` is taken globally on
+# the App Store. Shopify auto-generates a unique handle on deploy;
+# you can rename it in dev.shopify.com → Apps → Blujay Logistics →
+# Configuration → App handle. The listing URL will be
+# apps.shopify.com/<handle>.)
 application_url = "https://blujaylogistic.com"
 embedded = false
 
