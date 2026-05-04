@@ -40,7 +40,11 @@ import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
 import { dtdcService } from "@/services/dtdcService";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
+import { delhiveryService } from "@/services/delhiveryService";
+import { DELHIVERY_PREDEFINED, sanitizeDelhiveryField, DELHIVERY_SERVICE_TYPES, type DelhiveryServiceType } from "@/config/delhiveryConfig";
 import { Switch } from "@/components/ui/switch";
+
+type SelectableCourier = 'Blue Dart' | 'DTDC' | 'Delhivery';
 
 const PremiumInput = ({ label, icon: Icon, placeholder, value, onChange, type = "text" }: any) => (
     <div className="space-y-2 group text-left">
@@ -80,9 +84,11 @@ const AddShipment = () => {
     useEffect(() => {
         blueDartService.setClientId(currentUser?.id);
         dtdcService.setClientId(currentUser?.id);
+        delhiveryService.setClientId(currentUser?.id);
         return () => {
             blueDartService.setClientId(undefined);
             dtdcService.setClientId(undefined);
+            delhiveryService.setClientId(undefined);
         };
     }, [currentUser?.id]);
 
@@ -103,7 +109,13 @@ const AddShipment = () => {
         if (allowed.has('DTDC')) {
             list.push({ name: 'DTDC', connected: integrations.dtdc?.status === 'connected' });
         }
-        // Future: Delhivery / Ecom Express / Xpressbees — only when the tenant
+        // Delhivery — only shown to clients who connected their own Delhivery
+        // account. Platform env fallback exists in the resolver but is reserved
+        // for system-level use; clients must bring their own API token.
+        if (allowed.has('Delhivery') && integrations.delhivery?.status === 'connected') {
+            list.push({ name: 'Delhivery', connected: true });
+        }
+        // Future: Ecom Express / Xpressbees — only when the tenant
         // connected their own (no platform fallback). Booking handlers for
         // these will be added once sandbox creds are validated.
         return list;
@@ -143,20 +155,22 @@ const AddShipment = () => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [savingDefault, setSavingDefault] = useState(false);
-    const [selectedCourier, setSelectedCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
+    const [selectedCourier, setSelectedCourier] = useState<SelectableCourier>('Blue Dart');
 
     // If the currently-selected courier isn't in the bookable list, switch to
     // the first one that is (e.g. a client who only has DTDC enabled).
     useEffect(() => {
         if (bookableCouriers.length === 0) return;
         if (!bookableCouriers.some((c) => c.name === selectedCourier)) {
-            setSelectedCourier(bookableCouriers[0].name as 'Blue Dart' | 'DTDC');
+            setSelectedCourier(bookableCouriers[0].name as SelectableCourier);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bookableCouriers]);
 
     // Blue Dart service options
     const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
+    // Delhivery service options
+    const [delhiveryServiceType, setDelhiveryServiceType] = useState<DelhiveryServiceType>('Express');
     const [enableCOD, setEnableCOD] = useState(false);
     const [codAmount, setCodAmount] = useState("");
 
@@ -385,6 +399,8 @@ const AddShipment = () => {
             // Pre-select same courier
             if (shipment.courier === 'DTDC') {
                 setSelectedCourier('DTDC');
+            } else if (shipment.courier === 'Delhivery') {
+                setSelectedCourier('Delhivery');
             } else {
                 setSelectedCourier('Blue Dart');
             }
@@ -576,8 +592,8 @@ const AddShipment = () => {
 
     // STEP 3: Book directly
     const handleBook = async () => {
-        // Validate COD for Blue Dart
-        if (selectedCourier === 'Blue Dart' && enableCOD) {
+        // Validate COD for Blue Dart / Delhivery
+        if ((selectedCourier === 'Blue Dart' || selectedCourier === 'Delhivery') && enableCOD) {
             if (!codAmount || parseFloat(codAmount) <= 0) {
                 toast.error("Please enter COD amount");
                 return;
@@ -603,6 +619,8 @@ const AddShipment = () => {
 
             if (selectedCourier === 'DTDC') {
                 await handleBookDTDC(referenceNo, cleanSenderMobile, cleanReceiverMobile);
+            } else if (selectedCourier === 'Delhivery') {
+                await handleBookDelhivery(referenceNo, cleanSenderMobile, cleanReceiverMobile);
             } else {
                 await handleBookBlueDart(referenceNo, cleanSenderMobile, cleanReceiverMobile);
             }
@@ -868,6 +886,121 @@ const AddShipment = () => {
 
         toast.success("Shipment Booked Successfully!", {
             description: `Reference: ${referenceNo} | AWB: ${dtdcAwb}`,
+        });
+    };
+
+    // Book via Delhivery
+    const handleBookDelhivery = async (referenceNo: string, cleanSenderMobile: string, cleanReceiverMobile: string) => {
+        toast.info("Creating Delhivery Order...");
+
+        const codAmountValue = enableCOD ? parseFloat(codAmount) || 0 : 0;
+        const weightGrams = Math.max(1, Math.round((weights.actual || DELHIVERY_PREDEFINED.defaultWeightGrams / 1000) * 1000));
+        const declaredValue = totalDeclaredValue || 200;
+
+        const pickupName = sanitizeDelhiveryField(pickup.name || originDefaults.senderName);
+        const pickupAddr = sanitizeDelhiveryField(pickup.address || originDefaults.pickupAddress);
+        const pickupCity = sanitizeDelhiveryField(pickup.city || originDefaults.pickupCity);
+        const pickupPin = (pickup.pincode || originDefaults.pickupPincode || '').replace(/\D/g, '');
+
+        const delhiveryPayload = {
+            pickup_location: {
+                name: DELHIVERY_PREDEFINED.pickupLocationName,
+                add: pickupAddr,
+                city: pickupCity,
+                pin_code: pickupPin,
+                country: 'India',
+                phone: (cleanSenderMobile || originDefaults.senderMobile || '').replace(/\D/g, ''),
+            },
+            shipments: [
+                {
+                    name: sanitizeDelhiveryField(delivery.name),
+                    add: sanitizeDelhiveryField(delivery.address),
+                    pin: (delivery.pincode || '').replace(/\D/g, ''),
+                    city: sanitizeDelhiveryField(delivery.city),
+                    state: sanitizeDelhiveryField(delivery.state),
+                    country: 'India',
+                    phone: cleanReceiverMobile,
+                    order: referenceNo,
+                    payment_mode: (enableCOD ? 'COD' : 'Prepaid') as 'COD' | 'Prepaid',
+                    products_desc: sanitizeDelhiveryField(products[0]?.name || DELHIVERY_PREDEFINED.defaultProductDesc),
+                    hsn_code: DELHIVERY_PREDEFINED.defaultHsnCode,
+                    ...(enableCOD ? { cod_amount: codAmountValue } : {}),
+                    total_amount: declaredValue,
+                    seller_add: pickupAddr,
+                    seller_name: pickupName,
+                    quantity: products.reduce((sum, p) => sum + (p.quantity || 0), 0) || 1,
+                    shipment_width: parseFloat(dimensions.width) || DELHIVERY_PREDEFINED.defaultDimensionsCm.width,
+                    shipment_height: parseFloat(dimensions.height) || DELHIVERY_PREDEFINED.defaultDimensionsCm.height,
+                    shipment_length: parseFloat(dimensions.length) || DELHIVERY_PREDEFINED.defaultDimensionsCm.length,
+                    weight: weightGrams,
+                    shipping_mode: DELHIVERY_SERVICE_TYPES[delhiveryServiceType].code,
+                    address_type: 'home' as const,
+                },
+            ],
+        };
+
+        let delhiveryAwb = '';
+
+        try {
+            const apiResponse = await delhiveryService.createOrder(delhiveryPayload);
+
+            const pkg = Array.isArray(apiResponse?.packages) ? apiResponse.packages[0] : null;
+            const success = apiResponse?.success === true || pkg?.status === 'Success' || !!pkg?.waybill;
+
+            if (success && pkg?.waybill) {
+                delhiveryAwb = pkg.waybill;
+                toast.success(`Delhivery Order Created: ${delhiveryAwb}`);
+            } else {
+                const remarks = Array.isArray(pkg?.remarks) ? pkg.remarks.join('; ') : (pkg?.remarks || '');
+                const errorMsg = remarks || apiResponse?.rmk || apiResponse?.error || apiResponse?.message || 'Unknown Delhivery Error';
+                throw new Error(`Delhivery Error: ${errorMsg}`);
+            }
+        } catch (apiError: any) {
+            const detail = apiError.response?.data?.error
+                || apiError.response?.data?.details
+                || apiError.response?.data
+                || apiError.message;
+            const detailString = typeof detail === 'object' ? JSON.stringify(detail) : detail;
+            throw new Error("Delhivery Booking Failed: " + detailString);
+        }
+
+        const shipmentData = {
+            clientId: currentUser?.id || 'guest',
+            clientName: currentUser?.name || pickup.name,
+            clientType: (shopifySourceId ? 'shopify' : shipmentClientType) as 'franchise' | 'shopify' | 'white_label',
+            courier: 'Delhivery',
+            courierTrackingId: delhiveryAwb,
+            status: 'pending' as const,
+            origin: { city: pickup.city, state: pickup.state, pincode: pickup.pincode, address: pickup.address, phone: pickup.phone, name: pickup.name },
+            destination: { city: delivery.city, state: delivery.state, pincode: delivery.pincode, address: delivery.address, phone: delivery.phone, name: delivery.name },
+            weight: weights.billable,
+            dimensions: { length: parseFloat(dimensions.length) || 0, width: parseFloat(dimensions.width) || 0, height: parseFloat(dimensions.height) || 0 },
+            courierCharge: estimatedPrice,
+            chargedAmount: estimatedPrice,
+            marginAmount: 0,
+            receiverName: delivery.name,
+            receiverMobile: delivery.phone,
+            senderName: pickup.name || originDefaults.senderName,
+            senderMobile: pickup.phone || originDefaults.senderMobile,
+            declaredValue,
+            commodityDetail1: products[0]?.name || '',
+            products: products,
+            ...(adCommissionType ? { adCommissionType, adCommissionValue } : {}),
+            referenceNo,
+            codEnabled: enableCOD,
+            collectableAmount: codAmountValue,
+            ...(isReturn && parentShipmentId ? { shipmentType: 'return' as const, parentShipmentId } : {}),
+        };
+
+        if (shopifySourceId) {
+            await updateShipment(shopifySourceId, shipmentData);
+            triggerShopifyFulfillment(shopifySourceId);
+        } else {
+            await createShipment(shipmentData);
+        }
+
+        toast.success("Shipment Booked Successfully!", {
+            description: `Reference: ${referenceNo} | AWB: ${delhiveryAwb}`,
         });
     };
 
@@ -1273,21 +1406,41 @@ const AddShipment = () => {
                                     {bookableCouriers.map((c) => {
                                         const isSelected = selectedCourier === c.name;
                                         const isBlue = c.name === 'Blue Dart';
+                                        const isDelhivery = c.name === 'Delhivery';
                                         const isOwnAccount = !!c.connected;
+
+                                        const accent = isBlue
+                                            ? { selectedBorder: 'border-blue-500', selectedBg: 'from-blue-50', hoverBorder: 'hover:border-blue-300', check: 'text-blue-500', tagBg: 'bg-blue-100', tagText: 'text-blue-700' }
+                                            : isDelhivery
+                                                ? { selectedBorder: 'border-emerald-500', selectedBg: 'from-emerald-50', hoverBorder: 'hover:border-emerald-300', check: 'text-emerald-500', tagBg: 'bg-emerald-100', tagText: 'text-emerald-700' }
+                                                : { selectedBorder: 'border-red-500', selectedBg: 'from-red-50', hoverBorder: 'hover:border-red-300', check: 'text-red-500', tagBg: 'bg-red-100', tagText: 'text-red-700' };
+
+                                        const tagline = isBlue
+                                            ? 'Premium Express Delivery'
+                                            : isDelhivery
+                                                ? 'Largest 3PL · 28k+ Pincodes'
+                                                : 'Smart Express Delivery';
+
+                                        const tags = isBlue
+                                            ? ['Next-Day', 'COD Available', 'Pan India']
+                                            : isDelhivery
+                                                ? ['Pan-India Reach', 'COD Available', 'B2C Express']
+                                                : ['Economical', 'Wide Network', 'B2C Express'];
+
                                         return (
                                             <button
                                                 key={c.name}
                                                 type="button"
-                                                onClick={() => setSelectedCourier(c.name as 'Blue Dart' | 'DTDC')}
+                                                onClick={() => setSelectedCourier(c.name as SelectableCourier)}
                                                 className={`group relative p-6 rounded-2xl border-2 transition-all text-left ${
                                                     isSelected
-                                                        ? `border-${isBlue ? 'blue' : 'red'}-500 bg-gradient-to-br from-${isBlue ? 'blue' : 'red'}-50 to-white shadow-xl scale-[1.02]`
-                                                        : `border-muted hover:border-${isBlue ? 'blue' : 'red'}-300 hover:shadow-md bg-white`
+                                                        ? `${accent.selectedBorder} bg-gradient-to-br ${accent.selectedBg} to-white shadow-xl scale-[1.02]`
+                                                        : `border-muted ${accent.hoverBorder} hover:shadow-md bg-white`
                                                 }`}
                                             >
                                                 {isSelected && (
                                                     <div className="absolute top-3 right-3">
-                                                        <BadgeCheck className={`h-6 w-6 ${isBlue ? 'text-blue-500' : 'text-red-500'}`} />
+                                                        <BadgeCheck className={`h-6 w-6 ${accent.check}`} />
                                                     </div>
                                                 )}
                                                 {isOwnAccount && !isSelected && (
@@ -1299,25 +1452,24 @@ const AddShipment = () => {
                                                 )}
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1">
-                                                        <Image src={isBlue ? '/logos/bluedart.jpg' : '/logos/dtdc.jpg'} alt={c.name} width={48} height={48} className="object-contain" />
+                                                        {isDelhivery ? (
+                                                            <div className="h-full w-full rounded-lg bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center">
+                                                                <Truck className="h-6 w-6 text-white" />
+                                                            </div>
+                                                        ) : (
+                                                            <Image src={isBlue ? '/logos/bluedart.jpg' : '/logos/dtdc.jpg'} alt={c.name} width={48} height={48} className="object-contain" />
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <div className="font-bold text-lg">{c.name}</div>
-                                                        <div className="text-xs text-muted-foreground">
-                                                            {isBlue ? 'Premium Express Delivery' : 'Smart Express Delivery'}
-                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">{tagline}</div>
                                                     </div>
                                                 </div>
                                                 <div className="mt-4 flex flex-wrap gap-2">
-                                                    {(isBlue
-                                                        ? ['Next-Day', 'COD Available', 'Pan India']
-                                                        : ['Economical', 'Wide Network', 'B2C Express']
-                                                    ).map((tag) => (
+                                                    {tags.map((tag) => (
                                                         <span
                                                             key={tag}
-                                                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                                isBlue ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
-                                                            }`}
+                                                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${accent.tagBg} ${accent.tagText}`}
                                                         >
                                                             {tag}
                                                         </span>
@@ -1389,6 +1541,100 @@ const AddShipment = () => {
                                         )}
 
                                         {/* COD Breakdown Card */}
+                                        {isB2C && enableCOD && (
+                                            <div className="animate-in fade-in duration-300 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-4 space-y-3">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-amber-700 flex items-center gap-2">
+                                                    <IndianRupee className="h-3.5 w-3.5" /> COD Breakdown
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-muted-foreground">Product Value</span>
+                                                        <span className="font-semibold">₹{totalDeclaredValue.toLocaleString('en-IN')}</span>
+                                                    </div>
+                                                    {adCommissionType && adCommissionValue > 0 && (
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <span className="text-muted-foreground">
+                                                                Margin ({adCommissionType === 'flat' ? `₹${adCommissionValue}` : `${adCommissionValue}%`})
+                                                            </span>
+                                                            <span className="font-semibold text-amber-700">
+                                                                +₹{(adCommissionType === 'flat'
+                                                                    ? adCommissionValue
+                                                                    : Math.round(totalDeclaredValue * adCommissionValue / 100)
+                                                                ).toLocaleString('en-IN')}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="border-t border-amber-200 pt-2 flex items-center justify-between">
+                                                        <span className="text-sm font-bold text-amber-800">Collect from Customer</span>
+                                                        <Input
+                                                            type="number"
+                                                            value={codAmount}
+                                                            onChange={(e) => setCodAmount(e.target.value)}
+                                                            className="h-9 w-32 text-right font-bold text-base bg-white border-2 border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 rounded-xl"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Delhivery options */}
+                                {selectedCourier === 'Delhivery' && (
+                                    <div className="space-y-4 pt-2">
+                                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                            <Truck className="h-3 w-3" /> Delhivery Service Type
+                                        </Label>
+                                        <div className="grid grid-cols-2 max-w-lg gap-3">
+                                            {(Object.entries(DELHIVERY_SERVICE_TYPES) as [DelhiveryServiceType, typeof DELHIVERY_SERVICE_TYPES[DelhiveryServiceType]][])
+                                                .map(([key, service]) => (
+                                                    <button
+                                                        key={key}
+                                                        type="button"
+                                                        onClick={() => setDelhiveryServiceType(key)}
+                                                        className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                                                            delhiveryServiceType === key
+                                                                ? 'border-emerald-500 bg-emerald-50 shadow-md'
+                                                                : 'border-muted hover:border-emerald-200 bg-white'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            {key === 'Express'
+                                                                ? <Plane className="h-4 w-4 text-emerald-600" />
+                                                                : <Truck className="h-4 w-4 text-emerald-600" />}
+                                                            <div className="font-bold text-sm">{service.displayName}</div>
+                                                        </div>
+                                                        <div className="mt-1.5 text-[11px] font-semibold text-emerald-700">{service.etaDays}</div>
+                                                        <div className="text-[10px] text-muted-foreground mt-0.5">{service.description}</div>
+                                                        {delhiveryServiceType === key && (
+                                                            <div className="absolute top-2 right-2">
+                                                                <BadgeCheck className="h-4 w-4 text-emerald-500" />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                        </div>
+
+                                        {isB2C && (
+                                            <div className="flex items-center justify-between p-4 rounded-xl border-2 border-muted bg-white">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                                        <HandCoins className="h-5 w-5 text-emerald-600" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-sm">Cash on Delivery (COD)</div>
+                                                        <div className="text-[10px] text-muted-foreground">
+                                                            {isReturn ? 'COD not available for returns' : 'Collect payment from customer at delivery'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Switch
+                                                    checked={enableCOD}
+                                                    onCheckedChange={setEnableCOD}
+                                                    disabled={isReturn}
+                                                />
+                                            </div>
+                                        )}
                                         {isB2C && enableCOD && (
                                             <div className="animate-in fade-in duration-300 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-4 space-y-3">
                                                 <div className="text-xs font-bold uppercase tracking-widest text-amber-700 flex items-center gap-2">

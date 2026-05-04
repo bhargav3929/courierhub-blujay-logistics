@@ -40,6 +40,7 @@ export interface DtdcCreds {
 export interface DelhiveryCreds {
     apiToken: string;
     clientName: string;
+    pickupLocationName?: string;
     isProduction: boolean;
 }
 
@@ -178,13 +179,25 @@ export async function resolveDelhiveryCreds(clientId?: string): Promise<Delhiver
     const stored = await loadIntegrationCreds<{
         apiToken: string;
         clientName: string;
+        pickupLocationName?: string;
         environment: 'sandbox' | 'production';
     }>(clientId, 'delhivery');
-    if (!stored) return null;
+    if (stored) {
+        return {
+            apiToken: stored.apiToken,
+            clientName: stored.clientName,
+            pickupLocationName: stored.pickupLocationName,
+            isProduction: stored.environment === 'production',
+        };
+    }
+    // Platform-wide env fallback (mirrors Blue Dart / DTDC behavior).
+    const envToken = process.env.DELHIVERY_API_TOKEN;
+    if (!envToken) return null;
     return {
-        apiToken: stored.apiToken,
-        clientName: stored.clientName,
-        isProduction: stored.environment === 'production',
+        apiToken: envToken,
+        clientName: process.env.DELHIVERY_CLIENT_NAME || '',
+        pickupLocationName: process.env.DELHIVERY_PICKUP_LOCATION_NAME || '',
+        isProduction: (process.env.DELHIVERY_ENV || 'production').toLowerCase() === 'production',
     };
 }
 

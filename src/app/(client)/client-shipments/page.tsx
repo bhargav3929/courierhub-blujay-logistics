@@ -38,8 +38,10 @@ import { getSubAccountIds, getSubAccountsByParent } from "@/services/subAccountS
 import { Client } from "@/types/types";
 import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
+import { delhiveryService } from "@/services/delhiveryService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES } from "@/config/bluedartConfig";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
+import { DELHIVERY_PREDEFINED, sanitizeDelhiveryField } from "@/config/delhiveryConfig";
 import { normalizeTrackingStatus, getTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
 import { Shipment } from "@/types/types";
 import { toast } from "sonner";
@@ -81,9 +83,11 @@ const ClientShipments = () => {
     useEffect(() => {
         blueDartService.setClientId(currentUser?.id);
         dtdcService.setClientId(currentUser?.id);
+        delhiveryService.setClientId(currentUser?.id);
         return () => {
             blueDartService.setClientId(undefined);
             dtdcService.setClientId(undefined);
+            delhiveryService.setClientId(undefined);
         };
     }, [currentUser?.id]);
 
@@ -99,7 +103,7 @@ const ClientShipments = () => {
 
     // New Orders tab: Bulk ship state
     const [selectedNewOrderIds, setSelectedNewOrderIds] = useState<Set<string>>(new Set());
-    const [bulkShipCourier, setBulkShipCourier] = useState<'Blue Dart' | 'DTDC'>('Blue Dart');
+    const [bulkShipCourier, setBulkShipCourier] = useState<'Blue Dart' | 'DTDC' | 'Delhivery'>('Blue Dart');
     const [bulkShipBlueDartService, setBulkShipBlueDartService] = useState<'APEX' | 'BHARAT_DART'>('APEX');
     const [showBulkShipDialog, setShowBulkShipDialog] = useState(false);
     const [bulkShipValidation, setBulkShipValidation] = useState<OrderValidation[] | null>(null);
@@ -507,6 +511,72 @@ const ClientShipments = () => {
                     const errorMsg = responseData?.Status?.[0]?.StatusInformation || 'Unknown Blue Dart Error';
                     return { id: order.id, orderNumber: orderNum, success: false, error: errorMsg };
                 }
+            } else if (bulkShipCourier === 'Delhivery') {
+                const weightGrams = Math.max(1, Math.round((weight || DELHIVERY_PREDEFINED.defaultWeightGrams / 1000) * 1000));
+                const codAmt = order.toPayCustomer ? declaredValue : 0;
+
+                const delhiveryPayload = {
+                    pickup_location: {
+                        name: DELHIVERY_PREDEFINED.pickupLocationName,
+                        add: sanitizeDelhiveryField(pickupAddress?.address || DELHIVERY_PREDEFINED.pickupAddress),
+                        city: sanitizeDelhiveryField(pickupAddress?.city || DELHIVERY_PREDEFINED.pickupCity),
+                        pin_code: (pickupAddress?.pincode || DELHIVERY_PREDEFINED.pickupPincode || '').replace(/\D/g, ''),
+                        country: 'India',
+                        phone: (cleanPickupPhone || DELHIVERY_PREDEFINED.pickupPhone || '').replace(/\D/g, ''),
+                    },
+                    shipments: [
+                        {
+                            name: sanitizeDelhiveryField(order.destination?.name || ''),
+                            add: sanitizeDelhiveryField(order.destination?.address || ''),
+                            pin: order.destination?.pincode || '',
+                            city: sanitizeDelhiveryField(order.destination?.city || ''),
+                            state: sanitizeDelhiveryField(order.destination?.state || ''),
+                            country: 'India',
+                            phone: cleanPhone,
+                            order: referenceNo,
+                            payment_mode: (order.toPayCustomer ? 'COD' : 'Prepaid') as 'COD' | 'Prepaid',
+                            products_desc: sanitizeDelhiveryField(order.products?.[0]?.name || DELHIVERY_PREDEFINED.defaultProductDesc),
+                            hsn_code: DELHIVERY_PREDEFINED.defaultHsnCode,
+                            ...(order.toPayCustomer ? { cod_amount: codAmt } : {}),
+                            total_amount: declaredValue,
+                            seller_add: sanitizeDelhiveryField(pickupAddress?.address || DELHIVERY_PREDEFINED.pickupAddress),
+                            seller_name: sanitizeDelhiveryField(pickupAddress?.name || ''),
+                            quantity: (order.products || []).reduce((sum, p) => sum + (p.quantity || 0), 0) || 1,
+                            shipment_width: DELHIVERY_PREDEFINED.defaultDimensionsCm.width,
+                            shipment_height: DELHIVERY_PREDEFINED.defaultDimensionsCm.height,
+                            shipment_length: DELHIVERY_PREDEFINED.defaultDimensionsCm.length,
+                            weight: weightGrams,
+                            shipping_mode: DELHIVERY_PREDEFINED.defaultShippingMode,
+                            address_type: 'home' as const,
+                        },
+                    ],
+                };
+
+                const apiResponse = await delhiveryService.createOrder(delhiveryPayload);
+                const pkg = Array.isArray(apiResponse?.packages) ? apiResponse.packages[0] : null;
+                const success = apiResponse?.success === true || pkg?.status === 'Success' || !!pkg?.waybill;
+
+                if (success && pkg?.waybill) {
+                    const delhiveryAwb = pkg.waybill as string;
+                    await updateShipment(order.id, {
+                        courier: 'Delhivery',
+                        courierTrackingId: delhiveryAwb,
+                        status: 'pending' as const,
+                        origin: { city: pickupAddress?.city || '', state: pickupAddress?.state || '', pincode: pickupAddress?.pincode || '', address: pickupAddress?.address || '', phone: pickupAddress?.phone || '', name: pickupAddress?.name || '' },
+                        weight,
+                        declaredValue,
+                        receiverName: order.destination?.name || '',
+                        receiverMobile: cleanPhone,
+                        senderName: pickupAddress?.name || '',
+                        senderMobile: cleanPickupPhone || DELHIVERY_PREDEFINED.pickupPhone,
+                    });
+                    triggerShopifyFulfillment(order.id);
+                    return { id: order.id, orderNumber: orderNum, success: true, awb: delhiveryAwb };
+                } else {
+                    const remarks = Array.isArray(pkg?.remarks) ? pkg.remarks.join('; ') : (pkg?.remarks || '');
+                    const errorMsg = remarks || apiResponse?.rmk || apiResponse?.error || apiResponse?.message || 'Unknown Delhivery Error';
+                    return { id: order.id, orderNumber: orderNum, success: false, error: errorMsg };
+                }
             } else {
                 // DTDC
                 const dtdcPayload = {
@@ -622,6 +692,8 @@ const ClientShipments = () => {
         try {
             if (shipment.courier === 'DTDC') {
                 await dtdcService.cancelShipment(shipment.courierTrackingId);
+            } else if (shipment.courier === 'Delhivery') {
+                await delhiveryService.cancelShipment(shipment.courierTrackingId);
             } else {
                 await blueDartService.cancelWaybill(shipment.courierTrackingId);
             }
@@ -672,6 +744,9 @@ const ClientShipments = () => {
             let rawStatus = '';
             if (courier === 'DTDC') {
                 rawStatus = trackingData?.trackHeader?.strStatus || trackingData?.statusCode || '';
+            } else if (courier === 'Delhivery') {
+                const ship = trackingData?.ShipmentData?.[0]?.Shipment || trackingData?.shipmentData?.[0]?.shipment || trackingData?.Shipment;
+                rawStatus = ship?.Status?.Status || ship?.status?.Status || ship?.Status?.status || '';
             } else {
                 const sd = trackingData?.ShipmentData?.[0] || trackingData?.shipmentData?.[0];
                 const si = sd?.Shipment || sd?.shipment || trackingData?.Shipment || trackingData;
@@ -694,6 +769,16 @@ const ClientShipments = () => {
                     lastLocation = latest?.strOrigin || latest?.origin || '';
                     lastActivity = latest?.strAction || latest?.activity || latest?.status || '';
                     lastTime = `${latest?.strActionDate || ''} ${latest?.strActionTime || ''}`.trim();
+                }
+            } else if (courier === 'Delhivery') {
+                const ship = trackingData?.ShipmentData?.[0]?.Shipment || trackingData?.shipmentData?.[0]?.shipment || trackingData?.Shipment;
+                const scans = ship?.Scans || ship?.scans || [];
+                if (Array.isArray(scans) && scans.length > 0) {
+                    const latest = scans[scans.length - 1];
+                    const detail = latest?.ScanDetail || latest?.scanDetail || latest;
+                    lastLocation = detail?.ScannedLocation || detail?.scannedLocation || '';
+                    lastActivity = detail?.Instructions || detail?.instructions || detail?.Scan || '';
+                    lastTime = detail?.ScanDateTime || detail?.scanDateTime || '';
                 }
             } else {
                 // Blue Dart — handle multiple nesting shapes (JSON vs XML-parsed)
@@ -758,6 +843,8 @@ const ClientShipments = () => {
             let data;
             if (shipment.courier === 'DTDC') {
                 data = await dtdcService.trackShipment(shipment.courierTrackingId);
+            } else if (shipment.courier === 'Delhivery') {
+                data = await delhiveryService.trackShipment(shipment.courierTrackingId);
             } else {
                 data = await blueDartService.trackShipment(shipment.courierTrackingId);
             }
@@ -800,6 +887,8 @@ const ClientShipments = () => {
                 let data;
                 if (shp.courier === 'DTDC') {
                     data = await dtdcService.trackShipment(shp.courierTrackingId!);
+                } else if (shp.courier === 'Delhivery') {
+                    data = await delhiveryService.trackShipment(shp.courierTrackingId!);
                 } else {
                     data = await blueDartService.trackShipment(shp.courierTrackingId!);
                 }
@@ -876,10 +965,45 @@ const ClientShipments = () => {
         return [];
     };
 
+    // Parse Delhivery tracking scans
+    const parseDelhiveryScans = (data: any): Array<{ date: string; time: string; location: string; activity: string; statusCode?: string }> => {
+        if (!data) return [];
+        const ship = data?.ShipmentData?.[0]?.Shipment || data?.shipmentData?.[0]?.shipment || data?.Shipment;
+        const scans = ship?.Scans || ship?.scans || [];
+        if (!Array.isArray(scans) || scans.length === 0) return [];
+        return scans.map((scan: any) => {
+            const detail = scan?.ScanDetail || scan?.scanDetail || scan;
+            const dateTime = detail?.ScanDateTime || detail?.scanDateTime || detail?.StatusDateTime || '';
+            let datePart = '';
+            let timePart = '';
+            if (typeof dateTime === 'string') {
+                if (dateTime.includes('T')) {
+                    [datePart, timePart] = dateTime.split('T');
+                    timePart = (timePart || '').replace('Z', '');
+                } else if (dateTime.includes(' ')) {
+                    [datePart, timePart] = dateTime.split(' ');
+                } else {
+                    datePart = dateTime;
+                }
+            }
+            return {
+                date: datePart,
+                time: timePart,
+                location: detail?.ScannedLocation || detail?.scannedLocation || '',
+                activity: detail?.Instructions || detail?.instructions || detail?.Scan || '',
+                statusCode: detail?.StatusCode || detail?.statusCode || '',
+            };
+        }).reverse();
+    };
+
     const getTrackingCurrentStatus = (data: any, courier: string): string => {
         if (!data) return 'Unknown';
         if (courier === 'DTDC') {
             return data?.trackHeader?.strStatus || data?.statusCode || 'Unknown';
+        }
+        if (courier === 'Delhivery') {
+            const ship = data?.ShipmentData?.[0]?.Shipment || data?.shipmentData?.[0]?.shipment || data?.Shipment;
+            return ship?.Status?.Status || ship?.status?.Status || ship?.Status?.status || 'Unknown';
         }
         // Blue Dart — handle multiple response shapes
         const shipmentData = data?.ShipmentData?.[0] || data?.shipmentData?.[0];
@@ -1112,7 +1236,7 @@ const ClientShipments = () => {
                                         <div className="space-y-2">
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Courier</p>
                                             <div className="flex flex-wrap gap-2">
-                                                {['Blue Dart', 'DTDC'].map(val => (
+                                                {['Blue Dart', 'DTDC', 'Delhivery'].map(val => (
                                                     <button
                                                         key={val}
                                                         onClick={() => toggleFilter(courierFilter, setCourierFilter, val)}
@@ -1263,6 +1387,16 @@ const ClientShipments = () => {
                                     >
                                         DTDC
                                     </button>
+                                    <button
+                                        onClick={() => setBulkShipCourier('Delhivery')}
+                                        className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                                            bulkShipCourier === 'Delhivery'
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'bg-white text-muted-foreground border border-border/40 shadow-sm hover:text-foreground'
+                                        }`}
+                                    >
+                                        Delhivery
+                                    </button>
                                 </div>
                                 {bulkShipCourier === 'Blue Dart' && (
                                     <div className="flex items-center bg-blue-50 rounded-lg p-1 text-xs border border-blue-200">
@@ -1291,6 +1425,11 @@ const ClientShipments = () => {
                                 {bulkShipCourier === 'DTDC' && (
                                     <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
                                         Coming Soon
+                                    </span>
+                                )}
+                                {bulkShipCourier === 'Delhivery' && (
+                                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                                        Pan-India · 28k+ Pincodes
                                     </span>
                                 )}
                                 <button
@@ -1972,7 +2111,7 @@ const ClientShipments = () => {
             <Dialog open={!!selectedShipmentForLabel} onOpenChange={(open) => !open && setSelectedShipmentForLabel(null)}>
                 <DialogContent className={`${
                     currentUser?.role === 'shopify' ? 'max-w-lg' :
-                    selectedShipmentForLabel?.courier === 'DTDC' ? 'max-w-2xl' : 'max-w-md'
+                    (selectedShipmentForLabel?.courier === 'DTDC' || selectedShipmentForLabel?.courier === 'Delhivery') ? 'max-w-2xl' : 'max-w-md'
                 } bg-white p-0 overflow-hidden [&>button:last-child]:hidden`}>
                     <div className="px-5 pt-5 pb-4 border-b bg-gradient-to-b from-muted/40 to-white space-y-3">
                         <div className="flex items-center justify-between">
@@ -1994,7 +2133,7 @@ const ClientShipments = () => {
                             </button>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            {selectedShipmentForLabel?.courier !== 'DTDC' ? (
+                            {(selectedShipmentForLabel?.courier !== 'DTDC' && selectedShipmentForLabel?.courier !== 'Delhivery') ? (
                                 <div className="flex items-center bg-muted/50 rounded-lg p-1 text-xs border border-border/50">
                                     <button
                                         onClick={() => setPrintMode('thermal')}
@@ -2024,6 +2163,14 @@ const ClientShipments = () => {
                                         printShopifyLabel(printMode);
                                     } else if (selectedShipmentForLabel?.courier === 'DTDC') {
                                         printDTDCLabel();
+                                    } else if (selectedShipmentForLabel?.courier === 'Delhivery') {
+                                        const frame = document.getElementById('delhivery-label-iframe') as HTMLIFrameElement | null;
+                                        if (frame?.contentWindow) {
+                                            try { frame.contentWindow.print(); }
+                                            catch { if (frame.src) window.open(frame.src, '_blank'); }
+                                        } else if (frame?.src) {
+                                            window.open(frame.src, '_blank');
+                                        }
                                     } else {
                                         printBlueDartLabel(printMode);
                                     }
@@ -2040,6 +2187,14 @@ const ClientShipments = () => {
                                 <ShopifyLabel shipment={selectedShipmentForLabel} />
                             ) : selectedShipmentForLabel.courier === 'DTDC' ? (
                                 <DTDCLabel referenceNumber={selectedShipmentForLabel.courierTrackingId || selectedShipmentForLabel.dtdcReferenceNumber || ''} />
+                            ) : selectedShipmentForLabel.courier === 'Delhivery' ? (
+                                <iframe
+                                    id="delhivery-label-iframe"
+                                    src={`/api/delhivery/shipping-label?waybill=${encodeURIComponent(selectedShipmentForLabel.courierTrackingId || '')}&pdf=true${currentUser?.id ? `&clientId=${encodeURIComponent(currentUser.id)}` : ''}`}
+                                    className="w-full border-0 rounded-lg"
+                                    style={{ height: '500px' }}
+                                    title={`Delhivery Label - ${selectedShipmentForLabel.courierTrackingId}`}
+                                />
                             ) : (
                                 <BlueDartLabel shipment={selectedShipmentForLabel} />
                             )
@@ -2192,7 +2347,9 @@ const ClientShipments = () => {
                                 {(() => {
                                     const scans = trackingShipment?.courier === 'DTDC'
                                         ? parseDtdcScans(trackingData)
-                                        : parseBlueDartScans(trackingData);
+                                        : trackingShipment?.courier === 'Delhivery'
+                                            ? parseDelhiveryScans(trackingData)
+                                            : parseBlueDartScans(trackingData);
 
                                     if (scans.length > 0) {
                                         return (

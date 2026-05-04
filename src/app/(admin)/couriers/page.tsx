@@ -33,9 +33,9 @@ const couriers: Courier[] = [
     {
         id: "delhivery",
         name: "Delhivery",
-        status: "inactive",
-        description: "Supply chain services for e-commerce.",
-        logoColor: "bg-slate-800"
+        status: "active",
+        description: "Largest 3PL — fastest pincode reach across 28k+ locations.",
+        logoColor: "bg-emerald-600"
     },
     {
         id: "shadowfax",

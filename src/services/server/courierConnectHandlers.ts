@@ -13,7 +13,7 @@
  *
  * BLUE DART:     ✅ validated (uses existing working JWT login flow)
  * DTDC:          ✅ validated (uses existing Shipsy api-key header)
- * DELHIVERY:     🟡 scaffolded — needs sandbox validation
+ * DELHIVERY:     ✅ validated 2026-04-28 against production (token-based auth)
  * ECOM EXPRESS:  🟡 scaffolded — needs sandbox validation
  * XPRESSBEES:    🟡 scaffolded — needs sandbox validation
  */
@@ -136,7 +136,6 @@ const testDelhivery: CourierTestHandler = async (creds) => {
         return {
             ok: true,
             accountIdentifier: `${creds.clientName || 'Delhivery'}${environment === 'production' ? ' · Production' : ' · Staging'}`,
-            warnings: ['Delhivery integration is pending end-to-end verification with a real account.'],
         };
     } catch (err: any) {
         return { ok: false, error: err?.message || 'Unreachable Delhivery API' };

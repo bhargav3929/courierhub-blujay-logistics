@@ -62,6 +62,7 @@ import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShopifyLabel, printShopifyLabel } from "@/components/shipments/ShopifyLabel";
 import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
+import { delhiveryService } from "@/services/delhiveryService";
 import { getTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
 
 const Shipments = () => {
@@ -268,6 +269,10 @@ const Shipments = () => {
                         dtdcService.setClientId(ownerId);
                         try { await dtdcService.cancelShipment(shipmentToDelete.courierTrackingId); }
                         finally { dtdcService.setClientId(undefined); }
+                    } else if (shipmentToDelete.courier === 'Delhivery') {
+                        delhiveryService.setClientId(ownerId);
+                        try { await delhiveryService.cancelShipment(shipmentToDelete.courierTrackingId); }
+                        finally { delhiveryService.setClientId(undefined); }
                     } else {
                         blueDartService.setClientId(ownerId);
                         try { await blueDartService.cancelWaybill(shipmentToDelete.courierTrackingId); }
@@ -567,7 +572,7 @@ const Shipments = () => {
             <Dialog open={!!selectedShipmentForLabel} onOpenChange={(open) => !open && setSelectedShipmentForLabel(null)}>
                 <DialogContent className={`${
                     (selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) ? 'max-w-lg' :
-                    selectedShipmentForLabel?.courier === 'DTDC' ? 'max-w-2xl' : 'max-w-md'
+                    (selectedShipmentForLabel?.courier === 'DTDC' || selectedShipmentForLabel?.courier === 'Delhivery') ? 'max-w-2xl' : 'max-w-md'
                 } bg-white p-0 overflow-hidden [&>button:last-child]:hidden`}>
                     {/* Header */}
                     <div className="px-5 pt-5 pb-4 border-b bg-gradient-to-b from-muted/40 to-white space-y-3">
@@ -590,7 +595,7 @@ const Shipments = () => {
                             </button>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                            {selectedShipmentForLabel?.courier !== 'DTDC' ? (
+                            {(selectedShipmentForLabel?.courier !== 'DTDC' && selectedShipmentForLabel?.courier !== 'Delhivery') ? (
                                 <div className="flex items-center bg-muted/50 rounded-lg p-1 text-xs border border-border/50">
                                     <button
                                         onClick={() => setPrintMode('thermal')}
@@ -620,6 +625,14 @@ const Shipments = () => {
                                         printShopifyLabel(printMode);
                                     } else if (selectedShipmentForLabel?.courier === 'DTDC') {
                                         printDTDCLabel();
+                                    } else if (selectedShipmentForLabel?.courier === 'Delhivery') {
+                                        const frame = document.getElementById('delhivery-label-iframe-admin') as HTMLIFrameElement | null;
+                                        if (frame?.contentWindow) {
+                                            try { frame.contentWindow.print(); }
+                                            catch { if (frame.src) window.open(frame.src, '_blank'); }
+                                        } else if (frame?.src) {
+                                            window.open(frame.src, '_blank');
+                                        }
                                     } else {
                                         printBlueDartLabel(printMode);
                                     }
@@ -636,6 +649,14 @@ const Shipments = () => {
                                 <ShopifyLabel shipment={selectedShipmentForLabel} />
                             ) : selectedShipmentForLabel.courier === 'DTDC' ? (
                                 <DTDCLabel referenceNumber={selectedShipmentForLabel.courierTrackingId || selectedShipmentForLabel.dtdcReferenceNumber || ''} />
+                            ) : selectedShipmentForLabel.courier === 'Delhivery' ? (
+                                <iframe
+                                    id="delhivery-label-iframe-admin"
+                                    src={`/api/delhivery/shipping-label?waybill=${encodeURIComponent(selectedShipmentForLabel.courierTrackingId || '')}&pdf=true${selectedShipmentForLabel.clientId ? `&clientId=${encodeURIComponent(selectedShipmentForLabel.clientId)}` : ''}`}
+                                    className="w-full border-0 rounded-lg"
+                                    style={{ height: '500px' }}
+                                    title={`Delhivery Label - ${selectedShipmentForLabel.courierTrackingId}`}
+                                />
                             ) : (
                                 <BlueDartLabel shipment={selectedShipmentForLabel} />
                             )

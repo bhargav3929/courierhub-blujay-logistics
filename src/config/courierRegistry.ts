@@ -164,7 +164,7 @@ export const COURIER_REGISTRY: CourierRegistryEntry[] = [
         category: 'Courier API',
         color: 'from-emerald-600 to-teal-600',
         docsUrl: 'https://track.delhivery.com/api/',
-        status: 'coming_soon',
+        status: 'available',
         fields: [
             {
                 key: 'apiToken',
@@ -180,6 +180,15 @@ export const COURIER_REGISTRY: CourierRegistryEntry[] = [
                 type: 'text',
                 required: true,
                 placeholder: 'Exact client/warehouse name Delhivery configured for you',
+            },
+            {
+                key: 'pickupLocationName',
+                label: 'Default Pickup Location Name',
+                type: 'text',
+                required: true,
+                placeholder: 'e.g. Hyderabad-Madhapur-WH',
+                helpText:
+                    'Exact warehouse name registered with Delhivery (case-sensitive). Find it in Delhivery One → Settings → Warehouses. This is used as the default pickup location for every shipment booked with this account.',
             },
             {
                 key: 'environment',
