@@ -93,31 +93,31 @@ const AddShipment = () => {
     }, [currentUser?.id]);
 
     // Couriers the client is allowed to book with.
-    // A courier is bookable when:
-    //   1. it's in `client.allowedCouriers` (admin-granted), AND
-    //   2. the platform has default creds (Blue Dart / DTDC today) OR the
-    //      client has connected their own credentials via Integrations.
+    //   - Blue Dart: ALWAYS available — it's the platform default. We hold
+    //     the contract; every client ships through it unless they explicitly
+    //     opt into a third-party courier.
+    //   - DTDC: shown when admin granted via allowedCouriers (uses platform
+    //     fallback creds) OR when the client connected their own DTDC.
+    //   - Delhivery / Ecom / Xpressbees: bring-your-own — only shown when the
+    //     client has connected their own credentials via Integrations.
     const bookableCouriers = useMemo(() => {
-        const allowed = new Set(currentClient?.allowedCouriers || ['Blue Dart']);
+        const allowed = new Set(currentClient?.allowedCouriers || []);
         const integrations = currentClient?.courierIntegrations || {};
         const list: Array<{ name: string; connected: boolean }> = [];
-        // Blue Dart — always has platform fallback
-        if (allowed.has('Blue Dart')) {
-            list.push({ name: 'Blue Dart', connected: integrations.bluedart?.status === 'connected' });
-        }
-        // DTDC — always has platform fallback
-        if (allowed.has('DTDC')) {
+
+        // Blue Dart — platform default, always available
+        list.push({ name: 'Blue Dart', connected: integrations.bluedart?.status === 'connected' });
+
+        // DTDC — admin-granted (platform creds) OR client-connected
+        if (allowed.has('DTDC') || integrations.dtdc?.status === 'connected') {
             list.push({ name: 'DTDC', connected: integrations.dtdc?.status === 'connected' });
         }
-        // Delhivery — only shown to clients who connected their own Delhivery
-        // account. Platform env fallback exists in the resolver but is reserved
-        // for system-level use; clients must bring their own API token.
-        if (allowed.has('Delhivery') && integrations.delhivery?.status === 'connected') {
+
+        // Delhivery — bring-your-own only
+        if (integrations.delhivery?.status === 'connected') {
             list.push({ name: 'Delhivery', connected: true });
         }
-        // Future: Ecom Express / Xpressbees — only when the tenant
-        // connected their own (no platform fallback). Booking handlers for
-        // these will be added once sandbox creds are validated.
+
         return list;
     }, [currentClient?.allowedCouriers, currentClient?.courierIntegrations]);
 
