@@ -450,7 +450,7 @@ const ClientShipments = () => {
                         },
                         Shipper: {
                             CustomerName: BLUEDART_PREDEFINED.shipperName,
-                            CustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+                            CustomerCode: BLUEDART_PREDEFINED.billingCustomerCodeShopify,
                             CustomerAddress1: (pickupAddress?.address || BLUEDART_PREDEFINED.pickupAddress).slice(0, 30),
                             CustomerAddress2: (pickupAddress?.address || BLUEDART_PREDEFINED.pickupAddress).slice(30, 60) || "",
                             CustomerAddress3: pickupAddress?.city || "HYD",
@@ -502,7 +502,7 @@ const ClientShipments = () => {
                         productType: BLUEDART_PREDEFINED.productType,
                         awbNo,
                         blueDartStatus: 'Generated',
-                        billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCode,
+                        billingCustomerCode: BLUEDART_PREDEFINED.billingCustomerCodeShopify,
                         toPayCustomer: !!order.toPayCustomer,
                     });
                     triggerShopifyFulfillment(order.id);

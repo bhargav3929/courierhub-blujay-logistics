@@ -44,6 +44,12 @@ export const BLUEDART_PREDEFINED = {
     billingArea: process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD",
     billingCustomerCode: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "302282",
     billingCustomerCodeB2B: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE_B2B || "101183",
+    // Shopify clients ship under a separate Blue Dart contract — same account,
+    // dedicated customer code. Falls back to the generic B2C code if unset.
+    billingCustomerCodeShopify:
+        process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE_SHOPIFY ||
+        process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE ||
+        "302352",
 
     // Shipper Details - Hardcoded default can be overridden or updated to env
     shipperName: "ROAST AND KRUNCH CAFE", // Updated to match Customer Name
