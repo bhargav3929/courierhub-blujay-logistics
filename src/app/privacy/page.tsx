@@ -40,7 +40,6 @@ export default function PrivacyPage() {
               Blujay Logistics Private Limited<br />
               6th Floor, Oh Park, Madhapur<br />
               Hyderabad, Telangana, India 500081<br />
-              CIN: [COMPANY CIN]<br />
               Email: <a href="mailto:blujaylsolution@gmail.com">blujaylsolution@gmail.com</a>
             </p>
             <p>
