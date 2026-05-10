@@ -99,6 +99,31 @@ class DTDCService {
     }
 
     /**
+     * checkServiceability
+     * Look up DTDC serviceability for a route from our offline TAT tables.
+     * Returns serviceability flag + TAT + COD availability + zone info.
+     */
+    public async checkServiceability(originPincode: string, destinationPincode: string) {
+        const params = new URLSearchParams({ origin: originPincode, destination: destinationPincode });
+        const response = await axios.get(`/api/dtdc/serviceability?${params.toString()}`);
+        return response.data as {
+            serviceable: boolean;
+            originCity: string | null;
+            tat: number | null;
+            rtoTat: number | null;
+            cod: boolean;
+            prepaid: boolean;
+            forwardPickup: boolean;
+            reversePickup: boolean;
+            destinationCity: string | null;
+            destinationState: string | null;
+            zone: string | null;
+            category: string | null;
+            reason?: string;
+        };
+    }
+
+    /**
      * cancelShipment
      * Cancel consignment via Shipsy platform
      */
