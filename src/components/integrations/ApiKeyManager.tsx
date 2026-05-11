@@ -62,7 +62,7 @@ async function bearer() {
     return { Authorization: `Bearer ${await u.getIdToken()}` };
 }
 
-export function ApiKeyManager() {
+export function ApiKeyManager({ hideDocs = false }: { hideDocs?: boolean } = {}) {
     const [keys, setKeys] = useState<ApiKeySummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -220,17 +220,19 @@ export function ApiKeyManager() {
                     </div>
                 )}
 
-                {/* Quick docs */}
-                <details className="mt-5">
-                    <summary className="text-xs font-medium text-slate-600 cursor-pointer hover:text-slate-800 flex items-center gap-1.5">
-                        <Code2 className="h-3.5 w-3.5" />
-                        How to use these keys
-                    </summary>
-                    <div className="mt-3 text-xs text-slate-600 space-y-2 bg-slate-50 rounded-md p-3 border border-slate-200 font-mono">
-                        <div className="text-slate-500 font-sans">
-                            From your storefront backend, after the customer has paid:
-                        </div>
-                        <pre className="overflow-x-auto whitespace-pre-wrap">{`POST https://blujaylogistic.com/api/integrations/orders/webhook
+                {/* Quick docs — hidden when the surrounding page already
+                    provides richer documentation (e.g. /client-merchant-api-keys). */}
+                {!hideDocs && (
+                    <details className="mt-5">
+                        <summary className="text-xs font-medium text-slate-600 cursor-pointer hover:text-slate-800 flex items-center gap-1.5">
+                            <Code2 className="h-3.5 w-3.5" />
+                            How to use these keys
+                        </summary>
+                        <div className="mt-3 text-xs text-slate-600 space-y-2 bg-slate-50 rounded-md p-3 border border-slate-200 font-mono">
+                            <div className="text-slate-500 font-sans">
+                                From your storefront backend, after the customer has paid:
+                            </div>
+                            <pre className="overflow-x-auto whitespace-pre-wrap">{`POST https://blujaylogistic.com/api/integrations/orders/webhook
 Content-Type: application/json
 X-Blujay-Api-Key: bj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
@@ -251,12 +253,13 @@ X-Blujay-Api-Key: bj_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   "amounts": { "subtotal": 49900, "total": 49900 },
   "payment_method": "prepaid"
 }`}</pre>
-                        <div className="font-sans text-slate-500">
-                            All amounts in paise (smallest unit). Idempotent on
-                            external_order_id. Response: {`{ shipmentId }`}.
+                            <div className="font-sans text-slate-500">
+                                All amounts in paise (smallest unit). Idempotent on
+                                external_order_id. Response: {`{ shipmentId }`}.
+                            </div>
                         </div>
-                    </div>
-                </details>
+                    </details>
+                )}
             </CardContent>
 
             {/* CREATE DIALOG */}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,9 +85,15 @@ const Shipments = () => {
     const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
     // Filters
-    const [searchQuery, setSearchQuery] = useState("");
+    const searchParams = useSearchParams();
+    const [searchQuery, setSearchQuery] = useState(searchParams?.get('q') ?? "");
     const [clientFilter, setClientFilter] = useState("all");
     const [courierFilter, setCourierFilter] = useState("all");
+
+    // Header search bar drives this page via `?q=` — sync on URL change.
+    useEffect(() => {
+        setSearchQuery(searchParams?.get('q') ?? "");
+    }, [searchParams]);
 
     useEffect(() => {
         fetchInitialData();

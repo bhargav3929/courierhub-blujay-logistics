@@ -1,0 +1,157 @@
+[
+    {
+        "id": "carriers",
+        "keywords": ["carrier", "carriers", "courier", "couriers", "shipping partner", "supported", "delivery partners"],
+        "patterns": ["which (carrier|courier)", "what (carriers|couriers)", "supported (carriers|couriers)"],
+        "intent": "carrier_support",
+        "question": "Which carriers does Blujay support?",
+        "answer": "Blujay currently supports three direct-carrier integrations:\n\n- **Blue Dart** — premium express delivery, strong metro and tier-1 coverage\n- **Delhivery** — 28,000+ pincodes pan-India, COD-friendly, B2C express\n- **DTDC** — economical B2C Smart Express, wide network\n\nYou can pick the carrier per shipment from the Book Shipment page, and tracking syncs automatically once an AWB is generated."
+    },
+    {
+        "id": "bluedart",
+        "keywords": ["blue dart", "bluedart", "blue-dart"],
+        "intent": "carrier_support",
+        "question": "What can Blue Dart do?",
+        "answer": "**Blue Dart** is the premium air-express carrier on Blujay. Available service types:\n\n- **Blue Dart Air (APEX)** — fastest, next-day or 2-day to most metros\n- **Blue Dart Surface (Bharat Dart)** — economical, 3-5 days\n- **Domestic Priority** — B2B premium\n\nCOD is supported. Pickup is registered automatically when the waybill is generated."
+    },
+    {
+        "id": "delhivery",
+        "keywords": ["delhivery"],
+        "intent": "carrier_support",
+        "question": "What does Delhivery offer?",
+        "answer": "**Delhivery** is Blujay's pan-India workhorse — 28,000+ pincodes. Service types:\n\n- **Surface** (default) — 4-7 days, lowest cost\n- **Express** — 1-3 days via air-assisted routes\n\nCOD and Prepaid both supported. Pickup location name on the merchant's Delhivery dashboard must match what's configured in Blujay."
+    },
+    {
+        "id": "dtdc",
+        "keywords": ["dtdc"],
+        "intent": "carrier_support",
+        "question": "What is DTDC used for?",
+        "answer": "**DTDC** is the economical B2C SMART EXPRESS option. Strong tier-2 / tier-3 coverage. COD supported. Good fallback when Blue Dart isn't serviceable for a route."
+    },
+    {
+        "id": "cod_general",
+        "keywords": ["cod", "cash on delivery", "cash-on-delivery"],
+        "intent": "cod_support",
+        "question": "Does Blujay support COD?",
+        "answer": "**Yes**, all three carriers support Cash on Delivery (COD).\n\nTo enable COD on a shipment:\n1. On the Book Shipment page, toggle **COD** on\n2. Enter the amount to be collected from the customer\n3. The carrier (Blue Dart / Delhivery / DTDC) collects the cash and remits it to your account on their schedule\n\nFor merchant-API orders, set `payment_method: 'cod'` and `amounts.cod_collect: <amount in paise>`."
+    },
+    {
+        "id": "tracking_help",
+        "keywords": ["track", "tracking", "where is my shipment", "shipment status", "awb"],
+        "intent": "tracking",
+        "question": "How do I track a shipment?",
+        "answer": "Just paste the **AWB number** (or tracking ID) into this chat and I'll fetch the live status. AWBs typically look like 9-12 digit numbers.\n\nYou can also use:\n- The **My Shipments** page in your Blujay dashboard\n- The carrier's own tracking page directly (Blue Dart / Delhivery / DTDC)"
+    },
+    {
+        "id": "pricing_general",
+        "keywords": ["price", "pricing", "cost", "how much", "rate", "rates"],
+        "intent": "pricing",
+        "question": "How much does shipping cost?",
+        "answer": "Shipping cost depends on:\n\n- **Carrier** — Blue Dart > Delhivery Express > Delhivery Surface ≈ DTDC\n- **Weight + dimensions** — volumetric vs actual, whichever is higher\n- **Origin & destination pincodes** — zone-based pricing\n- **COD / Prepaid** — COD typically adds 1-2% of the collectable amount\n- **Service type** — air-express vs surface\n\nFor exact rates, contact our team — pricing is negotiated per merchant based on monthly volume."
+    },
+    {
+        "id": "delivery_time",
+        "keywords": ["how long", "delivery time", "delivery timeline", "eta", "when will it arrive", "expected delivery"],
+        "intent": "pricing",
+        "question": "How long does delivery take?",
+        "answer": "Typical delivery timelines:\n\n- **Blue Dart Air (APEX)** — next-day to 2 days for metros, 2-3 days otherwise\n- **Delhivery Surface** — 4-7 days, all-India\n- **Delhivery Express** — 1-3 days, air-assisted\n- **DTDC SMART EXPRESS** — 3-5 days typically\n\nActual ETAs vary by origin-destination route. Once a shipment is booked, the carrier provides the exact estimated delivery date."
+    },
+    {
+        "id": "api_intro",
+        "keywords": ["api", "integration", "integrate", "webhook", "develop", "developer", "programmatic"],
+        "intent": "api_integration",
+        "question": "How do I integrate Blujay with my storefront?",
+        "answer": "Blujay has a single **merchant order-intake webhook**. Your backend POSTs paid orders to one endpoint; we surface them in your Blujay dashboard for fulfilment.\n\n**Endpoint:**\n```\nPOST https://blujaylogistic.com/api/integrations/orders/webhook\n```\n\n**Auth header:**\n```\nX-Blujay-Api-Key: bj_<your-key>\n```\n\nGenerate keys in **Store Integrations → Merchant API Keys**. Ask me for the *full payload structure* if you want the JSON shape."
+    },
+    {
+        "id": "api_payload",
+        "keywords": ["payload", "api body", "request body", "json", "request format", "fields"],
+        "intent": "api_integration",
+        "question": "What does the webhook payload look like?",
+        "answer": "```json\n{\n  \"external_order_id\": \"ORDER-12345\",\n  \"customer\": { \"name\": \"...\", \"phone\": \"...\", \"email\": \"...\" },\n  \"shipping_address\": {\n    \"name\": \"...\", \"phone\": \"...\",\n    \"line1\": \"...\", \"line2\": \"...\",\n    \"city\": \"...\", \"state\": \"...\",\n    \"pincode\": \"600001\", \"country\": \"India\"\n  },\n  \"items\": [\n    { \"name\": \"...\", \"sku\": \"...\", \"quantity\": 1,\n      \"unit_price\": 49900, \"weight_g\": 200 }\n  ],\n  \"amounts\": {\n    \"subtotal\": 49900, \"total\": 49900,\n    \"cod_collect\": 0\n  },\n  \"payment_method\": \"prepaid\"\n}\n```\n\nAll amounts are in **paise** (integer). Idempotent on `external_order_id`."
+    },
+    {
+        "id": "api_keys",
+        "keywords": ["api key", "key", "generate key", "create key", "new key", "secret"],
+        "intent": "api_integration",
+        "question": "How do I generate an API key?",
+        "answer": "1. Log in to your Blujay client portal\n2. Open **Store Integrations** from the sidebar\n3. Scroll to the **Merchant API Keys** section\n4. Click **+ New Key**, give it a label (e.g. \"Production website\")\n5. **Copy the key immediately** — for security, the full key is shown only once\n6. Paste the key into your storefront backend's environment variables\n\nIf you lose a key, just revoke it and create a new one. Multiple keys per merchant are supported (e.g., separate staging vs production)."
+    },
+    {
+        "id": "booking_flow",
+        "keywords": ["book shipment", "create shipment", "book", "create order", "ship order", "booking"],
+        "intent": "shipment_booking",
+        "question": "How do I book a shipment?",
+        "answer": "Two ways:\n\n**1. Manually** — go to **Book Shipment** in the sidebar, fill in pickup/delivery details, pick a carrier (Blue Dart / Delhivery / DTDC), and click Book. An AWB is generated immediately.\n\n**2. Via webhook** — your storefront backend POSTs orders to our intake endpoint. They appear in **My Shipments → New Orders** with a [Proceed] button that opens the booking form pre-filled.\n\nTracking auto-syncs after booking."
+    },
+    {
+        "id": "shopify",
+        "keywords": ["shopify"],
+        "intent": "api_integration",
+        "question": "Do you support Shopify?",
+        "answer": "**Yes** — Blujay has a native Shopify app. Connect your store from **Store Integrations → Shopify**. Orders flow into Blujay automatically the moment they're paid on Shopify. The order then appears in **My Shipments → New Orders** for an admin to book."
+    },
+    {
+        "id": "label_print",
+        "keywords": ["label", "print label", "shipping label", "manifest"],
+        "intent": "shipment_booking",
+        "question": "Can I print shipping labels?",
+        "answer": "Yes — once a shipment is booked and the AWB is generated, you can print the carrier's shipping label directly from the **My Shipments** page. Both thermal (4×6) and A4 layouts are supported."
+    },
+    {
+        "id": "cancellation",
+        "keywords": ["cancel", "cancellation", "return", "refund shipment"],
+        "intent": "shipment_booking",
+        "question": "Can I cancel a shipment?",
+        "answer": "Yes, before the carrier picks up the package. From **My Shipments**, find the shipment and use the Cancel option. The carrier's cancellation fee policy applies.\n\nIf the shipment is already in transit, contact our support team — cancellation post-pickup is on a best-effort basis."
+    },
+    {
+        "id": "rto",
+        "keywords": ["rto", "return to origin", "undelivered"],
+        "intent": "shipment_booking",
+        "question": "What happens with RTO (return-to-origin)?",
+        "answer": "If a shipment can't be delivered (wrong address, customer refused, repeated NDR), the carrier marks it for **RTO — Return to Origin**. The package comes back to your pickup address. Both Blue Dart and Delhivery report RTO status via tracking, so you'll see it on the **My Shipments** page automatically."
+    },
+    {
+        "id": "weight_dimensions",
+        "keywords": ["weight", "dimensions", "volumetric", "size", "package size"],
+        "intent": "shipment_booking",
+        "question": "What about weight and dimensions?",
+        "answer": "Carriers charge on **chargeable weight** = max(actual, volumetric).\n\n**Volumetric** = (L × W × H cm) / 5000 → kg\n\nFor merchant-API orders, declare per-item weight in grams via `items[].weight_g`. Dimensions can be added at booking time — we use 10×10×5 cm defaults if not specified, which works for most small packages."
+    },
+    {
+        "id": "coverage",
+        "keywords": ["serviceable", "coverage", "pincode", "delivery available", "pan india"],
+        "intent": "shipment_booking",
+        "question": "Is my pincode serviceable?",
+        "answer": "Most India pincodes are serviceable by at least one carrier:\n\n- **Delhivery** covers 28,000+ pincodes — broadest reach\n- **Blue Dart** covers most metros and tier-1/2 cities\n- **DTDC** is strong in tier-2 / tier-3\n\nIf one carrier doesn't serve a destination pincode, the booking flow will surface that error — you can switch to another carrier and retry."
+    },
+    {
+        "id": "multi_account",
+        "keywords": ["multiple", "sub-account", "sub account", "multiple users", "team", "teammate"],
+        "intent": "support_contact",
+        "question": "Can I have multiple users on my account?",
+        "answer": "Yes — franchise / multi-user accounts can have sub-accounts. From **Sub-accounts** in the sidebar, the primary user can invite team members. Each sub-account has its own login and shipment scope."
+    },
+    {
+        "id": "support",
+        "keywords": ["support", "help", "contact", "customer service", "email", "phone"],
+        "intent": "support_contact",
+        "question": "How do I reach Blujay support?",
+        "answer": "For issues this chat can't resolve, our team responds within 1 business day. The fastest way is the **Help** icon (?) in the top-right of the dashboard, which opens a support ticket attached to your account."
+    },
+    {
+        "id": "what_is_blujay",
+        "keywords": ["what is blujay", "about blujay", "what does blujay do"],
+        "intent": "greeting",
+        "question": "What is Blujay?",
+        "answer": "**Blujay Logistics** is a multi-carrier shipping platform for Indian merchants. We give you one dashboard to:\n\n- Book shipments via **Blue Dart, Delhivery, or DTDC**\n- Track AWBs automatically\n- Print labels and manage RTO\n- Integrate with your storefront via a single webhook API\n\nMerchants run their own payment processing on their own sites — Blujay handles the logistics half."
+    },
+    {
+        "id": "signup",
+        "keywords": ["signup", "sign up", "register", "create account", "get started"],
+        "intent": "greeting",
+        "question": "How do I sign up?",
+        "answer": "Hit **Get Started** at the top of the page, or open `/client-signup`. The account is free to create — you only pay for shipments you actually book. We'll guide you through connecting your first carrier and pickup address."
+    }
+]

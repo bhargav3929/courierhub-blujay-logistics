@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,10 +65,17 @@ interface BulkShipResult {
 
 const ClientShipments = () => {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { currentUser, firebaseUser, canManageSubAccounts } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(searchParams?.get('q') ?? "");
+
+    // Keep the local search state in sync with the URL `?q=` so the
+    // header search bar drives this page directly.
+    useEffect(() => {
+        setSearchQuery(searchParams?.get('q') ?? "");
+    }, [searchParams]);
     const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
     const [selectedShipmentForManifest, setSelectedShipmentForManifest] = useState<Shipment | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
