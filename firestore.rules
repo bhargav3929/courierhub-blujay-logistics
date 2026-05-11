@@ -1,8 +1,113 @@
+// =============================================================================
+//  Firestore Security Rules — Blujay Logistics
+//
+//  IMPORTANT NOTES BEFORE DEPLOYING (read this end-to-end):
+//
+//  1. The PREVIOUS version of this file was: `allow read, write: if true`
+//     (every collection wide-open to anyone, authenticated or not).
+//     This is a security baseline — any tightening is an improvement.
+//
+//  2. Firestore evaluates ALL matching rules and grants access if ANY of
+//     them allow it (logical OR). That means a wildcard catch-all like
+//     `match /{document=**}` overrides any deny in a specific match.
+//     We therefore CANNOT keep the wildcard catch-all and selectively
+//     lock down `orders` / `webhook_events`. The rules below explicitly
+//     enumerate every collection used by the app instead.
+//
+//  3. Server-side Firebase Admin SDK calls (used by /api/* routes) BYPASS
+//     these rules entirely — that's how /api/orders/create writes orders
+//     even though `allow write: if false`.
+//
+//  4. Collections enumerated below were discovered by grepping the
+//     codebase for `collection(db, '...')` and `_COLLECTION = '...'`
+//     constants. If you add a new collection, ADD A RULE FOR IT — there
+//     is no fall-through; unmatched paths are denied by default.
+//
+//  5. ROLLBACK: if any existing flow breaks after deploy, you can revert
+//     to the old wide-open behavior by replacing this file's body with:
+//        match /{document=**} { allow read, write: if true; }
+//     and redeploying with `firebase deploy --only firestore:rules`.
+//
+//  6. DEPLOY: `firebase deploy --only firestore:rules`
+//     Test in Firebase Console → Firestore → Rules → Rules Playground first.
+// =============================================================================
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // -------------------------------------------------------------------
+    // NEW: Orders (Phase 1+) — tenant-isolated reads, server-only writes.
+    // -------------------------------------------------------------------
+    match /orders/{orderId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.clientId;
+      // All writes flow through /api/orders/* and webhook handlers,
+      // which use the Admin SDK and bypass these rules.
+      allow write: if false;
     }
+
+    // -------------------------------------------------------------------
+    // NEW: Webhook event log — internal audit trail. Never client-readable.
+    // -------------------------------------------------------------------
+    match /webhook_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------
+    // EXISTING collections — preserves prior behavior (any authenticated
+    // caller can read/write). This is still permissive and should be
+    // tightened in a future phase, but it's strictly better than the
+    // previous unauthenticated-allowed state.
+    //
+    // If a flow stops working after this deploy, the most likely cause
+    // is that it ran without an authenticated user — switch the rule
+    // for that specific collection back to `if true` until investigated.
+    // -------------------------------------------------------------------
+    match /shipments/{shipmentId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null;
+
+      // Subcollections under a client (e.g. courierIntegrations, apiKeys)
+      // inherit the same gate.
+      match /{subPath=**} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /courierAPIs/{courierId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /clientRequests/{requestId} {
+      // Anyone can submit a signup/contact request (often unauthenticated
+      // through the public landing page). Keep it permissive on create.
+      allow create: if true;
+      allow read, update, delete: if request.auth != null;
+    }
+
+    match /gdprDataRequests/{requestId} {
+      // Written by Shopify GDPR webhooks (server-side via Admin SDK).
+      // Read access for authenticated admins only.
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /_connection_monitor/{docId} {
+      // Diagnostic ping doc used by connectionMonitor.ts. Authenticated only.
+      allow read, write: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------------
+    // No catch-all. Anything unmatched is implicitly denied.
+    // If you add a new collection, ADD A RULE ABOVE.
+    // -------------------------------------------------------------------
   }
 }

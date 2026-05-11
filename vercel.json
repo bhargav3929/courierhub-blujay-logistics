@@ -1,5 +1,15 @@
 {
     "framework": "nextjs",
     "buildCommand": "npm run build",
-    "outputDirectory": ".next"
+    "outputDirectory": ".next",
+    "crons": [
+        {
+            "path": "/api/cron/retry-fulfillment",
+            "schedule": "*/15 * * * *"
+        },
+        {
+            "path": "/api/cron/sync-tracking",
+            "schedule": "0 */4 * * *"
+        }
+    ]
 }
