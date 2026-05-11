@@ -255,7 +255,15 @@ const AddShipment = () => {
         const loadShopifyOrder = async () => {
             if (!shopifyShipmentId || !currentUser?.id) return;
             const shipment = await getShipmentById(shopifyShipmentId);
-            if (!shipment || shipment.status !== 'shopify_pending') return;
+            // Accept both Shopify-sourced and merchant-webhook-sourced pending shipments.
+            // Both have identical doc structure on /client-shipments → Proceed click.
+            if (
+                !shipment ||
+                (shipment.status !== 'shopify_pending' &&
+                    shipment.status !== 'webhook_pending')
+            ) {
+                return;
+            }
 
             setShopifySourceId(shipment.id);
 

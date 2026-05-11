@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ShopifyConnect } from "@/components/integrations/ShopifyConnect";
 import { CourierConnectDialog } from "@/components/integrations/CourierConnectDialog";
+import { ApiKeyManager } from "@/components/integrations/ApiKeyManager";
 import { useAuth } from "@/contexts/AuthContext";
 import {
     ShoppingBag,
@@ -543,6 +544,9 @@ const ClientIntegrations = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Merchant API keys — for storefront → Blujay webhook auth */}
+            <ApiKeyManager />
         </div>
     );
 };

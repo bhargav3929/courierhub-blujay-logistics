@@ -149,7 +149,15 @@ export interface Shipment {
     // Shipment details
     courier: string;
     courierTrackingId?: string;
-    status: 'pending' | 'transit' | 'delivered' | 'cancelled' | 'shopify_pending' | 'declined';
+    status: 'pending' | 'transit' | 'delivered' | 'cancelled' | 'shopify_pending' | 'webhook_pending' | 'declined';
+
+    // ========== Merchant webhook source (Phase 10/11) ==========
+    // Set only on shipments created via POST /api/integrations/orders/webhook.
+    // Lets the Shipments UI distinguish webhook-sourced orders from
+    // platform/Shopify-sourced ones.
+    webhookSource?: 'merchant_api';
+    webhookExternalOrderId?: string;     // merchant's own order id (idempotency key)
+    webhookApiKeyId?: string;            // which API key authored this order
     shopifyOrderId?: string;
     shopifyOrderNumber?: string;
     shopifyFulfillmentId?: string;
