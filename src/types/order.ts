@@ -61,7 +61,7 @@ export interface OrderPayment {
 
 export interface OrderShipmentRef {
     shipmentId?: string;            // FK to existing `shipments` collection (when Phase 4+ links)
-    provider?: 'shiprocket' | 'bluedart' | 'delhivery' | 'dtdc';
+    provider?: 'bluedart' | 'delhivery' | 'dtdc' | 'shiprocket';
     providerOrderId?: string;       // shiprocket order_id (Shiprocket's internal numeric/string id)
     providerShipmentId?: string;    // shiprocket shipment_id (separate from order_id; needed for AWB / label calls)
     courierId?: number;             // shiprocket courier_company_id once assigned

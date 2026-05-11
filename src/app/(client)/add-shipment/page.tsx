@@ -280,7 +280,15 @@ const AddShipment = () => {
         const loadShopifyOrder = async () => {
             if (!shopifyShipmentId || !currentUser?.id) return;
             const shipment = await getShipmentById(shopifyShipmentId);
-            if (!shipment || shipment.status !== 'shopify_pending') return;
+            // Accept both Shopify-sourced and merchant-webhook-sourced pending shipments.
+            // Both have identical doc structure on /client-shipments → Proceed click.
+            if (
+                !shipment ||
+                (shipment.status !== 'shopify_pending' &&
+                    shipment.status !== 'webhook_pending')
+            ) {
+                return;
+            }
 
             setShopifySourceId(shipment.id);
 
@@ -1491,13 +1499,20 @@ const AddShipment = () => {
                                                 )}
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1">
-                                                        {isDelhivery ? (
-                                                            <div className="h-full w-full rounded-lg bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center">
-                                                                <Truck className="h-6 w-6 text-white" />
-                                                            </div>
-                                                        ) : (
-                                                            <Image src={isBlue ? '/logos/bluedart.jpg' : '/logos/dtdc.jpg'} alt={c.name} width={48} height={48} className="object-contain" />
-                                                        )}
+                                                        <Image
+                                                            src={
+                                                                isBlue
+                                                                    ? '/logos/bluedart.jpg'
+                                                                    : isDelhivery
+                                                                      ? '/logos/delhivery.jpg'
+                                                                      : '/logos/dtdc.jpg'
+                                                            }
+                                                            alt={c.name}
+                                                            width={48}
+                                                            height={48}
+                                                            unoptimized
+                                                            className="object-contain"
+                                                        />
                                                     </div>
                                                     <div>
                                                         <div className="font-bold text-lg">{c.name}</div>

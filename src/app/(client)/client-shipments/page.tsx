@@ -258,7 +258,9 @@ const ClientShipments = () => {
         if (isFranchise) {
             setActiveTab('shipped');
         } else if (!loading && shipments.length > 0) {
-            const hasPending = shipments.some(s => s.status === 'shopify_pending');
+            const hasPending = shipments.some(
+                s => s.status === 'shopify_pending' || s.status === 'webhook_pending'
+            );
             setActiveTab(hasPending ? 'new-orders' : 'shipped');
         }
     }, [loading, shipments, isFranchise]);
@@ -271,10 +273,16 @@ const ClientShipments = () => {
         return createdMs > twentyFourHoursAgo;
     };
 
-    // Separate shipments into new orders and booked shipments
-    // Franchise users see all shipments in the "shipped" view (no shopify_pending split)
-    const newOrders = isFranchise ? [] : shipments.filter(s => s.status === 'shopify_pending');
-    const bookedShipments = isFranchise ? shipments : shipments.filter(s => s.status !== 'shopify_pending');
+    // Separate shipments into new orders and booked shipments.
+    // Franchise users see all shipments in the "shipped" view.
+    // "New Orders" covers both Shopify-sourced and merchant-webhook-sourced
+    // pending shipments — they share the same Proceed-to-add-shipment flow.
+    const isPendingOrder = (s: Shipment) =>
+        s.status === 'shopify_pending' || s.status === 'webhook_pending';
+    const newOrders = isFranchise ? [] : shipments.filter(isPendingOrder);
+    const bookedShipments = isFranchise
+        ? shipments
+        : shipments.filter(s => !isPendingOrder(s));
 
     // Per-tab filtering (search + filters)
     const matchesSearch = (shp: Shipment, includeAwb: boolean) => {
@@ -1499,6 +1507,10 @@ const ClientShipments = () => {
                                                         {shp.clientType === 'shopify' ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                                                                 <ShoppingBag className="h-3 w-3" /> Shopify
+                                                            </span>
+                                                        ) : shp.webhookSource === 'merchant_api' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold">
+                                                                <ExternalLink className="h-3 w-3" /> Webhook
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 text-muted-foreground text-[10px] font-bold">
