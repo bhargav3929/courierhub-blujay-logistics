@@ -4,6 +4,7 @@ import Providers from "./providers";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import LicenseGuard from "@/components/LicenseGuard";
+import { ChatbotWidget } from "@/components/chatbot/ChatbotWidget";
 
 export const metadata: Metadata = {
     title: "Blujay Logistics",
@@ -24,6 +25,7 @@ export default function RootLayout({
                             {children}
                             <Toaster />
                             <Sonner />
+                            <ChatbotWidget />
                         </Providers>
                     </LicenseGuard>
                 </div>

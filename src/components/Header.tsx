@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from "react";
-import { Search, Bell, HelpCircle, Mail, Phone, MapPin } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Search, Bell, HelpCircle, Mail, Phone, MapPin, X } from "lucide-react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import Image from "next/image";
@@ -22,8 +23,42 @@ const DEFAULT_SUPPORT = {
 };
 
 export const Header = () => {
-  const { whiteLabelConfig } = useAuth();
+  const { whiteLabelConfig, currentUser } = useAuth();
   const [supportOpen, setSupportOpen] = useState(false);
+
+  // --- Search ----------------------------------------------------------------
+  // On Enter, push the query into the shipments page via the `?q=` param.
+  // Both shipments pages (admin + client) read it on mount and stay in sync
+  // with subsequent URL updates, so typing here works whether you're already
+  // on the shipments page or coming from somewhere else.
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const isAdmin = currentUser?.role === 'admin';
+  const shipmentsPath = isAdmin ? '/shipments' : '/client-shipments';
+  const initialQuery = pathname === shipmentsPath ? params?.get('q') ?? '' : '';
+  const [searchValue, setSearchValue] = useState(initialQuery);
+
+  // Keep the bar in sync if the URL changes (e.g. user clears `?q=`).
+  useEffect(() => {
+    if (pathname === shipmentsPath) {
+      setSearchValue(params?.get('q') ?? '');
+    }
+  }, [pathname, params, shipmentsPath]);
+
+  const submitSearch = () => {
+    const q = searchValue.trim();
+    const target = q
+      ? `${shipmentsPath}?q=${encodeURIComponent(q)}`
+      : shipmentsPath;
+    router.push(target);
+  };
+
+  const clearSearch = () => {
+    setSearchValue('');
+    if (pathname === shipmentsPath) router.push(shipmentsPath);
+  };
+  // ---------------------------------------------------------------------------
 
   const support = whiteLabelConfig
     ? {
@@ -76,11 +111,32 @@ export const Header = () => {
         <div className="flex items-center gap-2">
           {/* Search */}
           <div className="relative w-56 hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  submitSearch();
+                } else if (e.key === 'Escape') {
+                  clearSearch();
+                }
+              }}
               placeholder="Search orders..."
-              className="pl-9 bg-muted/50 border-border/60 focus:bg-card focus:border-primary/30 focus:ring-1 focus:ring-primary/20 transition-all rounded-full text-sm h-9"
+              aria-label="Search orders"
+              className="pl-9 pr-8 bg-muted/50 border-border/60 focus:bg-card focus:border-primary/30 focus:ring-1 focus:ring-primary/20 transition-all rounded-full text-sm h-9"
             />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
 
           {/* Notification Bell */}

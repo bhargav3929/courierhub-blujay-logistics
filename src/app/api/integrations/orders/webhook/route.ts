@@ -105,13 +105,35 @@ const Body = z.object({
     notes: z.string().optional(),
 });
 
+// Short request id for correlating log lines across a single webhook call.
+function reqId(): string {
+    return Math.random().toString(36).slice(2, 10);
+}
+
+// Show the visible prefix of an api key without leaking the rest.
+function keyHint(raw: string | null | undefined): string {
+    if (!raw) return '(none)';
+    return raw.slice(0, 11) + '…';
+}
+
 export async function POST(request: NextRequest) {
+    const rid = reqId();
+    const start = Date.now();
     try {
         // 1. Auth: API key only (Bearer not supported on this public webhook).
         const rawKey =
             request.headers.get('x-blujay-api-key') ||
             request.headers.get('X-Blujay-Api-Key');
+        const fwdIp =
+            request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+            request.headers.get('x-real-ip') ||
+            '(unknown)';
+        console.log(
+            `[orders/webhook] rid=${rid} 📨 incoming ip=${fwdIp} key=${keyHint(rawKey)}`
+        );
+
         if (!rawKey) {
+            console.warn(`[orders/webhook] rid=${rid} ❌ 401 missing X-Blujay-Api-Key header`);
             return NextResponse.json(
                 { error: 'Missing X-Blujay-Api-Key header' },
                 { status: 401 }
@@ -119,23 +141,38 @@ export async function POST(request: NextRequest) {
         }
         const keyHit = await lookupApiKey(rawKey);
         if (!keyHit) {
+            console.warn(
+                `[orders/webhook] rid=${rid} ❌ 401 invalid/revoked key prefix=${keyHint(rawKey)}`
+            );
             return NextResponse.json(
                 { error: 'Invalid or revoked API key' },
                 { status: 401 }
             );
         }
         const clientId = keyHit.clientId;
+        console.log(
+            `[orders/webhook] rid=${rid} ✅ auth ok clientId=${clientId} keyId=${keyHit.keyId}`
+        );
 
         // 2. Validate body.
         const json = await request.json().catch(() => null);
         const parsed = Body.safeParse(json);
         if (!parsed.success) {
+            const flat = parsed.error.flatten();
+            console.warn(
+                `[orders/webhook] rid=${rid} ❌ 400 validation failed fieldErrors=${JSON.stringify(
+                    flat.fieldErrors
+                )}`
+            );
             return NextResponse.json(
-                { error: 'Invalid body', issues: parsed.error.flatten() },
+                { error: 'Invalid body', issues: flat },
                 { status: 400 }
             );
         }
         const payload = parsed.data;
+        console.log(
+            `[orders/webhook] rid=${rid} 📦 payload ok external=${payload.external_order_id} items=${payload.items.length} total=${payload.amounts.total} method=${payload.payment_method}`
+        );
         const db = getFirestore(adminApp);
 
         // 3. Idempotency — same external_order_id under same client returns
@@ -149,7 +186,7 @@ export async function POST(request: NextRequest) {
         if (!dup.empty) {
             const existing = dup.docs[0];
             console.log(
-                `[orders/webhook] idempotent hit client=${clientId} external=${payload.external_order_id} shipment=${existing.id}`
+                `[orders/webhook] rid=${rid} 🔁 idempotent hit client=${clientId} external=${payload.external_order_id} shipment=${existing.id} (${Date.now() - start}ms)`
             );
             return NextResponse.json({
                 ok: true,
@@ -256,7 +293,7 @@ export async function POST(request: NextRequest) {
 
         const ref = await db.collection('shipments').add(shipmentDoc);
         console.log(
-            `[orders/webhook] shipment created client=${clientId} external=${payload.external_order_id} shipment=${ref.id}`
+            `[orders/webhook] rid=${rid} 🆕 shipment created client=${clientId} external=${payload.external_order_id} shipment=${ref.id} (${Date.now() - start}ms)`
         );
 
         return NextResponse.json({
@@ -266,7 +303,7 @@ export async function POST(request: NextRequest) {
         });
     } catch (err: any) {
         console.error(
-            '[orders/webhook] unexpected error:',
+            `[orders/webhook] rid=${rid} 💥 500 unexpected error (${Date.now() - start}ms):`,
             err?.message || err
         );
         return NextResponse.json(

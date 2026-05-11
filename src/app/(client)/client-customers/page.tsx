@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Mail, Phone, MapPin, Plus, User, MoreHorizontal } from "lucide-react";
+import { Search, UserPlus, Mail, Phone, MapPin, Plus, User, MoreHorizontal, X } from "lucide-react";
 
 const customers = [
     { id: 1, name: "Rahul Sharma", email: "rahul@example.com", phone: "+91 98765 43210", address: "Mumbai, Maharashtra", totalShipments: 12, lastOrder: "2 days ago" },
@@ -13,6 +14,19 @@ const customers = [
 ];
 
 const ClientCustomers = () => {
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const q = searchQuery.trim().toLowerCase();
+    const filteredCustomers = q
+        ? customers.filter(
+              (c) =>
+                  c.name.toLowerCase().includes(q) ||
+                  c.email.toLowerCase().includes(q) ||
+                  c.phone.toLowerCase().includes(q) ||
+                  c.address.toLowerCase().includes(q)
+          )
+        : customers;
+
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -33,12 +47,33 @@ const ClientCustomers = () => {
             </div>
 
             <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input placeholder="Search by name, email or phone..." className="pl-12 bg-white border-none h-14 shadow-md rounded-2xl" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+                <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, email or phone..."
+                    aria-label="Search customers"
+                    className="pl-12 pr-12 bg-white border-none h-14 shadow-md rounded-2xl"
+                />
+                {searchQuery && (
+                    <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        aria-label="Clear search"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {customers.map((customer) => (
+            {filteredCustomers.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-16">
+                    No customers match "{searchQuery}".
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredCustomers.map((customer) => (
                     <Card key={customer.id} className="border-none shadow-md hover:shadow-2xl transition-all duration-300 group overflow-hidden bg-white/50 backdrop-blur-sm">
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start mb-6">
@@ -84,7 +119,8 @@ const ClientCustomers = () => {
                         </CardContent>
                     </Card>
                 ))}
-            </div>
+                </div>
+            )}
         </div>
     );
 };
