@@ -13,7 +13,9 @@ import {
     User,
     LogOut,
     ChartColumnBig,
-    Users
+    Users,
+    Receipt,
+    KeyRound
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -32,8 +34,10 @@ const baseNavItems = [
     { icon: House, label: "Home", path: "/client-dashboard" },
     { icon: PackageSearch, label: "My Shipments", path: "/client-shipments" },
     { icon: PackagePlus, label: "Book Shipment", path: "/add-shipment" },
+    { icon: Receipt, label: "Ship Links", path: "/ship-links" },
     { icon: ChartColumnBig, label: "Reports", path: "/client-reports" },
     { icon: Store, label: "Store Integrations", path: "/client-integrations" },
+    { icon: KeyRound, label: "Merchant API Keys", path: "/client-merchant-api-keys" },
     { icon: Settings, label: "Portal Settings", path: "/client-settings" },
 ];
 
@@ -48,8 +52,8 @@ export const ClientSidebar = () => {
 
         // Add Sub-accounts menu item for franchise primary users
         if (canManageSubAccounts) {
-            // Insert before Settings (index 5)
-            items.splice(5, 0, {
+            // Insert before Settings — index 7 with both Ship Links and Merchant API Keys added.
+            items.splice(7, 0, {
                 icon: Users,
                 label: "Sub-accounts",
                 path: "/client-sub-accounts"

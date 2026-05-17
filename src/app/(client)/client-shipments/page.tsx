@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,10 +65,17 @@ interface BulkShipResult {
 
 const ClientShipments = () => {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { currentUser, firebaseUser, canManageSubAccounts } = useAuth();
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(searchParams?.get('q') ?? "");
+
+    // Keep the local search state in sync with the URL `?q=` so the
+    // header search bar drives this page directly.
+    useEffect(() => {
+        setSearchQuery(searchParams?.get('q') ?? "");
+    }, [searchParams]);
     const [selectedShipmentForLabel, setSelectedShipmentForLabel] = useState<Shipment | null>(null);
     const [selectedShipmentForManifest, setSelectedShipmentForManifest] = useState<Shipment | null>(null);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -258,7 +265,9 @@ const ClientShipments = () => {
         if (isFranchise) {
             setActiveTab('shipped');
         } else if (!loading && shipments.length > 0) {
-            const hasPending = shipments.some(s => s.status === 'shopify_pending');
+            const hasPending = shipments.some(
+                s => s.status === 'shopify_pending' || s.status === 'webhook_pending'
+            );
             setActiveTab(hasPending ? 'new-orders' : 'shipped');
         }
     }, [loading, shipments, isFranchise]);
@@ -271,10 +280,16 @@ const ClientShipments = () => {
         return createdMs > twentyFourHoursAgo;
     };
 
-    // Separate shipments into new orders and booked shipments
-    // Franchise users see all shipments in the "shipped" view (no shopify_pending split)
-    const newOrders = isFranchise ? [] : shipments.filter(s => s.status === 'shopify_pending');
-    const bookedShipments = isFranchise ? shipments : shipments.filter(s => s.status !== 'shopify_pending');
+    // Separate shipments into new orders and booked shipments.
+    // Franchise users see all shipments in the "shipped" view.
+    // "New Orders" covers both Shopify-sourced and merchant-webhook-sourced
+    // pending shipments — they share the same Proceed-to-add-shipment flow.
+    const isPendingOrder = (s: Shipment) =>
+        s.status === 'shopify_pending' || s.status === 'webhook_pending';
+    const newOrders = isFranchise ? [] : shipments.filter(isPendingOrder);
+    const bookedShipments = isFranchise
+        ? shipments
+        : shipments.filter(s => !isPendingOrder(s));
 
     // Per-tab filtering (search + filters)
     const matchesSearch = (shp: Shipment, includeAwb: boolean) => {
@@ -1499,6 +1514,10 @@ const ClientShipments = () => {
                                                         {shp.clientType === 'shopify' ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                                                                 <ShoppingBag className="h-3 w-3" /> Shopify
+                                                            </span>
+                                                        ) : shp.webhookSource === 'merchant_api' ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold">
+                                                                <ExternalLink className="h-3 w-3" /> Webhook
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 text-muted-foreground text-[10px] font-bold">

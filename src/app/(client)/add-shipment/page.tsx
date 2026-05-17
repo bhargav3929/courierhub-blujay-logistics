@@ -29,7 +29,8 @@ import {
     Plus,
     Trash2,
     Percent,
-    ShoppingBag
+    ShoppingBag,
+    AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -167,6 +168,11 @@ const AddShipment = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bookableCouriers]);
 
+    // DTDC serviceability lookup result (populated when DTDC is selected and pincodes are filled)
+    type DtdcServiceability = Awaited<ReturnType<typeof dtdcService.checkServiceability>>;
+    const [dtdcServiceability, setDtdcServiceability] = useState<DtdcServiceability | null>(null);
+    const [dtdcServiceabilityLoading, setDtdcServiceabilityLoading] = useState(false);
+
     // Blue Dart service options
     const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
     // Delhivery service options
@@ -178,6 +184,25 @@ const AddShipment = () => {
     const [pickup, setPickup] = useState({ name: "", phone: "", pincode: "", address: "", city: "", state: "", country: "India" });
     // Delivery always starts empty
     const [delivery, setDelivery] = useState({ name: "", phone: "", pincode: "", address: "", city: "", state: "", country: "India" });
+
+    // When DTDC is selected and both pincodes are filled, look up serviceability
+    // from our offline TAT tables. Result drives the badge in step 4 and gates booking.
+    useEffect(() => {
+        if (selectedCourier !== 'DTDC') { setDtdcServiceability(null); return; }
+        const origin = (pickup.pincode || originDefaults.pickupPincode || '').trim();
+        const dest = (delivery.pincode || '').trim();
+        if (!/^\d{6}$/.test(origin) || !/^\d{6}$/.test(dest)) { setDtdcServiceability(null); return; }
+
+        let cancelled = false;
+        setDtdcServiceabilityLoading(true);
+        dtdcService.checkServiceability(origin, dest)
+            .then((res) => { if (!cancelled) setDtdcServiceability(res); })
+            .catch(() => { if (!cancelled) setDtdcServiceability(null); })
+            .finally(() => { if (!cancelled) setDtdcServiceabilityLoading(false); });
+
+        return () => { cancelled = true; };
+    }, [selectedCourier, pickup.pincode, delivery.pincode, originDefaults.pickupPincode]);
+
     const [dimensions, setDimensions] = useState({ length: "10", width: "10", height: "10" });
     const [actualWeight, setActualWeight] = useState("0.5");
     const [products, setProducts] = useState<ShipmentProduct[]>([{ sku: '', name: '', quantity: 1, price: 0 }]);
@@ -255,7 +280,15 @@ const AddShipment = () => {
         const loadShopifyOrder = async () => {
             if (!shopifyShipmentId || !currentUser?.id) return;
             const shipment = await getShipmentById(shopifyShipmentId);
-            if (!shipment || shipment.status !== 'shopify_pending') return;
+            // Accept both Shopify-sourced and merchant-webhook-sourced pending shipments.
+            // Both have identical doc structure on /client-shipments → Proceed click.
+            if (
+                !shipment ||
+                (shipment.status !== 'shopify_pending' &&
+                    shipment.status !== 'webhook_pending')
+            ) {
+                return;
+            }
 
             setShopifySourceId(shipment.id);
 
@@ -796,6 +829,12 @@ const AddShipment = () => {
 
     // Book via DTDC
     const handleBookDTDC = async (referenceNo: string, cleanSenderMobile: string, cleanReceiverMobile: string) => {
+        // Pre-flight: block if our offline TAT data says this route is not serviceable.
+        // Avoids hitting DTDC's API for guaranteed failures.
+        if (dtdcServiceability && !dtdcServiceability.serviceable) {
+            throw new Error(dtdcServiceability.reason || 'Destination not serviceable via DTDC from this origin.');
+        }
+
         toast.info("Creating DTDC Order...");
 
         const dtdcPayload = {
@@ -1460,13 +1499,20 @@ const AddShipment = () => {
                                                 )}
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-14 w-14 rounded-xl overflow-hidden bg-white border border-muted/50 shadow-sm flex items-center justify-center p-1">
-                                                        {isDelhivery ? (
-                                                            <div className="h-full w-full rounded-lg bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center">
-                                                                <Truck className="h-6 w-6 text-white" />
-                                                            </div>
-                                                        ) : (
-                                                            <Image src={isBlue ? '/logos/bluedart.jpg' : '/logos/dtdc.jpg'} alt={c.name} width={48} height={48} className="object-contain" />
-                                                        )}
+                                                        <Image
+                                                            src={
+                                                                isBlue
+                                                                    ? '/logos/bluedart.jpg'
+                                                                    : isDelhivery
+                                                                      ? '/logos/delhivery.jpg'
+                                                                      : '/logos/dtdc.jpg'
+                                                            }
+                                                            alt={c.name}
+                                                            width={48}
+                                                            height={48}
+                                                            unoptimized
+                                                            className="object-contain"
+                                                        />
                                                     </div>
                                                     <div>
                                                         <div className="font-bold text-lg">{c.name}</div>
@@ -1487,6 +1533,73 @@ const AddShipment = () => {
                                         );
                                     })}
                                 </div>
+
+                                {/* DTDC Serviceability Badge */}
+                                {selectedCourier === 'DTDC' && (
+                                    <div className="pt-2">
+                                        {dtdcServiceabilityLoading && (
+                                            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-muted/40 text-muted-foreground text-sm">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Checking DTDC serviceability...
+                                            </div>
+                                        )}
+                                        {!dtdcServiceabilityLoading && dtdcServiceability?.serviceable && (
+                                            <div className="px-5 py-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
+                                                <div className="flex items-start gap-3">
+                                                    <BadgeCheck className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+                                                    <div className="flex-1">
+                                                        <div className="font-bold text-sm text-emerald-900">
+                                                            Serviceable via DTDC
+                                                        </div>
+                                                        <div className="text-xs text-emerald-800 mt-1">
+                                                            {dtdcServiceability.destinationCity}, {dtdcServiceability.destinationState} ({dtdcServiceability.zone} Zone, {dtdcServiceability.category})
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                            {dtdcServiceability.tat !== null && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-700 border border-emerald-200">
+                                                                    ~{dtdcServiceability.tat} day{dtdcServiceability.tat === 1 ? '' : 's'} delivery
+                                                                </span>
+                                                            )}
+                                                            {dtdcServiceability.cod && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-700 border border-emerald-200">
+                                                                    COD available
+                                                                </span>
+                                                            )}
+                                                            {dtdcServiceability.forwardPickup && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-700 border border-emerald-200">
+                                                                    Forward pickup
+                                                                </span>
+                                                            )}
+                                                            {dtdcServiceability.reversePickup && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-700 border border-emerald-200">
+                                                                    Reverse pickup
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {!dtdcServiceabilityLoading && dtdcServiceability && !dtdcServiceability.serviceable && (
+                                            <div className="px-5 py-4 rounded-xl border-2 border-red-200 bg-red-50">
+                                                <div className="flex items-start gap-3">
+                                                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                                                    <div className="flex-1">
+                                                        <div className="font-bold text-sm text-red-900">
+                                                            Not serviceable via DTDC
+                                                        </div>
+                                                        <div className="text-xs text-red-800 mt-1">
+                                                            {dtdcServiceability.reason || 'This route is not in DTDC\'s published service area for your origin.'}
+                                                        </div>
+                                                        <div className="text-[11px] text-red-700 mt-2">
+                                                            Try Blue Dart instead, or use a different destination pincode.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Blue Dart Service Type Selection */}
                                 {selectedCourier === 'Blue Dart' && (
@@ -1725,7 +1838,14 @@ const AddShipment = () => {
                             </Button>
                         )}
                         {step === 4 && (
-                            <Button onClick={handleBook} disabled={loading} className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2">
+                            <Button
+                                onClick={handleBook}
+                                disabled={
+                                    loading ||
+                                    (selectedCourier === 'DTDC' && dtdcServiceability !== null && !dtdcServiceability.serviceable)
+                                }
+                                className="h-14 px-10 rounded-full bg-primary font-bold text-lg gap-2"
+                            >
                                 {loading ? <Loader2 className="animate-spin" /> : <Truck className="h-5 w-5" />}
                                 {isReturn ? `Book Return via ${selectedCourier}` : `Book via ${selectedCourier}`}
                             </Button>
