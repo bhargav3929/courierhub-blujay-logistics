@@ -59,6 +59,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ShipmentManifest, printManifest } from "@/components/shipments/ShipmentManifest";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
+import { SelfShipmentLabel, printSelfShipmentLabel } from "@/components/shipments/SelfShipmentLabel";
 import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShopifyLabel, printShopifyLabel } from "@/components/shipments/ShopifyLabel";
 import { blueDartService } from "@/services/blueDartService";
@@ -280,6 +281,8 @@ const Shipments = () => {
                         delhiveryService.setClientId(ownerId);
                         try { await delhiveryService.cancelShipment(shipmentToDelete.courierTrackingId); }
                         finally { delhiveryService.setClientId(undefined); }
+                    } else if (shipmentToDelete.courier === 'Self Shipment') {
+                        // No carrier API to call.
                     } else {
                         blueDartService.setClientId(ownerId);
                         try { await blueDartService.cancelWaybill(shipmentToDelete.courierTrackingId); }
@@ -628,7 +631,10 @@ const Shipments = () => {
                             ) : <div />}
                             <button
                                 onClick={() => {
-                                    if (selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) {
+                                    // Self Shipment wins over Shopify-tenant override.
+                                    if (selectedShipmentForLabel?.courier === 'Self Shipment') {
+                                        printSelfShipmentLabel(printMode);
+                                    } else if (selectedShipmentForLabel?.clientType === 'shopify' || !!selectedShipmentForLabel?.shopifyOrderId) {
                                         printShopifyLabel(printMode);
                                     } else if (selectedShipmentForLabel?.courier === 'DTDC') {
                                         printDTDCLabel();
@@ -652,7 +658,9 @@ const Shipments = () => {
                     </div>
                     <div className="p-6 flex justify-center bg-gray-50/50 max-h-[70vh] overflow-auto">
                         {selectedShipmentForLabel && (
-                            (selectedShipmentForLabel.clientType === 'shopify' || !!selectedShipmentForLabel.shopifyOrderId) ? (
+                            selectedShipmentForLabel.courier === 'Self Shipment' ? (
+                                <SelfShipmentLabel shipment={selectedShipmentForLabel} />
+                            ) : (selectedShipmentForLabel.clientType === 'shopify' || !!selectedShipmentForLabel.shopifyOrderId) ? (
                                 <ShopifyLabel shipment={selectedShipmentForLabel} />
                             ) : selectedShipmentForLabel.courier === 'DTDC' ? (
                                 <DTDCLabel referenceNumber={selectedShipmentForLabel.courierTrackingId || selectedShipmentForLabel.dtdcReferenceNumber || ''} />

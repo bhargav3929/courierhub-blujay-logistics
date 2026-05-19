@@ -1,0 +1,298 @@
+{
+    "_comment": "Firestore composite indexes for the B2B platform. Deploy via `firebase deploy --only firestore:indexes`. See docs/b2b/FIRESTORE_INDEXES.md for the full strategy + which queries each index serves. Each index has a `_for` field describing its purpose; that field is ignored by Firebase.",
+    "indexes": [
+        {
+            "_for": "admin dashboard, partner-scoped status filter",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin externalRef lookup within partner",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "externalRef", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "admin dashboard, partner + client filter",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "clientId", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "AWB lookup (carrier code + AWB pair is unique)",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "courier.awb", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: filter by fulfillmentMode only",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "fulfillmentMode", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: filter by trackingMode only",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "trackingMode", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: filter by shipmentSource only",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "shipmentSource", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: status filter, no partner",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: courier filter, no partner",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: clientId filter, no partner scoping",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "clientId", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: label-status filter",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "artifacts.label.status", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: awaiting-reconciliation toggle, default sort",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "awaitingCarrierReconciliation", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: status + courier",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: partner + courier",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: partner + fulfillmentMode",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "fulfillmentMode", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: partner + label status",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "artifacts.label.status", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: label-status + fulfillmentMode (the case Firebase surfaced)",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "artifacts.label.status", "order": "ASCENDING" },
+                { "fieldPath": "fulfillmentMode", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "admin: courier + fulfillmentMode",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "fulfillmentMode", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "polling worker — pick due shipments by mode + last event",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "fulfillmentMode", "order": "ASCENDING" },
+                { "fieldPath": "tracking.lastEventAt", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "BookingReconciler — due-now queue",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "awaitingCarrierReconciliation", "order": "ASCENDING" },
+                { "fieldPath": "reconcileNextAttemptAt", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "Operations: label failure queue (pending with attempts)",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "artifacts.label.status", "order": "ASCENDING" },
+                { "fieldPath": "artifacts.label.attempts", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "LabelRetrievalJob — pending labels for a fulfillment mode",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "fulfillmentMode", "order": "ASCENDING" },
+                { "fieldPath": "artifacts.label.status", "order": "ASCENDING" },
+                { "fieldPath": "artifacts.label.attempts", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "Carrier Health panel — stuck-in-transit per carrier",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "tracking.lastEventAt", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "Carrier Health panel — label status per carrier",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "courier.code", "order": "ASCENDING" },
+                { "fieldPath": "artifacts.label.status", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "Carrier Health panel — reconcile count per carrier",
+            "collectionGroup": "shipments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "reconcileCourier", "order": "ASCENDING" },
+                { "fieldPath": "awaitingCarrierReconciliation", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "partner-scoped event lookup, oldest-first",
+            "collectionGroup": "events",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "occurredAt", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "partner-scoped event lookup, newest-first",
+            "collectionGroup": "events",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "occurredAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "Generic job dispatcher — pick by status + run-at",
+            "collectionGroup": "b2b_jobs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "runAt", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "Topic-specific dispatcher",
+            "collectionGroup": "b2b_jobs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "topic", "order": "ASCENDING" },
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "runAt", "order": "ASCENDING" }
+            ]
+        },
+        {
+            "_for": "RateCardEngine — pick latest active card for partner/client",
+            "collectionGroup": "rate_cards",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "partnerId", "order": "ASCENDING" },
+                { "fieldPath": "clientId", "order": "ASCENDING" },
+                { "fieldPath": "activeFrom", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "_for": "Operations: compensation_failed sagas queue",
+            "collectionGroup": "b2b_sagas",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "status", "order": "ASCENDING" },
+                { "fieldPath": "updatedAt", "order": "DESCENDING" }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}

@@ -1,0 +1,15 @@
+{
+  "carrier": "delhivery",
+  "kind": "webhook",
+  "capturedAt": "2026-05-15T11:00:00.000Z",
+  "notes": "Synthetic skeleton — status `In Transit`. Replace with a sanitized sandbox capture. Signature against `whsec_fixture`.",
+  "method": "POST",
+  "url": "/api/v1/b2b/webhooks/courier/delhivery?partner=test_partner_validation",
+  "headers": {
+    "host": "test.example.invalid",
+    "content-type": "application/json",
+    "x-delhivery-signature": "be9920f9a1196e44339e59836c756d2b6641cac0371acaba7d7e03aadd2ac8ee"
+  },
+  "rawBody": "eyJTaGlwbWVudCI6eyJBV0IiOiJBV0ItRklYVFVSRS0yIiwiU3RhdHVzIjp7IlN0YXR1cyI6IkluIFRyYW5zaXQiLCJTdGF0dXNEYXRlVGltZSI6IjIwMjYtMDUtMTVUMTE6MDA6MDAiLCJTdGF0dXNMb2NhdGlvbiI6IkZJWFRVUkVfQUREUkVTU18zIn19fQ==",
+  "bodyText": "{\"Shipment\":{\"AWB\":\"AWB-FIXTURE-2\",\"Status\":{\"Status\":\"In Transit\",\"StatusDateTime\":\"2026-05-15T11:00:00\",\"StatusLocation\":\"FIXTURE_ADDRESS_3\"}}}"
+}

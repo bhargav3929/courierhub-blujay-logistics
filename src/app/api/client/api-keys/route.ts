@@ -36,9 +36,20 @@ export async function GET(request: NextRequest) {
     }
 }
 
-const CreateBody = z.object({
-    label: z.string().min(1).max(100),
-});
+// Discriminated body: either a B2C merchant key or a B2B partner key.
+const CreateBody = z.discriminatedUnion('keyType', [
+    z.object({
+        keyType: z.literal('b2c'),
+        label: z.string().min(1).max(100),
+    }),
+    z.object({
+        keyType: z.literal('b2b'),
+        label: z.string().min(1).max(100),
+        partnerName: z.string().min(1).max(100),
+        environment: z.enum(['sandbox', 'production']),
+        webhookUrl: z.string().url().max(500).optional(),
+    }),
+]);
 
 export async function POST(request: NextRequest) {
     const auth = await authenticateRequest(request);
@@ -51,16 +62,22 @@ export async function POST(request: NextRequest) {
     }
     try {
         const json = await request.json().catch(() => ({}));
-        const parsed = CreateBody.safeParse(json);
+        // Backwards-compat: if `keyType` is missing, default to 'b2c' so
+        // legacy clients that only sent { label } keep working.
+        const normalized =
+            json && typeof json === 'object' && !('keyType' in json)
+                ? { ...json, keyType: 'b2c' }
+                : json;
+        const parsed = CreateBody.safeParse(normalized);
         if (!parsed.success) {
             return NextResponse.json(
                 { error: 'Invalid body', issues: parsed.error.flatten() },
                 { status: 400 }
             );
         }
-        const minted = await mintApiKey(auth.clientId, parsed.data.label);
+        const minted = await mintApiKey(auth.clientId, parsed.data);
         console.log(
-            `[client/api-keys POST] minted key=${minted.id} for client=${auth.clientId}`
+            `[client/api-keys POST] minted key=${minted.id} scope=${minted.scope} for client=${auth.clientId}`
         );
         // Raw key returned ONCE — UI must show it to the user and remind
         // them it cannot be retrieved later.

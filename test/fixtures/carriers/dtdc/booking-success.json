@@ -1,0 +1,8 @@
+{
+  "carrier": "dtdc",
+  "kind": "booking_response",
+  "capturedAt": "2026-05-15T10:00:00.000Z",
+  "notes": "Synthetic skeleton — replace with a sanitized sandbox capture.",
+  "rawBody": "eyJzdWNjZXNzIjp0cnVlLCJkYXRhIjpbeyJyZWZlcmVuY2VfbnVtYmVyIjoiZml4dHVyZS1pZGVtLTAwMSIsInN1Y2Nlc3MiOnRydWUsIm1lc3NhZ2UiOiJTVUNDRVNTIiwiY25fbnVtYmVyIjoiQVdCLUZJWFRVUkUtMyJ9XX0=",
+  "bodyText": "{\"success\":true,\"data\":[{\"reference_number\":\"fixture-idem-001\",\"success\":true,\"message\":\"SUCCESS\",\"cn_number\":\"AWB-FIXTURE-3\"}]}"
+}

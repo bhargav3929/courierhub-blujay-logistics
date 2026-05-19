@@ -1,0 +1,15 @@
+{
+  "carrier": "delhivery",
+  "kind": "webhook",
+  "capturedAt": "2026-05-17T09:00:00.000Z",
+  "notes": "Synthetic skeleton — status `RTO` (return to origin initiated). Replace with a sanitized sandbox capture.",
+  "method": "POST",
+  "url": "/api/v1/b2b/webhooks/courier/delhivery?partner=test_partner_validation",
+  "headers": {
+    "host": "test.example.invalid",
+    "content-type": "application/json",
+    "x-delhivery-signature": "77897f8e997705f0be9fd4e7222870d1003810a5276af25d51ea83afc740e9ea"
+  },
+  "rawBody": "eyJTaGlwbWVudCI6eyJBV0IiOiJBV0ItRklYVFVSRS0yIiwiU3RhdHVzIjp7IlN0YXR1cyI6IlJUTyIsIlN0YXR1c0RhdGVUaW1lIjoiMjAyNi0wNS0xN1QwOTowMDowMCIsIlN0YXR1c0xvY2F0aW9uIjoiRklYVFVSRV9BRERSRVNTXzMifX19",
+  "bodyText": "{\"Shipment\":{\"AWB\":\"AWB-FIXTURE-2\",\"Status\":{\"Status\":\"RTO\",\"StatusDateTime\":\"2026-05-17T09:00:00\",\"StatusLocation\":\"FIXTURE_ADDRESS_3\"}}}"
+}

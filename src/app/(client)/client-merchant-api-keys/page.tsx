@@ -620,23 +620,21 @@ const MerchantApiKeysPage = () => {
                                 <KeyRound className="h-5 w-5 text-white" />
                             </div>
                             <h1 className="text-3xl font-extrabold tracking-tight">
-                                Merchant API Keys
+                                API Keys
                             </h1>
                         </div>
                         <p className="text-muted-foreground max-w-2xl">
-                            Connect your storefront backend to Blujay. Generate a key,
-                            drop it into your server, and start syncing paid orders into
-                            shipments — automatically.
+                            All your API keys in one place — B2C merchant (storefront sync)
+                            and B2B partner (full platform access). Pick the type when
+                            creating a new key.
                         </p>
                     </div>
-                    <Badge
-                        variant="outline"
-                        className="self-start md:self-auto px-3 py-1.5 gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400"
-                    >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span className="text-xs font-medium">Production-ready</span>
-                    </Badge>
                 </div>
+
+                {/* Unified key list — shows ALL keys (both B2C and B2B). Create
+                    dialog has an inline type toggle. Docs for both types live
+                    below this card. */}
+                <ApiKeyManager hideDocs />
 
                 {/* 1. OVERVIEW */}
                 <Card className="border-none shadow-md bg-gradient-to-br from-blue-50 via-white to-violet-50 dark:from-blue-950/30 dark:via-slate-900 dark:to-violet-950/30">
@@ -712,10 +710,6 @@ const MerchantApiKeysPage = () => {
                         </div>
                     </CardContent>
                 </Card>
-
-                {/* 2. GENERATE & MANAGE — reuses the existing ApiKeyManager,
-                    with its inline docs hidden because this page provides them. */}
-                <ApiKeyManager hideDocs />
 
                 {/* 3. HOW TO USE */}
                 <Card>

@@ -1,0 +1,8 @@
+{
+  "carrier": "delhivery",
+  "kind": "booking_response",
+  "capturedAt": "2026-05-15T10:00:00.000Z",
+  "notes": "Synthetic skeleton — replace with a sanitized sandbox capture.",
+  "rawBody": "eyJzdWNjZXNzIjp0cnVlLCJwYWNrYWdlcyI6W3sid2F5YmlsbCI6IkFXQi1GSVhUVVJFLTIiLCJyZWZudW0iOiJmaXh0dXJlLWlkZW0tMDAxIiwic3RhdHVzIjoiU3VjY2VzcyIsInJlbWFya3MiOltdfV19",
+  "bodyText": "{\"success\":true,\"packages\":[{\"waybill\":\"AWB-FIXTURE-2\",\"refnum\":\"fixture-idem-001\",\"status\":\"Success\",\"remarks\":[]}]}"
+}

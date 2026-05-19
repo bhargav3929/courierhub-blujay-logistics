@@ -1,0 +1,15 @@
+{
+  "carrier": "bluedart",
+  "kind": "webhook",
+  "capturedAt": "2026-05-15T10:00:00.000Z",
+  "notes": "Synthetic skeleton — scan code 04 (Picked Up). Replace with a sanitized sandbox capture. Signature recomputed against fixture secret `whsec_fixture`.",
+  "method": "POST",
+  "url": "/api/v1/b2b/webhooks/courier/bluedart?partner=test_partner_validation",
+  "headers": {
+    "host": "test.example.invalid",
+    "content-type": "application/json",
+    "x-bd-signature": "5e80a358b3ab76d1a7d997ca19582fb50b2f45dbc8191492ee160272048a0b80"
+  },
+  "rawBody": "eyJhd2JObyI6IkFXQi1GSVhUVVJFLTEiLCJzY2FuQ29kZSI6IjA0Iiwic2NhbkRlc2NyaXB0aW9uIjoiUGlja2VkIHVwIGZyb20gc2hpcHBlciIsInNjYW5EYXRlIjoiMjAyNi0wNS0xNVQxMDowMDowMCIsInNjYW5Mb2NhdGlvbiI6IkZJWFRVUkVfQUREUkVTU18xIn0=",
+  "bodyText": "{\"awbNo\":\"AWB-FIXTURE-1\",\"scanCode\":\"04\",\"scanDescription\":\"Picked up from shipper\",\"scanDate\":\"2026-05-15T10:00:00\",\"scanLocation\":\"FIXTURE_ADDRESS_1\"}"
+}
