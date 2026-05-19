@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw, RefreshCw, MapPin, Clock } from "lucide-react";
+import { Search, Filter, Download, ExternalLink, MoreVertical, Plus, BadgeCheck, ShoppingBag, Package, AlertTriangle, CheckCircle2, XCircle, Loader2, Truck, RotateCcw, RefreshCw, MapPin, Clock, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     DropdownMenu,
@@ -28,6 +28,8 @@ import {
     AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { BlueDartLabel, printBlueDartLabel } from "@/components/shipments/BlueDartLabel";
+import { SelfShipmentLabel, printSelfShipmentLabel } from "@/components/shipments/SelfShipmentLabel";
+import { SelfShipmentTrackingDialog } from "@/components/client/SelfShipmentTrackingDialog";
 import { DTDCLabel, printDTDCLabel } from "@/components/shipments/DTDCLabel";
 import { ShopifyLabel, printShopifyLabel, printBulkShopifyLabels } from "@/components/shipments/ShopifyLabel";
 import { ShipmentManifest, printManifest } from "@/components/shipments/ShipmentManifest";
@@ -120,6 +122,7 @@ const ClientShipments = () => {
 
     // Tracking state
     const [trackingShipment, setTrackingShipment] = useState<Shipment | null>(null);
+    const [selfShipTrackingShipment, setSelfShipTrackingShipment] = useState<Shipment | null>(null);
     const [trackingData, setTrackingData] = useState<any>(null);
     const [trackingLoading, setTrackingLoading] = useState(false);
     const [trackingError, setTrackingError] = useState<string | null>(null);
@@ -694,6 +697,35 @@ const ClientShipments = () => {
         fetchShipments();
     };
 
+    // Self-shipment status updates. No carrier API; just write the new
+    // status to Firestore and refresh local state. We also write
+    // trackingStatus so the table badge (which derives from
+    // trackingStatus) stays in sync with the timeline (which derives
+    // from status). For a self-shipment they are the same source of
+    // truth — the sender entering manual updates.
+    const handleAdvanceSelfShipmentStatus = async (
+        shipment: Shipment,
+        next: 'transit' | 'delivered',
+    ) => {
+        if (!shipment.id) return;
+        const verb = next === 'transit' ? 'In Transit' : 'Delivered';
+        if (!confirm(`Mark this self-shipment as ${verb}?`)) return;
+        const toastId = toast.loading(`Marking ${verb}...`);
+        try {
+            const nextTracking = legacyStatusToTracking(next);
+            await updateShipment(shipment.id, {
+                status: next,
+                trackingStatus: nextTracking,
+            });
+            setShipments(prev => prev.map(s =>
+                s.id === shipment.id ? { ...s, status: next, trackingStatus: nextTracking } : s
+            ));
+            toast.success(`Marked ${verb}`, { id: toastId });
+        } catch (e: any) {
+            toast.error(`Failed: ${e.message || e}`, { id: toastId });
+        }
+    };
+
     const handleCancelShipment = async (shipment: Shipment) => {
         if (!shipment.id || !shipment.courierTrackingId) {
             toast.error("Invalid shipment data for cancellation");
@@ -709,6 +741,8 @@ const ClientShipments = () => {
                 await dtdcService.cancelShipment(shipment.courierTrackingId);
             } else if (shipment.courier === 'Delhivery') {
                 await delhiveryService.cancelShipment(shipment.courierTrackingId);
+            } else if (shipment.courier === 'Self Shipment') {
+                // No carrier API. Just mark cancelled locally.
             } else {
                 await blueDartService.cancelWaybill(shipment.courierTrackingId);
             }
@@ -849,6 +883,13 @@ const ClientShipments = () => {
             return;
         }
 
+        // Self-shipment rows use the simplified, client-facing tracking
+        // dialog (timeline-only, no raw events or diagnostics).
+        if (shipment.courier === 'Self Shipment') {
+            setSelfShipTrackingShipment(shipment);
+            return;
+        }
+
         setTrackingShipment(shipment);
         setTrackingData(null);
         setTrackingError(null);
@@ -860,13 +901,24 @@ const ClientShipments = () => {
                 data = await dtdcService.trackShipment(shipment.courierTrackingId);
             } else if (shipment.courier === 'Delhivery') {
                 data = await delhiveryService.trackShipment(shipment.courierTrackingId);
+            } else if (shipment.courier === 'Self Shipment') {
+                // No carrier. Surface the local status as the tracking source of truth.
+                data = {
+                    selfShipment: true,
+                    currentStatus: shipment.trackingStatus || shipment.status,
+                    note: 'This is a self-shipment. Status updates are manual.',
+                    trackingId: shipment.courierTrackingId,
+                };
             } else {
                 data = await blueDartService.trackShipment(shipment.courierTrackingId);
             }
             setTrackingData(data);
 
-            // Auto-sync tracking status to Firestore
-            syncTrackingStatus(shipment, data);
+            // Auto-sync tracking status to Firestore (skip for self-shipment — no
+            // carrier signal to merge from).
+            if (shipment.courier !== 'Self Shipment') {
+                syncTrackingStatus(shipment, data);
+            }
         } catch (error: any) {
             console.error('Tracking error:', error);
             const msg = error.response?.data?.error || error.response?.data?.details || error.message || 'Failed to fetch tracking information';
@@ -881,6 +933,7 @@ const ClientShipments = () => {
     const handleRefreshAllTracking = async () => {
         const activeShipments = bookedShipments.filter(s =>
             s.courierTrackingId &&
+            s.courier !== 'Self Shipment' &&
             s.status !== 'cancelled' &&
             s.status !== 'declined' &&
             s.trackingStatus !== 'delivered' &&
@@ -1867,6 +1920,49 @@ const ClientShipments = () => {
                                                         </>
                                                     )}
                                                     <td className="px-4 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' && (
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={`px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 transition-colors ${
+                                                                                shp.status === 'transit'
+                                                                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                                                                    : 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                                                                            }`}
+                                                                        >
+                                                                            {shp.status === 'transit' ? (
+                                                                                <><Truck className="h-3 w-3" /> In Transit</>
+                                                                            ) : (
+                                                                                <><Clock className="h-3 w-3" /> Pending</>
+                                                                            )}
+                                                                            <ChevronDown className="h-3 w-3 opacity-60" />
+                                                                        </button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end" className="w-44 p-1.5 rounded-lg">
+                                                                        {shp.status === 'pending' && (
+                                                                            <DropdownMenuItem
+                                                                                className="flex items-center gap-2 cursor-pointer p-2 rounded-md text-violet-700 focus:text-violet-700 focus:bg-violet-50"
+                                                                                onClick={() => handleAdvanceSelfShipmentStatus(shp, 'transit')}
+                                                                            >
+                                                                                <Truck className="h-3.5 w-3.5" /> Mark In Transit
+                                                                            </DropdownMenuItem>
+                                                                        )}
+                                                                        <DropdownMenuItem
+                                                                            className="flex items-center gap-2 cursor-pointer p-2 rounded-md text-emerald-700 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                            onClick={() => handleAdvanceSelfShipmentStatus(shp, 'delivered')}
+                                                                        >
+                                                                            <CheckCircle2 className="h-3.5 w-3.5" /> Mark Delivered
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            )}
+                                                            {shp.courier === 'Self Shipment' && shp.status === 'delivered' && (
+                                                                <span className="px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 bg-slate-100 text-slate-600">
+                                                                    <CheckCircle2 className="h-3 w-3" /> Delivered
+                                                                </span>
+                                                            )}
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger className="p-2 hover:bg-muted rounded-lg transition-colors">
                                                                 <MoreVertical className="h-4 w-4" />
@@ -1908,6 +2004,22 @@ const ClientShipments = () => {
                                                                         <RotateCcw className="h-4 w-4" /> Return Shipment
                                                                     </DropdownMenuItem>
                                                                 )}
+                                                                {shp.courier === 'Self Shipment' && shp.status === 'pending' && (
+                                                                    <DropdownMenuItem
+                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-violet-700 focus:text-violet-700 focus:bg-violet-50"
+                                                                        onClick={() => handleAdvanceSelfShipmentStatus(shp, 'transit')}
+                                                                    >
+                                                                        <Truck className="h-4 w-4" /> Mark In Transit
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' && (
+                                                                    <DropdownMenuItem
+                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-emerald-700 focus:text-emerald-700 focus:bg-emerald-50"
+                                                                        onClick={() => handleAdvanceSelfShipmentStatus(shp, 'delivered')}
+                                                                    >
+                                                                        <CheckCircle2 className="h-4 w-4" /> Mark Delivered
+                                                                    </DropdownMenuItem>
+                                                                )}
                                                                 {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
                                                                     <DropdownMenuItem
                                                                         className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -1922,6 +2034,7 @@ const ClientShipments = () => {
                                                                 )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -2139,9 +2252,11 @@ const ClientShipments = () => {
                                     Shipping Label
                                 </h2>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                    {currentUser?.role === 'shopify'
-                                        ? `Shopify · ${selectedShipmentForLabel?.courier || ''}`
-                                        : selectedShipmentForLabel?.courier || ''}
+                                    {selectedShipmentForLabel?.courier === 'Self Shipment'
+                                        ? 'Self Shipment'
+                                        : currentUser?.role === 'shopify'
+                                            ? `Shopify · ${selectedShipmentForLabel?.courier || ''}`
+                                            : selectedShipmentForLabel?.courier || ''}
                                 </p>
                             </div>
                             <button
@@ -2178,7 +2293,13 @@ const ClientShipments = () => {
                             ) : <div />}
                             <button
                                 onClick={() => {
-                                    if (currentUser?.role === 'shopify') {
+                                    // Self Shipment must win regardless of user role:
+                                    // a Shopify-tenant client may still book a self-shipment
+                                    // and the label must reflect that, not the carrier-shaped
+                                    // Shopify template.
+                                    if (selectedShipmentForLabel?.courier === 'Self Shipment') {
+                                        printSelfShipmentLabel(printMode);
+                                    } else if (currentUser?.role === 'shopify') {
                                         printShopifyLabel(printMode);
                                     } else if (selectedShipmentForLabel?.courier === 'DTDC') {
                                         printDTDCLabel();
@@ -2202,7 +2323,9 @@ const ClientShipments = () => {
                     </div>
                     <div className="p-6 flex justify-center bg-gray-50/50">
                         {selectedShipmentForLabel && (
-                            currentUser?.role === 'shopify' ? (
+                            selectedShipmentForLabel.courier === 'Self Shipment' ? (
+                                <SelfShipmentLabel shipment={selectedShipmentForLabel} />
+                            ) : currentUser?.role === 'shopify' ? (
                                 <ShopifyLabel shipment={selectedShipmentForLabel} />
                             ) : selectedShipmentForLabel.courier === 'DTDC' ? (
                                 <DTDCLabel referenceNumber={selectedShipmentForLabel.courierTrackingId || selectedShipmentForLabel.dtdcReferenceNumber || ''} />
@@ -2278,6 +2401,12 @@ const ClientShipments = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Self-shipment simplified tracking */}
+            <SelfShipmentTrackingDialog
+                shipment={selfShipTrackingShipment}
+                onClose={() => setSelfShipTrackingShipment(null)}
+            />
 
             {/* Tracking Dialog */}
             <Dialog open={!!trackingShipment} onOpenChange={(open) => { if (!open) { setTrackingShipment(null); setTrackingData(null); setTrackingError(null); } }}>

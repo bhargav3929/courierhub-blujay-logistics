@@ -1,0 +1,8 @@
+{
+  "carrier": "bluedart",
+  "kind": "booking_response",
+  "capturedAt": "2026-05-15T10:00:00.000Z",
+  "notes": "Synthetic skeleton — replace with a sanitized sandbox capture.",
+  "rawBody": "eyJSZXNwb25zZSI6eyJBV0JObyI6IkFXQi1GSVhUVVJFLTEiLCJMYWJlbFVSTCI6Imh0dHBzOi8vc2FuZGJveC5leGFtcGxlLmludmFsaWQvbGFiZWwvQVdCLUZJWFRVUkUtMS5wZGYiLCJTdGF0dXMiOiJTdWNjZXNzIn19",
+  "bodyText": "{\"Response\":{\"AWBNo\":\"AWB-FIXTURE-1\",\"LabelURL\":\"https://sandbox.example.invalid/label/AWB-FIXTURE-1.pdf\",\"Status\":\"Success\"}}"
+}

@@ -216,6 +216,12 @@ export interface Shipment {
 
     // Additional info
     notes?: string;
+    expectedDeliveryDate?: string;     // ISO date — self-shipment optional input
+
+    // Fulfillment / tracking mode — set by the booking handler. Drives UI
+    // branches (e.g., simplified timeline for self-shipment).
+    fulfillmentMode?: 'courier' | 'self_shipment' | 'pickup_only';
+    trackingMode?: 'automatic' | 'manual' | 'hybrid';
 
     // Return shipment metadata
     shipmentType?: 'forward' | 'return';   // undefined = forward (backward compat)

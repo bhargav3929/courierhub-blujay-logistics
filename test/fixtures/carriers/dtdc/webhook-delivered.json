@@ -1,0 +1,15 @@
+{
+  "carrier": "dtdc",
+  "kind": "webhook",
+  "capturedAt": "2026-05-16T11:45:00.000Z",
+  "notes": "Synthetic skeleton — strAction `Delivered`. Replace with a sanitized sandbox capture.",
+  "method": "POST",
+  "url": "/api/v1/b2b/webhooks/courier/dtdc?partner=test_partner_validation",
+  "headers": {
+    "host": "test.example.invalid",
+    "content-type": "application/json",
+    "x-dtdc-token": "whsec_fixture"
+  },
+  "rawBody": "eyJ0cmFja0hlYWRlciI6eyJzdHJTaGlwbWVudE5vIjoiQVdCLUZJWFRVUkUtMyIsInN0ck9yaWdpbiI6IkZJWFRVUkVfQUREUkVTU180Iiwic3RyRGVzdGluYXRpb24iOiJGSVhUVVJFX0FERFJFU1NfNSJ9LCJ0cmFja0RldGFpbHMiOlt7InN0ckFjdGlvbiI6IkRlbGl2ZXJlZCIsInN0ckFjdGlvbkRhdGUiOiIxNS8wNS8yMDI2Iiwic3RyQWN0aW9uVGltZSI6IjExOjQ1Iiwic3RyT3JpZ2luIjoiRklYVFVSRV9BRERSRVNTXzUifV19",
+  "bodyText": "{\"trackHeader\":{\"strShipmentNo\":\"AWB-FIXTURE-3\",\"strOrigin\":\"FIXTURE_ADDRESS_4\",\"strDestination\":\"FIXTURE_ADDRESS_5\"},\"trackDetails\":[{\"strAction\":\"Delivered\",\"strActionDate\":\"15/05/2026\",\"strActionTime\":\"11:45\",\"strOrigin\":\"FIXTURE_ADDRESS_5\"}]}"
+}

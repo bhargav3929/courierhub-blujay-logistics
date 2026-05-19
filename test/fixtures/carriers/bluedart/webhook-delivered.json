@@ -1,0 +1,15 @@
+{
+  "carrier": "bluedart",
+  "kind": "webhook",
+  "capturedAt": "2026-05-16T14:30:00.000Z",
+  "notes": "Synthetic skeleton — scan code 11 (Delivered). Replace with a sanitized sandbox capture.",
+  "method": "POST",
+  "url": "/api/v1/b2b/webhooks/courier/bluedart?partner=test_partner_validation",
+  "headers": {
+    "host": "test.example.invalid",
+    "content-type": "application/json",
+    "x-bd-signature": "e9e5026ba92aef33d4e1a830c85e0c0ffc10363b3b17b837fb19f8b3549ece17"
+  },
+  "rawBody": "eyJhd2JObyI6IkFXQi1GSVhUVVJFLTEiLCJzY2FuQ29kZSI6IjExIiwic2NhbkRlc2NyaXB0aW9uIjoiU2hpcG1lbnQgRGVsaXZlcmVkIiwic2NhbkRhdGUiOiIyMDI2LTA1LTE2VDE0OjMwOjAwIiwic2NhbkxvY2F0aW9uIjoiRklYVFVSRV9BRERSRVNTXzIifQ==",
+  "bodyText": "{\"awbNo\":\"AWB-FIXTURE-1\",\"scanCode\":\"11\",\"scanDescription\":\"Shipment Delivered\",\"scanDate\":\"2026-05-16T14:30:00\",\"scanLocation\":\"FIXTURE_ADDRESS_2\"}"
+}

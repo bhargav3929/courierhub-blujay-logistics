@@ -1,0 +1,15 @@
+{
+  "carrier": "dtdc",
+  "kind": "webhook",
+  "capturedAt": "2026-05-16T08:30:00.000Z",
+  "notes": "Synthetic skeleton — strAction `Out for delivery`. Replace with a sanitized sandbox capture. DTDC uses a static per-partner token (`whsec_fixture`) in `x-dtdc-token`.",
+  "method": "POST",
+  "url": "/api/v1/b2b/webhooks/courier/dtdc?partner=test_partner_validation",
+  "headers": {
+    "host": "test.example.invalid",
+    "content-type": "application/json",
+    "x-dtdc-token": "whsec_fixture"
+  },
+  "rawBody": "eyJ0cmFja0hlYWRlciI6eyJzdHJTaGlwbWVudE5vIjoiQVdCLUZJWFRVUkUtMyIsInN0ck9yaWdpbiI6IkZJWFRVUkVfQUREUkVTU180Iiwic3RyRGVzdGluYXRpb24iOiJGSVhUVVJFX0FERFJFU1NfNSJ9LCJ0cmFja0RldGFpbHMiOlt7InN0ckFjdGlvbiI6Ik91dCBmb3IgZGVsaXZlcnkiLCJzdHJBY3Rpb25EYXRlIjoiMTUvMDUvMjAyNiIsInN0ckFjdGlvblRpbWUiOiIwODozMCIsInN0ck9yaWdpbiI6IkZJWFRVUkVfQUREUkVTU181In1dfQ==",
+  "bodyText": "{\"trackHeader\":{\"strShipmentNo\":\"AWB-FIXTURE-3\",\"strOrigin\":\"FIXTURE_ADDRESS_4\",\"strDestination\":\"FIXTURE_ADDRESS_5\"},\"trackDetails\":[{\"strAction\":\"Out for delivery\",\"strActionDate\":\"15/05/2026\",\"strActionTime\":\"08:30\",\"strOrigin\":\"FIXTURE_ADDRESS_5\"}]}"
+}

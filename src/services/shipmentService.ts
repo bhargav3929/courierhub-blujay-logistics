@@ -175,6 +175,37 @@ export const getAllShipments = async (filters?: ShipmentFilters): Promise<Shipme
             ...doc.data()
         } as Shipment));
 
+        // Also fetch B2B shipments for this client. The B2B platform writes
+        // to the same `shipments` collection but uses `partnerId` instead of
+        // `clientId`. We mint B2B keys with partnerId = `client_<clientId>`,
+        // so this second query surfaces all B2B-booked shipments alongside
+        // the client's legacy shipments — a single tab shows both.
+        if (filters?.clientId) {
+            try {
+                const b2bQ = query(
+                    collection(db, SHIPMENTS_COLLECTION),
+                    where('partnerId', '==', `client_${filters.clientId}`),
+                );
+                const b2bSnap = await getDocs(b2bQ);
+                const b2bDocs = b2bSnap.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                } as Shipment));
+                // Dedupe by id (defense in depth — a doc shouldn't appear
+                // in both queries, but if some legacy migration sets both
+                // fields we want to keep one copy).
+                const seen = new Set(shipments.map(s => s.id));
+                for (const s of b2bDocs) {
+                    if (!seen.has(s.id)) shipments.push(s);
+                }
+            } catch (e) {
+                // Don't fail the whole list if B2B fetch fails (e.g. missing
+                // composite index for partnerId-only queries — auto-index
+                // covers it but be defensive).
+                console.warn('[getAllShipments] B2B merge failed:', (e as Error)?.message);
+            }
+        }
+
         // Client-side date filtering when clientId is set (to avoid composite index requirement)
         if (filters?.clientId) {
             if (filters.startDate) {

@@ -1,0 +1,6 @@
+bluedart/captured/
+delhivery/captured/
+dtdc/captured/
+
+# Sanitized variants live at the carrier dir root; everything below
+# captured/ is local scratch space and must not be committed.
