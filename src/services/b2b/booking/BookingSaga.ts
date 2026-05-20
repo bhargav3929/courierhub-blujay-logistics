@@ -116,7 +116,7 @@ function persistDraftStep(deps: BookingSagaDeps): SagaStep<BookingSagaState> {
             // We deliberately do NOT delete it — that would lose the
             // audit trail of "this booking was attempted and failed".
             log.debug('persist_draft compensation: draft retained for audit', {
-                shipmentId: state.shipmentId,
+                shipmentId: state.shipmentId ?? undefined,
             });
         },
     };
