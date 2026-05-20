@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, ShieldCheck, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertTriangle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
     const [values, setValues] = useState<Record<string, string>>({});
     const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
     const [submitting, setSubmitting] = useState(false);
+    const [successInfo, setSuccessInfo] = useState<{ name: string; account?: string } | null>(null);
 
     // Reset when the courier changes
     useEffect(() => {
@@ -34,6 +35,7 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
             }
             setValues(defaults);
             setVisibleSecrets({});
+            setSuccessInfo(null);
         }
     }, [courier?.id]);
 
@@ -54,19 +56,23 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
         setSubmitting(true);
         try {
             const result = await connectCourier(courier.id, values);
-            toast.success(`${courier.name} connected`, {
-                description: result.integration?.publicMeta?.accountIdentifier,
-            });
+            const account = result.integration?.publicMeta?.accountIdentifier;
+            setSuccessInfo({ name: courier.name, account });
+            toast.success(`${courier.name} connected`, { description: account });
             if (result.warnings?.length) {
                 result.warnings.forEach((w) => toast.warning(w));
             }
             onConnected();
-            onOpenChange(false);
         } catch (err: any) {
             toast.error(err?.message || `Could not connect ${courier.name}`);
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const handleDoneClick = () => {
+        setSuccessInfo(null);
+        onOpenChange(false);
     };
 
     const isComingSoon = courier.status === 'coming_soon';
@@ -86,6 +92,33 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
                     </div>
                 </DialogHeader>
 
+                {successInfo ? (
+                    <div className="mt-4 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 dark:border-emerald-900 p-6 space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-emerald-500 grid place-items-center shadow-lg shadow-emerald-500/30">
+                                <CheckCircle2 className="h-7 w-7 text-white" />
+                            </div>
+                            <div>
+                                <div className="font-extrabold text-lg text-emerald-900 dark:text-emerald-100">
+                                    {successInfo.name} connected
+                                </div>
+                                <div className="text-sm text-emerald-800/80 dark:text-emerald-200/80">
+                                    {successInfo.account
+                                        ? `Authenticated as ${successInfo.account}`
+                                        : 'Credentials verified and stored securely.'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="text-xs text-emerald-900/70 dark:text-emerald-100/70 leading-relaxed">
+                            You'll see this courier as an option on the Add Shipment page. Labels, tracking and cancellation will use this account from now on.
+                        </div>
+                        <div className="flex justify-end">
+                            <Button onClick={handleDoneClick} className="bg-emerald-600 hover:bg-emerald-700">
+                                Done
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
                 <div className="mt-2">
                     <p className="text-sm text-muted-foreground">{courier.description}</p>
                     {courier.docsUrl && (
@@ -99,6 +132,7 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
                         </a>
                     )}
                 </div>
+                )}
 
                 {isComingSoon && (
                     <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm flex gap-2 text-amber-900 dark:text-amber-100">
@@ -113,6 +147,7 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
                     </div>
                 )}
 
+                {!successInfo && (
                 <form onSubmit={handleSubmit} className="mt-5 space-y-4">
                     {courier.fields.map((field) => {
                         const id = `${courier.id}-${field.key}`;
@@ -214,6 +249,7 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
                         </Button>
                     </div>
                 </form>
+                )}
             </DialogContent>
         </Dialog>
     );

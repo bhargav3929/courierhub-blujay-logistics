@@ -551,7 +551,10 @@ const ClientIntegrations = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {COURIER_REGISTRY.map((c) => {
                         const integ = getIntegration(c.id);
-                        const isConnected = integ?.status === "connected";
+                        // Blue Dart is the platform default — every client ships through it
+                        // using Blujay's contracted credentials unless they connect their own.
+                        const isPlatformDefault = c.id === "bluedart" && !integ;
+                        const isConnected = integ?.status === "connected" || isPlatformDefault;
                         const isError = integ?.status === "error";
                         const comingSoon = c.status === "coming_soon";
 
@@ -610,7 +613,21 @@ const ClientIntegrations = () => {
                                         {c.description}
                                     </p>
 
-                                    {isConnected && integ?.publicMeta && (
+                                    {isPlatformDefault && (
+                                        <div className="rounded-md bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/60 p-2.5 text-xs space-y-1">
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-muted-foreground">Account</span>
+                                                <span className="font-medium font-mono text-emerald-800 dark:text-emerald-200">
+                                                    Managed by Blujay · Production
+                                                </span>
+                                            </div>
+                                            <div className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 leading-snug">
+                                                Every client ships through Blujay's Blue Dart contract by default. Connect your own credentials below to override.
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {isConnected && !isPlatformDefault && integ?.publicMeta && (
                                         <div className="rounded-md bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 p-2.5 text-xs space-y-1">
                                             <div className="flex justify-between gap-2">
                                                 <span className="text-muted-foreground">Account</span>
@@ -639,7 +656,17 @@ const ClientIntegrations = () => {
                                     )}
 
                                     <div className="pt-1 flex gap-1.5">
-                                        {isConnected ? (
+                                        {isPlatformDefault ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full"
+                                                onClick={() => setCourierDialogFor(c)}
+                                            >
+                                                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                                Connect your own account
+                                            </Button>
+                                        ) : isConnected ? (
                                             <>
                                                 <Button
                                                     variant="outline"

@@ -1713,6 +1713,28 @@ const AddShipment = () => {
                                     </div>
                                 )}
 
+                                {/* DTDC service info (single bookable tier on this contract) */}
+                                {selectedCourier === 'DTDC' && (
+                                    <div className="space-y-4 pt-2">
+                                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                            <Truck className="h-3 w-3" /> DTDC Service
+                                        </Label>
+                                        <div className="relative p-4 rounded-xl border-2 border-red-500 bg-red-50 shadow-md max-w-lg">
+                                            <div className="flex items-center gap-2">
+                                                <Truck className="h-4 w-4 text-red-600" />
+                                                <div className="font-bold text-sm">DTDC Smart Express</div>
+                                            </div>
+                                            <div className="mt-1.5 text-[11px] font-semibold text-red-700">3–5 days · Surface</div>
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                                                Your DTDC contract on this lane only supports Smart Express. Other tiers (Priority, Ground, Plus) require activating with DTDC support.
+                                            </div>
+                                            <div className="absolute top-2 right-2">
+                                                <BadgeCheck className="h-4 w-4 text-red-500" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Delhivery options */}
                                 {selectedCourier === 'Delhivery' && (
                                     <div className="space-y-4 pt-2">
