@@ -19,11 +19,20 @@ interface Props {
     onConnected: () => void | Promise<void>;
 }
 
+const COURIER_LOGOS: Record<string, string> = {
+    bluedart: '/logos/bluedart.png',
+    delhivery: '/logos/delhivery.png',
+    dtdc: '/logos/dtdc.png',
+    ecom_express: '/logos/ecom_express.png',
+    xpressbees: '/logos/xpressbees.png',
+};
+
 export function CourierConnectDialog({ courier, open, onOpenChange, onConnected }: Props) {
     const [values, setValues] = useState<Record<string, string>>({});
     const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
     const [submitting, setSubmitting] = useState(false);
     const [successInfo, setSuccessInfo] = useState<{ name: string; account?: string } | null>(null);
+    const [logoError, setLogoError] = useState(false);
 
     // Reset when the courier changes
     useEffect(() => {
@@ -36,6 +45,7 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
             setValues(defaults);
             setVisibleSecrets({});
             setSuccessInfo(null);
+            setLogoError(false);
         }
     }, [courier?.id]);
 
@@ -90,9 +100,21 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
             <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${courier.color} grid place-items-center shadow-md`}>
-                            <span className="text-white font-extrabold text-sm">{courier.name.charAt(0)}</span>
-                        </div>
+                        {COURIER_LOGOS[courier.id] && !logoError ? (
+                            <div className="h-10 w-10 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 grid place-items-center shadow-sm shrink-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={COURIER_LOGOS[courier.id]}
+                                    alt={`${courier.name} logo`}
+                                    className="h-full w-full object-contain p-1"
+                                    onError={() => setLogoError(true)}
+                                />
+                            </div>
+                        ) : (
+                            <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${courier.color} grid place-items-center shadow-md shrink-0`}>
+                                <span className="text-white font-extrabold text-sm">{courier.name.charAt(0)}</span>
+                            </div>
+                        )}
                         <div>
                             <DialogTitle className="text-xl">Connect {courier.name}</DialogTitle>
                             <DialogDescription>{courier.tagline}</DialogDescription>
