@@ -16,7 +16,7 @@ interface Props {
     courier: CourierRegistryEntry | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onConnected: () => void;
+    onConnected: () => void | Promise<void>;
 }
 
 export function CourierConnectDialog({ courier, open, onOpenChange, onConnected }: Props) {
@@ -57,12 +57,18 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
         try {
             const result = await connectCourier(courier.id, values);
             const account = result.integration?.publicMeta?.accountIdentifier;
+            // Refresh parent state BEFORE showing success — so by the time the
+            // user dismisses the dialog, the page cards are already in sync.
+            try {
+                await onConnected();
+            } catch (refreshErr) {
+                console.error('[CourierConnect] parent refresh failed', refreshErr);
+            }
             setSuccessInfo({ name: courier.name, account });
             toast.success(`${courier.name} connected`, { description: account });
             if (result.warnings?.length) {
                 result.warnings.forEach((w) => toast.warning(w));
             }
-            onConnected();
         } catch (err: any) {
             toast.error(err?.message || `Could not connect ${courier.name}`);
         } finally {
@@ -70,9 +76,11 @@ export function CourierConnectDialog({ courier, open, onOpenChange, onConnected 
         }
     };
 
-    const handleDoneClick = () => {
+    const handleDoneClick = async () => {
         setSuccessInfo(null);
         onOpenChange(false);
+        // Defensive second refetch in case the first one raced with Firestore.
+        try { await onConnected(); } catch { /* swallow */ }
     };
 
     const isComingSoon = courier.status === 'coming_soon';
