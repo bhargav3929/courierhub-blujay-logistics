@@ -26,7 +26,6 @@ import {
     Globe,
     Search,
     Plus,
-    Zap,
     Store,
     Puzzle,
     Truck,
@@ -35,7 +34,6 @@ import {
     RefreshCcw,
     AlertCircle,
     Cable,
-    Sparkles,
     ArrowRight,
     KeyRound,
 } from "lucide-react";
@@ -754,46 +752,21 @@ const ClientIntegrations = () => {
                 </Card>
             </section>
 
-            {/* ----- Shopify promo (only when not connected) ---------------- */}
-            {!isShopifyConnected && (
-                <section>
-                    <Card className="border-none bg-gradient-to-r from-blue-600 via-blue-600 to-violet-600 text-white shadow-lg overflow-hidden relative">
-                        <CardContent className="p-6 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center gap-5 relative z-10">
-                            <div className="h-12 w-12 rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur grid place-items-center shrink-0">
-                                <Zap className="h-6 w-6 text-amber-300" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                                    <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-white/80">
-                                        Limited launch offer
-                                    </span>
-                                </div>
-                                <div className="font-bold text-lg leading-snug">
-                                    Connect Shopify, get 10% off Air Express for 30 days
-                                </div>
-                                <p className="text-sm text-white/80 mt-0.5 leading-relaxed">
-                                    One-click OAuth — your Shopify orders show up here ready to ship.
-                                </p>
-                            </div>
-                            <Button
-                                onClick={() => setIsShopifyModalOpen(true)}
-                                className="shrink-0 bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-sm"
-                            >
-                                Set up Shopify
-                                <ArrowRight className="h-4 w-4 ml-1.5" />
-                            </Button>
-                        </CardContent>
-                        <div className="absolute -right-12 -top-12 h-48 w-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                    </Card>
-                </section>
-            )}
-
             {/* ----- Modals (preserved) ------------------------------------- */}
             <Dialog open={isShopifyModalOpen} onOpenChange={setIsShopifyModalOpen}>
                 <DialogContent className="sm:max-w-[500px] border-none bg-white dark:bg-slate-900 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle>Connect Shopify</DialogTitle>
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 grid place-items-center shadow-sm shrink-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src="https://cdn.simpleicons.org/shopify/95BF47"
+                                    alt="Shopify logo"
+                                    className="h-full w-full object-contain p-1.5"
+                                />
+                            </div>
+                            <DialogTitle className="text-xl">Connect Shopify</DialogTitle>
+                        </div>
                     </DialogHeader>
                     <div className="mt-2">
                         <ShopifyConnect />

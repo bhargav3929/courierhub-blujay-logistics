@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ interface Courier {
     status: 'active' | 'inactive';
     description: string;
     logoColor: string;
+    logo?: string;
 }
 
 const couriers: Courier[] = [
@@ -21,44 +23,72 @@ const couriers: Courier[] = [
         name: "Blue Dart",
         status: "active",
         description: "Premium express delivery services across India.",
-        logoColor: "bg-blue-600"
+        logoColor: "bg-blue-600",
+        logo: "/logos/bluedart.png"
     },
     {
         id: "dtdc",
         name: "DTDC",
         status: "active",
         description: "Comprehensive logistics solutions network.",
-        logoColor: "bg-red-600"
+        logoColor: "bg-red-600",
+        logo: "/logos/dtdc.png"
     },
     {
         id: "delhivery",
         name: "Delhivery",
         status: "active",
         description: "Largest 3PL — fastest pincode reach across 28k+ locations.",
-        logoColor: "bg-emerald-600"
+        logoColor: "bg-emerald-600",
+        logo: "/logos/delhivery.png"
     },
     {
         id: "shadowfax",
         name: "Shadowfax",
         status: "inactive",
         description: "Hyperlocal and last-mile delivery network.",
-        logoColor: "bg-amber-500"
+        logoColor: "bg-amber-500",
+        logo: "/logos/shadowfax.svg"
     },
     {
         id: "ecom",
         name: "Ecom Express",
         status: "inactive",
         description: "End-to-end technology enabled logistics.",
-        logoColor: "bg-indigo-600"
+        logoColor: "bg-indigo-600",
+        logo: "/logos/ecom_express.png"
     },
     {
         id: "xpress",
         name: "Xpressbees",
         status: "inactive",
         description: "Fastest growing express logistics company.",
-        logoColor: "bg-pink-600"
+        logoColor: "bg-pink-600",
+        logo: "/logos/xpressbees.png"
     }
 ];
+
+function CourierLogo({ courier }: { courier: Courier }) {
+    const [errored, setErrored] = useState(false);
+    if (courier.logo && !errored) {
+        return (
+            <div className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 bg-white grid place-items-center shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src={courier.logo}
+                    alt={`${courier.name} logo`}
+                    className="h-full w-full object-contain p-1"
+                    onError={() => setErrored(true)}
+                />
+            </div>
+        );
+    }
+    return (
+        <div className={`h-10 w-10 rounded-lg ${courier.logoColor} flex items-center justify-center text-white font-bold text-xs shadow-md`}>
+            {courier.name.substring(0, 2).toUpperCase()}
+        </div>
+    );
+}
 
 export default function CouriersPage() {
 
@@ -86,9 +116,7 @@ export default function CouriersPage() {
                     >
                         <Card className={`h-full transition-all duration-300 hover:shadow-lg ${courier.status === 'active' ? 'border-blue-200 bg-blue-50/30' : 'hover:border-slate-300'}`}>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <div className={`h-10 w-10 rounded-lg ${courier.logoColor} flex items-center justify-center text-white font-bold text-xs shadow-md`}>
-                                    {courier.name.substring(0, 2).toUpperCase()}
-                                </div>
+                                <CourierLogo courier={courier} />
                                 {courier.status === 'active' ? (
                                     <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200">
                                         <CheckCircle2 className="w-3 h-3 mr-1" />
