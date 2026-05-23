@@ -292,6 +292,18 @@ export function getTrackingDisplay(status: TrackingStatus | string | undefined):
 }
 
 /**
+ * Collapsed display variant for list-table badges where only two states
+ * matter to the viewer: the shipment is either active (Booked) or
+ * Cancelled. Detailed sub-states (in_transit, delivered, etc.) stay
+ * available via the full timeline / tracking modal.
+ */
+export function getCollapsedTrackingDisplay(status: TrackingStatus | string | undefined): TrackingStatusDisplay {
+    return status === 'cancelled'
+        ? TRACKING_STATUS_DISPLAY.cancelled
+        : TRACKING_STATUS_DISPLAY.booked;
+}
+
+/**
  * Map old Shipment.status to a TrackingStatus for backward compatibility.
  * Used when trackingStatus is not yet populated.
  */
@@ -300,8 +312,13 @@ export function legacyStatusToTracking(status: string): TrackingStatus {
         case 'pending':
         case 'shopify_pending':
             return 'booked';
+        case 'picked_up':
+            return 'picked_up';
         case 'transit':
             return 'in_transit';
+        case 'ofd':
+        case 'out_for_delivery':
+            return 'out_for_delivery';
         case 'delivered':
             return 'delivered';
         case 'cancelled':

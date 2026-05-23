@@ -44,7 +44,7 @@ import { delhiveryService } from "@/services/delhiveryService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES } from "@/config/bluedartConfig";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
 import { DELHIVERY_PREDEFINED, sanitizeDelhiveryField } from "@/config/delhiveryConfig";
-import { normalizeTrackingStatus, getTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
+import { normalizeTrackingStatus, getTrackingDisplay, getCollapsedTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
 import { Shipment } from "@/types/types";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,6 +63,43 @@ interface BulkShipResult {
     success: boolean;
     awb?: string;
     error?: string;
+}
+
+// Self-shipment manual status workflow. The pill in the Actions column shows
+// the current state and opens a dropdown of valid "advance to" options. Order
+// matters: pending → picked_up → transit → ofd → delivered.
+type SelfShipStatus = 'pending' | 'picked_up' | 'transit' | 'ofd';
+const SELF_SHIP_PILL_CONFIG: Record<SelfShipStatus, { label: string; icon: typeof Clock; classes: string }> = {
+    pending: { label: 'Pending', icon: Clock, classes: 'bg-violet-100 text-violet-700 hover:bg-violet-200' },
+    picked_up: { label: 'Picked Up', icon: Package, classes: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' },
+    transit: { label: 'In Transit', icon: Truck, classes: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
+    ofd: { label: 'Out for Delivery', icon: MapPin, classes: 'bg-orange-100 text-orange-700 hover:bg-orange-200' },
+};
+
+type SelfShipNext = 'picked_up' | 'transit' | 'ofd' | 'delivered';
+interface SelfShipOption {
+    next: SelfShipNext;
+    label: string;
+    icon: typeof Clock;
+    itemClasses: string;
+}
+const SELF_SHIP_OPTIONS: Record<SelfShipNext, SelfShipOption> = {
+    picked_up: { next: 'picked_up', label: 'Mark Picked Up', icon: Package, itemClasses: 'text-indigo-700 focus:text-indigo-700 focus:bg-indigo-50' },
+    transit: { next: 'transit', label: 'Mark In Transit', icon: Truck, itemClasses: 'text-amber-700 focus:text-amber-700 focus:bg-amber-50' },
+    ofd: { next: 'ofd', label: 'Mark Out for Delivery', icon: MapPin, itemClasses: 'text-orange-700 focus:text-orange-700 focus:bg-orange-50' },
+    delivered: { next: 'delivered', label: 'Mark Delivered', icon: CheckCircle2, itemClasses: 'text-emerald-700 focus:text-emerald-700 focus:bg-emerald-50' },
+};
+function selfShipNextOptions(currentStatus: string): SelfShipOption[] {
+    // Show only forward-progression options from the current state.
+    const order: SelfShipNext[] = ['picked_up', 'transit', 'ofd', 'delivered'];
+    const startIndex: Record<string, number> = {
+        pending: 0,
+        picked_up: 1,
+        transit: 2,
+        ofd: 3,
+    };
+    const from = startIndex[currentStatus] ?? 0;
+    return order.slice(from).map(k => SELF_SHIP_OPTIONS[k]);
 }
 
 const ClientShipments = () => {
@@ -705,10 +742,16 @@ const ClientShipments = () => {
     // truth — the sender entering manual updates.
     const handleAdvanceSelfShipmentStatus = async (
         shipment: Shipment,
-        next: 'transit' | 'delivered',
+        next: 'picked_up' | 'transit' | 'ofd' | 'delivered',
     ) => {
         if (!shipment.id) return;
-        const verb = next === 'transit' ? 'In Transit' : 'Delivered';
+        const verbMap: Record<typeof next, string> = {
+            picked_up: 'Picked Up',
+            transit: 'In Transit',
+            ofd: 'Out for Delivery',
+            delivered: 'Delivered',
+        };
+        const verb = verbMap[next];
         if (!confirm(`Mark this self-shipment as ${verb}?`)) return;
         const toastId = toast.loading(`Marking ${verb}...`);
         try {
@@ -1802,7 +1845,7 @@ const ClientShipments = () => {
                                                             <td className="px-4 py-4">
                                                                 {(() => {
                                                                     const ts = getEffectiveTrackingStatus(shp);
-                                                                    const display = getTrackingDisplay(ts);
+                                                                    const display = getCollapsedTrackingDisplay(ts);
                                                                     return (
                                                                         <div className="flex flex-col gap-1">
                                                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${display.bg} ${display.text}`}>
@@ -1900,7 +1943,7 @@ const ClientShipments = () => {
                                                             <td className="px-4 py-4">
                                                                 {(() => {
                                                                     const ts = getEffectiveTrackingStatus(shp);
-                                                                    const display = getTrackingDisplay(ts);
+                                                                    const display = getCollapsedTrackingDisplay(ts);
                                                                     return (
                                                                         <div className="flex flex-col gap-1">
                                                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${display.bg} ${display.text}`}>
@@ -1921,43 +1964,34 @@ const ClientShipments = () => {
                                                     )}
                                                     <td className="px-4 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' && (
-                                                                <DropdownMenu>
-                                                                    <DropdownMenuTrigger asChild>
-                                                                        <button
-                                                                            type="button"
-                                                                            className={`px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 transition-colors ${
-                                                                                shp.status === 'transit'
-                                                                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                                                                    : 'bg-violet-100 text-violet-700 hover:bg-violet-200'
-                                                                            }`}
-                                                                        >
-                                                                            {shp.status === 'transit' ? (
-                                                                                <><Truck className="h-3 w-3" /> In Transit</>
-                                                                            ) : (
-                                                                                <><Clock className="h-3 w-3" /> Pending</>
-                                                                            )}
-                                                                            <ChevronDown className="h-3 w-3 opacity-60" />
-                                                                        </button>
-                                                                    </DropdownMenuTrigger>
-                                                                    <DropdownMenuContent align="end" className="w-44 p-1.5 rounded-lg">
-                                                                        {shp.status === 'pending' && (
-                                                                            <DropdownMenuItem
-                                                                                className="flex items-center gap-2 cursor-pointer p-2 rounded-md text-violet-700 focus:text-violet-700 focus:bg-violet-50"
-                                                                                onClick={() => handleAdvanceSelfShipmentStatus(shp, 'transit')}
+                                                            {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' && (() => {
+                                                                const pillConfig = SELF_SHIP_PILL_CONFIG[shp.status as keyof typeof SELF_SHIP_PILL_CONFIG] ?? SELF_SHIP_PILL_CONFIG.pending;
+                                                                const Icon = pillConfig.icon;
+                                                                return (
+                                                                    <DropdownMenu>
+                                                                        <DropdownMenuTrigger asChild>
+                                                                            <button
+                                                                                type="button"
+                                                                                className={`px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 transition-colors ${pillConfig.classes}`}
                                                                             >
-                                                                                <Truck className="h-3.5 w-3.5" /> Mark In Transit
-                                                                            </DropdownMenuItem>
-                                                                        )}
-                                                                        <DropdownMenuItem
-                                                                            className="flex items-center gap-2 cursor-pointer p-2 rounded-md text-emerald-700 focus:text-emerald-700 focus:bg-emerald-50"
-                                                                            onClick={() => handleAdvanceSelfShipmentStatus(shp, 'delivered')}
-                                                                        >
-                                                                            <CheckCircle2 className="h-3.5 w-3.5" /> Mark Delivered
-                                                                        </DropdownMenuItem>
-                                                                    </DropdownMenuContent>
-                                                                </DropdownMenu>
-                                                            )}
+                                                                                <Icon className="h-3 w-3" /> {pillConfig.label}
+                                                                                <ChevronDown className="h-3 w-3 opacity-60" />
+                                                                            </button>
+                                                                        </DropdownMenuTrigger>
+                                                                        <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-lg">
+                                                                            {selfShipNextOptions(shp.status).map(opt => (
+                                                                                <DropdownMenuItem
+                                                                                    key={opt.next}
+                                                                                    className={`flex items-center gap-2 cursor-pointer p-2 rounded-md ${opt.itemClasses}`}
+                                                                                    onClick={() => handleAdvanceSelfShipmentStatus(shp, opt.next)}
+                                                                                >
+                                                                                    <opt.icon className="h-3.5 w-3.5" /> {opt.label}
+                                                                                </DropdownMenuItem>
+                                                                            ))}
+                                                                        </DropdownMenuContent>
+                                                                    </DropdownMenu>
+                                                                );
+                                                            })()}
                                                             {shp.courier === 'Self Shipment' && shp.status === 'delivered' && (
                                                                 <span className="px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 bg-slate-100 text-slate-600">
                                                                     <CheckCircle2 className="h-3 w-3" /> Delivered
@@ -1980,12 +2014,6 @@ const ClientShipments = () => {
                                                                 >
                                                                     <Download className="h-4 w-4" /> Invoice
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem
-                                                                    className="flex items-center gap-2 cursor-pointer p-3 rounded-lg"
-                                                                    onClick={() => setSelectedShipmentForManifest(shp)}
-                                                                >
-                                                                    <FileTextIcon className="h-4 w-4" /> Manifest
-                                                                </DropdownMenuItem>
                                                                 {shp.shopifyFulfillmentStatus === 'failed' && shp.courierTrackingId && (
                                                                     <DropdownMenuItem
                                                                         className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-blue-600 focus:text-blue-600 focus:bg-blue-50"
@@ -2004,22 +2032,17 @@ const ClientShipments = () => {
                                                                         <RotateCcw className="h-4 w-4" /> Return Shipment
                                                                     </DropdownMenuItem>
                                                                 )}
-                                                                {shp.courier === 'Self Shipment' && shp.status === 'pending' && (
-                                                                    <DropdownMenuItem
-                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-violet-700 focus:text-violet-700 focus:bg-violet-50"
-                                                                        onClick={() => handleAdvanceSelfShipmentStatus(shp, 'transit')}
-                                                                    >
-                                                                        <Truck className="h-4 w-4" /> Mark In Transit
-                                                                    </DropdownMenuItem>
-                                                                )}
-                                                                {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' && (
-                                                                    <DropdownMenuItem
-                                                                        className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-emerald-700 focus:text-emerald-700 focus:bg-emerald-50"
-                                                                        onClick={() => handleAdvanceSelfShipmentStatus(shp, 'delivered')}
-                                                                    >
-                                                                        <CheckCircle2 className="h-4 w-4" /> Mark Delivered
-                                                                    </DropdownMenuItem>
-                                                                )}
+                                                                {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' &&
+                                                                    selfShipNextOptions(shp.status).map(opt => (
+                                                                        <DropdownMenuItem
+                                                                            key={opt.next}
+                                                                            className={`flex items-center gap-2 cursor-pointer p-3 rounded-lg ${opt.itemClasses}`}
+                                                                            onClick={() => handleAdvanceSelfShipmentStatus(shp, opt.next)}
+                                                                        >
+                                                                            <opt.icon className="h-4 w-4" /> {opt.label}
+                                                                        </DropdownMenuItem>
+                                                                    ))
+                                                                }
                                                                 {shp.status !== 'cancelled' && shp.status !== 'delivered' && (
                                                                     <DropdownMenuItem
                                                                         className="flex items-center gap-2 cursor-pointer p-3 rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -2412,20 +2435,12 @@ const ClientShipments = () => {
             <Dialog open={!!trackingShipment} onOpenChange={(open) => { if (!open) { setTrackingShipment(null); setTrackingData(null); setTrackingError(null); } }}>
                 <DialogContent className="max-w-lg bg-white p-0 overflow-hidden rounded-2xl">
                     <div className="p-5 border-b bg-muted/20">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-base font-bold tracking-tight">Track Shipment</h2>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="font-mono text-xs text-muted-foreground">AWB: {trackingShipment?.courierTrackingId}</span>
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted font-bold text-muted-foreground">{trackingShipment?.courier || 'Blue Dart'}</span>
-                                </div>
+                        <div>
+                            <h2 className="text-base font-bold tracking-tight">Track Shipment</h2>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="font-mono text-xs text-muted-foreground">AWB: {trackingShipment?.courierTrackingId}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted font-bold text-muted-foreground">{trackingShipment?.courier || 'Blue Dart'}</span>
                             </div>
-                            <button
-                                onClick={() => { setTrackingShipment(null); setTrackingData(null); setTrackingError(null); }}
-                                className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                            >
-                                <span className="text-lg leading-none">&times;</span>
-                            </button>
                         </div>
                     </div>
 
