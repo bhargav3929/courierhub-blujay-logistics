@@ -14,7 +14,8 @@ import {
     LogOut,
     ChartColumnBig,
     Users,
-    KeyRound
+    KeyRound,
+    Navigation
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -32,6 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const baseNavItems = [
     { icon: House, label: "Home", path: "/client-dashboard" },
     { icon: PackageSearch, label: "My Shipments", path: "/client-shipments" },
+    { icon: Navigation, label: "Tracking", path: "/client-tracking" },
     { icon: PackagePlus, label: "Book Shipment", path: "/add-shipment" },
     { icon: ChartColumnBig, label: "Reports", path: "/client-reports" },
     { icon: Store, label: "Store Integrations", path: "/client-integrations" },
@@ -50,8 +52,8 @@ export const ClientSidebar = () => {
 
         // Add Sub-accounts menu item for franchise primary users
         if (canManageSubAccounts) {
-            // Insert before Settings (now index 6 after Merchant API Keys was added)
-            items.splice(6, 0, {
+            // Insert before Settings (now index 7 after Tracking + Merchant API Keys were added)
+            items.splice(7, 0, {
                 icon: Users,
                 label: "Sub-accounts",
                 path: "/client-sub-accounts"
