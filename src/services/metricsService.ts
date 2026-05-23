@@ -51,7 +51,7 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
 
         // 1. Basic Counts (Fastest & Most Reliable)
         const totalShipments = await safeGetCount(shipmentsRef);
-        const totalRevenue = await safeGetSum(shipmentsRef, 'marginAmount');
+        const totalRevenue = await safeGetSum(shipmentsRef, 'chargedAmount');
         const activeClients = await safeGetCount(query(clientsRef, where('status', '==', 'active')));
 
         // 2. Complex Queries (Parallel)
@@ -72,9 +72,9 @@ export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
 
         try {
             const [fSnap, sSnap, wSnap] = await Promise.all([
-                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'franchise')), { rev: sum('marginAmount') }),
-                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'shopify')), { rev: sum('marginAmount') }),
-                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'white_label')), { rev: sum('marginAmount') }),
+                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'franchise')), { rev: sum('chargedAmount') }),
+                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'shopify')), { rev: sum('chargedAmount') }),
+                getAggregateFromServer(query(shipmentsRef, where('clientType', '==', 'white_label')), { rev: sum('chargedAmount') }),
             ]);
             franchiseRevenue = fSnap.data().rev || 0;
             shopifyRevenue = sSnap.data().rev || 0;
@@ -151,7 +151,7 @@ export const getShipmentTrend = async (days: number = 7): Promise<ShipmentTrend[
 
             const trend = trendMap.get(dateKey)!;
             trend.shipments += 1;
-            trend.revenue += (data.marginAmount || 0);
+            trend.revenue += (data.chargedAmount || 0);
         });
 
         // Return reversed to handle the loop order or sort by date logic
@@ -166,7 +166,7 @@ export const getShipmentTrend = async (days: number = 7): Promise<ShipmentTrend[
             const key = d.toLocaleDateString('en-US', { weekday: 'short' });
             if (!resultMap.has(key)) resultMap.set(key, { shipments: 0, revenue: 0 });
             resultMap.get(key)!.shipments++;
-            resultMap.get(key)!.revenue += (data.marginAmount || 0);
+            resultMap.get(key)!.revenue += (data.chargedAmount || 0);
         });
 
         return Array.from(resultMap.entries()).map(([date, data]) => ({
@@ -202,7 +202,7 @@ export const getTopClients = async (limitCount: number = 5): Promise<TopClient[]
 
         // Reverting to Shipment Scan but limiting to Recent 1000 for speed?
 
-        const q = query(collection(db, SHIPMENTS_COLLECTION), orderBy('marginAmount', 'desc'), limit(100));
+        const q = query(collection(db, SHIPMENTS_COLLECTION), orderBy('chargedAmount', 'desc'), limit(100));
         const snap = await getDocs(q);
         // This is Top Shipments, not Top Clients.
 
@@ -226,7 +226,7 @@ export const getTopClients = async (limitCount: number = 5): Promise<TopClient[]
             }
             const c = clientMap.get(s.clientId)!;
             c.shipments++;
-            c.revenue += (s.marginAmount || 0);
+            c.revenue += (s.chargedAmount || 0);
         });
 
         return Array.from(clientMap.values())
@@ -246,7 +246,7 @@ export const calculateTotalShipments = async (): Promise<number> => {
 };
 
 export const calculateTotalRevenue = async (): Promise<number> => {
-    const snap = await getAggregateFromServer(collection(db, SHIPMENTS_COLLECTION), { total: sum('marginAmount') });
+    const snap = await getAggregateFromServer(collection(db, SHIPMENTS_COLLECTION), { total: sum('chargedAmount') });
     return snap.data().total || 0;
 };
 
