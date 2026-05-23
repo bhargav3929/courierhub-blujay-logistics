@@ -83,19 +83,34 @@ export const ShopifyLabel = ({ shipment }: ShopifyLabelProps) => {
                     textAlign: 'right',
                     minWidth: '30mm',
                 }}>
-                    <div style={{
-                        fontWeight: 900,
-                        fontSize: '14px',
-                        fontStyle: 'italic',
-                        letterSpacing: '-0.5px',
-                        lineHeight: 1,
-                        color: shipment.courier === 'Blue Dart' ? '#003087' : '#e31837',
-                    }}>
-                        {courierDisplayName}
-                    </div>
-                    <div style={{ fontSize: '7px', color: '#666', marginTop: '1mm' }}>
-                        delivering happiness
-                    </div>
+                    {(() => {
+                        const logoMap: Record<string, string> = {
+                            'Blue Dart': '/logos/bluedart.png',
+                            'BlueDart': '/logos/bluedart.png',
+                            'DTDC': '/logos/dtdc.png',
+                            'Delhivery': '/logos/delhivery.png',
+                            'Ecom Express': '/logos/ecom_express.png',
+                            'Xpressbees': '/logos/xpressbees.png',
+                            'Shadowfax': '/logos/shadowfax.svg',
+                        };
+                        const logoSrc = logoMap[shipment.courier];
+                        if (logoSrc) {
+                            // eslint-disable-next-line @next/next/no-img-element
+                            return <img src={logoSrc} alt={`${shipment.courier} logo`} style={{ maxHeight: '12mm', maxWidth: '28mm', objectFit: 'contain' }} />;
+                        }
+                        return (
+                            <div style={{
+                                fontWeight: 900,
+                                fontSize: '14px',
+                                fontStyle: 'italic',
+                                letterSpacing: '-0.5px',
+                                lineHeight: 1,
+                                color: '#333',
+                            }}>
+                                {courierDisplayName}
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
 

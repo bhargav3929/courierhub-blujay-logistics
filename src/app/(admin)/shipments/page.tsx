@@ -65,7 +65,7 @@ import { ShopifyLabel, printShopifyLabel } from "@/components/shipments/ShopifyL
 import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
 import { delhiveryService } from "@/services/delhiveryService";
-import { getTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
+import { getCollapsedTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
 
 const Shipments = () => {
     const [loading, setLoading] = useState(true);
@@ -488,7 +488,7 @@ const Shipments = () => {
                                             <TableCell>
                                                 {(() => {
                                                     const ts: TrackingStatus = (shipment.trackingStatus as TrackingStatus) || legacyStatusToTracking(shipment.status);
-                                                    const display = getTrackingDisplay(ts);
+                                                    const display = getCollapsedTrackingDisplay(ts);
                                                     return (
                                                         <div className="flex flex-col gap-1">
                                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide w-fit ${display.bg} ${display.text}`}>
