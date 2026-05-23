@@ -16,7 +16,8 @@ import {
   Settings,
   LogOut,
   ReceiptIndianRupee,
-  User
+  User,
+  Plug
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,6 +47,7 @@ const navGroups = [
       { icon: UserPlus, label: "Requests", path: "/client-requests" },
       { icon: Boxes, label: "Shipments", path: "/shipments" },
       { icon: Truck, label: "Couriers", path: "/couriers" },
+      { icon: Plug, label: "Integrations", path: "/admin-integrations" },
     ]
   },
   {
