@@ -6,7 +6,7 @@ import { adminAuth } from '@/lib/firebaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
-const SHOPIFY_API_VERSION = '2026-01';
+const SHOPIFY_API_VERSION = '2026-07';
 
 function mapCourierToShopifyCompany(courier: string): string {
     const mapping: Record<string, string> = {
@@ -59,8 +59,9 @@ async function getFulfillmentOrderId(
 
     // Detect HTTP-level auth errors (invalid/expired token)
     if (response.status === 401 || response.status === 403) {
-        console.error('[Shopify Fulfill] Auth error for order', orderId, '— HTTP', response.status);
-        return { fulfillmentOrderId: null, error: `Shopify auth error (${response.status}). The store may need to re-authorize the app — go to Integrations and reconnect Shopify.` };
+        const errorBody = await response.text();
+        console.error('[Shopify Fulfill] Auth error for order', orderId, '— HTTP', response.status, '— Body:', errorBody);
+        return { fulfillmentOrderId: null, error: `Shopify auth error (${response.status}): ${errorBody.slice(0, 200)}` };
     }
 
     const result = await response.json();
