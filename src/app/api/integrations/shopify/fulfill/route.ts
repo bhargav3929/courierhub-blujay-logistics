@@ -27,71 +27,35 @@ function getTrackingUrl(courier: string, trackingNumber: string): string {
 async function getFulfillmentOrderId(
     shop: string, accessToken: string, orderId: string
 ): Promise<{ fulfillmentOrderId: string | null; error?: string }> {
-    const orderGid = `gid://shopify/Order/${orderId}`;
-
-    const query = `
-        query getFulfillmentOrders($orderId: ID!) {
-            order(id: $orderId) {
-                fulfillmentOrders(first: 5) {
-                    nodes {
-                        id
-                        status
-                    }
-                }
-            }
-        }
-    `;
-
     const response = await fetch(
-        `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+        `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders/${orderId}/fulfillment_orders.json`,
         {
-            method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
                 'X-Shopify-Access-Token': accessToken,
+                'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                query,
-                variables: { orderId: orderGid }
-            }),
         }
     );
 
-    // Detect HTTP-level auth errors (invalid/expired token)
-    if (response.status === 401 || response.status === 403) {
+    if (!response.ok) {
         const errorBody = await response.text();
-        console.error('[Shopify Fulfill] Auth error for order', orderId, '— HTTP', response.status, '— Body:', errorBody);
-        return { fulfillmentOrderId: null, error: `Shopify auth error (${response.status}): ${errorBody.slice(0, 200)}` };
+        console.error('[Shopify Fulfill] Failed to get fulfillment orders — HTTP', response.status, '— Body:', errorBody);
+        return { fulfillmentOrderId: null, error: `Shopify error (${response.status}): ${errorBody.slice(0, 200)}` };
     }
 
-    const result = await response.json();
+    const data = await response.json();
+    const fulfillmentOrders = data.fulfillment_orders || [];
+    console.log('[Shopify Fulfill] Fulfillment orders for', orderId, ':', JSON.stringify(fulfillmentOrders.map((fo: any) => ({ id: fo.id, status: fo.status }))));
 
-    // Detect GraphQL-level scope/auth errors
-    if (result.errors?.length) {
-        const errorMessages = result.errors.map((e: any) => e.message).join('; ');
-        console.error('[Shopify Fulfill] GraphQL errors for order', orderId, ':', errorMessages);
-        const isScopeError = errorMessages.toLowerCase().includes('access denied') ||
-            errorMessages.toLowerCase().includes('scope') ||
-            errorMessages.toLowerCase().includes('permission');
-        if (isScopeError) {
-            return { fulfillmentOrderId: null, error: `Shopify scope error: ${errorMessages}. Reconnect Shopify in Integrations to grant updated permissions.` };
-        }
-        return { fulfillmentOrderId: null, error: `Shopify API error: ${errorMessages}` };
-    }
-
-    const fulfillmentOrders = result.data?.order?.fulfillmentOrders?.nodes || [];
-    console.log('[Shopify Fulfill] Fulfillment orders for', orderId, ':', JSON.stringify(fulfillmentOrders));
-
-    // Find the first OPEN or IN_PROGRESS fulfillment order
     const openOrder = fulfillmentOrders.find(
-        (fo: { id: string; status: string }) => fo.status === 'OPEN' || fo.status === 'IN_PROGRESS'
+        (fo: any) => fo.status === 'open' || fo.status === 'in_progress'
     );
 
     if (!openOrder) {
         return { fulfillmentOrderId: null, error: 'No open fulfillment order found — may already be fulfilled in Shopify' };
     }
 
-    return { fulfillmentOrderId: openOrder.id };
+    return { fulfillmentOrderId: openOrder.id.toString() };
 }
 
 async function createFulfillment(
@@ -102,62 +66,43 @@ async function createFulfillment(
     trackingCompany: string,
     trackingUrl: string
 ): Promise<{ fulfillmentId: string }> {
-    const mutation = `
-        mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
-            fulfillmentCreateV2(fulfillment: $fulfillment) {
-                fulfillment {
-                    id
-                    status
-                }
-                userErrors {
-                    field
-                    message
-                }
-            }
-        }
-    `;
-
-    const variables = {
-        fulfillment: {
-            lineItemsByFulfillmentOrder: [
-                {
-                    fulfillmentOrderId: fulfillmentOrderId,
-                }
-            ],
-            notifyCustomer: true,
-            trackingInfo: {
-                number: trackingNumber,
-                company: trackingCompany,
-                url: trackingUrl,
-            },
-        },
-    };
-
     const response = await fetch(
-        `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+        `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/fulfillments.json`,
         {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
                 'X-Shopify-Access-Token': accessToken,
+                'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ query: mutation, variables }),
+            body: JSON.stringify({
+                fulfillment: {
+                    line_items_by_fulfillment_order: [
+                        { fulfillment_order_id: parseInt(fulfillmentOrderId, 10) },
+                    ],
+                    tracking_info: {
+                        number: trackingNumber,
+                        company: trackingCompany || 'Other',
+                        url: trackingUrl || '',
+                    },
+                    notify_customer: true,
+                },
+            }),
         }
     );
 
     const result = await response.json();
 
-    if (result.data?.fulfillmentCreateV2?.userErrors?.length > 0) {
-        const err = result.data.fulfillmentCreateV2.userErrors[0];
-        throw new Error(`Shopify fulfillment error: ${err.message}`);
+    if (!response.ok) {
+        const errorMsg = result.errors ? JSON.stringify(result.errors) : result.error || 'Unknown error';
+        throw new Error(`Shopify fulfillment error: ${errorMsg}`);
     }
 
-    const fulfillment = result.data?.fulfillmentCreateV2?.fulfillment;
+    const fulfillment = result.fulfillment;
     if (!fulfillment) {
         throw new Error('Shopify did not return fulfillment data');
     }
 
-    return { fulfillmentId: fulfillment.id };
+    return { fulfillmentId: fulfillment.id.toString() };
 }
 
 export async function POST(request: Request) {
