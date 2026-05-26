@@ -39,11 +39,16 @@ export async function GET(request: NextRequest) {
 
     try {
         let result: NormalizedTracking | null = null;
+        let _debug_error: string | null = null;
 
-        if (slug) {
-            result = await trackShipment(slug, awb);
-        } else {
-            result = await trackAutoDetect(awb);
+        try {
+            if (slug) {
+                result = await trackShipment(slug, awb);
+            } else {
+                result = await trackAutoDetect(awb);
+            }
+        } catch (tcErr: any) {
+            _debug_error = tcErr.message || String(tcErr);
         }
 
         if (!result) {
@@ -54,6 +59,8 @@ export async function GET(request: NextRequest) {
                     tracking_number: awb,
                     courier_tried: slug || 'bluedart, dtdc, delhivery (auto-detect)',
                     _debug_key_configured: !!process.env.TRACKERCOURIER_API_KEY,
+                    _debug_key_prefix: process.env.TRACKERCOURIER_API_KEY?.slice(0, 10) || 'MISSING',
+                    _debug_tc_error: _debug_error,
                 },
                 { status: 404 }
             );
