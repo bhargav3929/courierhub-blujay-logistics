@@ -62,7 +62,7 @@ export default function SettingsPage() {
                                         <div className="relative group cursor-pointer">
                                             <Avatar className="w-24 h-24 border-4 border-slate-50 shadow-xl">
                                                 <AvatarImage src="" />
-                                                <AvatarFallback className="bg-gradient-to-tr from-blue-600 to-indigo-600 text-white text-2xl font-bold">SA</AvatarFallback>
+                                                <AvatarFallback className="bg-primary text-white text-2xl font-bold">SA</AvatarFallback>
                                             </Avatar>
                                             <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Camera className="w-6 h-6 text-white" />

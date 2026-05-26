@@ -1593,7 +1593,7 @@ const ClientShipments = () => {
                                                 <th className="px-4 py-4">Customer</th>
                                                 <th className="px-4 py-4">Zip</th>
                                                 <th className="px-4 py-4">Weight</th>
-                                                <th className="px-4 py-4 text-right">Action</th>
+                                                <th className="px-4 py-4 text-center align-middle">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/50">
@@ -1667,8 +1667,8 @@ const ClientShipments = () => {
                                                             ? `${shp.weight || shp.actualWeight}kg`
                                                             : '-'}
                                                     </td>
-                                                    <td className="px-4 py-4 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
+                                                    <td className="px-4 py-4 text-center align-middle">
+                                                        <div className="flex items-center justify-center gap-2">
                                                             <button
                                                                 onClick={() => handleProceedShopify(shp)}
                                                                 className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors"
@@ -1777,8 +1777,9 @@ const ClientShipments = () => {
                                                         <th className="px-4 py-4">Receiver</th>
                                                         <th className="px-4 py-4">Zip</th>
                                                         <th className="px-4 py-4">Weight</th>
-                                                        <th className="px-4 py-4">Status</th>
-                                                        <th className="px-4 py-4 text-right">Action</th>
+                                                        <th className="px-4 py-4 text-center align-middle">Status</th>
+                                                        <th className="px-4 py-4 text-center align-middle">Progress</th>
+                                                        <th className="px-4 py-4 text-right align-middle">Action</th>
                                                     </>
                                                 ) : (
                                                     <>
@@ -1790,8 +1791,9 @@ const ClientShipments = () => {
                                                         <th className="px-4 py-4">Customer</th>
                                                         <th className="px-4 py-4">Zip</th>
                                                         <th className="px-4 py-4">Weight</th>
-                                                        <th className="px-4 py-4">Status</th>
-                                                        <th className="px-4 py-4 text-right">Action</th>
+                                                        <th className="px-4 py-4 text-center align-middle">Status</th>
+                                                        <th className="px-4 py-4 text-center align-middle">Progress</th>
+                                                        <th className="px-4 py-4 text-right align-middle">Action</th>
                                                     </>
                                                 )}
                                             </tr>
@@ -1842,18 +1844,17 @@ const ClientShipments = () => {
                                                                     ? `${shp.weight || shp.actualWeight}kg`
                                                                     : '-'}
                                                             </td>
-                                                            <td className="px-4 py-4">
+                                                            <td className="px-4 py-4 text-center align-middle">
                                                                 {(() => {
                                                                     const ts = getEffectiveTrackingStatus(shp);
                                                                     const display = getCollapsedTrackingDisplay(ts);
                                                                     return (
-                                                                        <div className="flex flex-col gap-1">
-                                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${display.bg} ${display.text}`}>
-                                                                                <span className={`h-1.5 w-1.5 rounded-full ${display.dotColor}`} />
+                                                                        <div className="flex flex-col gap-1 items-center justify-center">
+                                                                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap min-w-[90px] ${display.bg} ${display.text}`}>
                                                                                 {display.label}
                                                                             </span>
                                                                             {shp.lastTrackingLocation && (
-                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
+                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                                                                     <MapPin className="h-2.5 w-2.5 shrink-0" />
                                                                                     <span className="truncate max-w-[120px]">{shp.lastTrackingLocation}</span>
                                                                                 </span>
@@ -1940,18 +1941,17 @@ const ClientShipments = () => {
                                                                     ? `${shp.weight || shp.actualWeight}kg`
                                                                     : '-'}
                                                             </td>
-                                                            <td className="px-4 py-4">
+                                                            <td className="px-4 py-4 text-center align-middle">
                                                                 {(() => {
                                                                     const ts = getEffectiveTrackingStatus(shp);
                                                                     const display = getCollapsedTrackingDisplay(ts);
                                                                     return (
-                                                                        <div className="flex flex-col gap-1">
-                                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${display.bg} ${display.text}`}>
-                                                                                <span className={`h-1.5 w-1.5 rounded-full ${display.dotColor}`} />
+                                                                        <div className="flex flex-col gap-1 items-center justify-center">
+                                                                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap min-w-[90px] ${display.bg} ${display.text}`}>
                                                                                 {display.label}
                                                                             </span>
                                                                             {shp.lastTrackingLocation && (
-                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
+                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                                                                     <MapPin className="h-2.5 w-2.5 shrink-0" />
                                                                                     <span className="truncate max-w-[120px]">{shp.lastTrackingLocation}</span>
                                                                                 </span>
@@ -1962,8 +1962,8 @@ const ClientShipments = () => {
                                                             </td>
                                                         </>
                                                     )}
-                                                    <td className="px-4 py-4 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
+                                                    <td className="px-4 py-4 text-center align-middle">
+                                                        <div className="w-[110px] mx-auto">
                                                             {shp.courier === 'Self Shipment' && shp.status !== 'delivered' && shp.status !== 'cancelled' && (() => {
                                                                 const pillConfig = SELF_SHIP_PILL_CONFIG[shp.status as keyof typeof SELF_SHIP_PILL_CONFIG] ?? SELF_SHIP_PILL_CONFIG.pending;
                                                                 const Icon = pillConfig.icon;
@@ -1972,7 +1972,7 @@ const ClientShipments = () => {
                                                                         <DropdownMenuTrigger asChild>
                                                                             <button
                                                                                 type="button"
-                                                                                className={`px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 transition-colors ${pillConfig.classes}`}
+                                                                                className={`w-full h-7 px-3 text-[11px] font-bold rounded-full inline-flex items-center justify-center gap-1.5 transition-colors ${pillConfig.classes}`}
                                                                             >
                                                                                 <Icon className="h-3 w-3" /> {pillConfig.label}
                                                                                 <ChevronDown className="h-3 w-3 opacity-60" />
@@ -1993,10 +1993,13 @@ const ClientShipments = () => {
                                                                 );
                                                             })()}
                                                             {shp.courier === 'Self Shipment' && shp.status === 'delivered' && (
-                                                                <span className="px-3 py-1.5 text-[11px] font-bold rounded-full inline-flex items-center gap-1.5 bg-slate-100 text-slate-600">
+                                                                <span className="w-full h-7 px-3 text-[11px] font-bold rounded-full inline-flex items-center justify-center gap-1.5 bg-slate-100 text-slate-600">
                                                                     <CheckCircle2 className="h-3 w-3" /> Delivered
                                                                 </span>
                                                             )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-right align-middle">
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger className="p-2 hover:bg-muted rounded-lg transition-colors">
                                                                 <MoreVertical className="h-4 w-4" />
@@ -2057,7 +2060,6 @@ const ClientShipments = () => {
                                                                 )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
-                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}

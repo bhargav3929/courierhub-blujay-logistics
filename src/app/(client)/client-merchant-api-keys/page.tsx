@@ -616,7 +616,7 @@ const MerchantApiKeysPage = () => {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2.5">
-                            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-sm shadow-blue-500/30">
+                            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/30">
                                 <KeyRound className="h-5 w-5 text-white" />
                             </div>
                             <h1 className="text-3xl font-extrabold tracking-tight">
@@ -637,7 +637,7 @@ const MerchantApiKeysPage = () => {
                 <ApiKeyManager hideDocs />
 
                 {/* 1. OVERVIEW */}
-                <Card className="border-none shadow-md bg-gradient-to-br from-blue-50 via-white to-violet-50 dark:from-blue-950/30 dark:via-slate-900 dark:to-violet-950/30">
+                <Card className="border-none shadow-md bg-blue-50 dark:bg-blue-950/30">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -729,7 +729,7 @@ const MerchantApiKeysPage = () => {
                                     key={s.title}
                                     className="flex gap-4 items-start group"
                                 >
-                                    <div className="shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-white font-semibold text-sm flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                                    <div className="shrink-0 h-8 w-8 rounded-full bg-primary text-white font-semibold text-sm flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                                         {i + 1}
                                     </div>
                                     <div className="min-w-0 pt-0.5">
@@ -966,7 +966,7 @@ const MerchantApiKeysPage = () => {
                     page via the browser's print-to-PDF. No external lib. */}
                 <Card className="border-none shadow-md bg-gradient-to-br from-slate-50 to-blue-50/60 dark:from-slate-900 dark:to-blue-950/30">
                     <CardContent className="py-6 px-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-                        <div className="shrink-0 h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/30">
+                        <div className="shrink-0 h-12 w-12 rounded-xl bg-primary text-white flex items-center justify-center shadow-sm shadow-primary/30">
                             <FileText className="h-5 w-5" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -984,7 +984,7 @@ const MerchantApiKeysPage = () => {
                         <Button
                             onClick={handleDownloadPdf}
                             disabled={downloading}
-                            className="shrink-0 self-stretch sm:self-auto gap-2 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white shadow-sm hover:shadow-md transition-all disabled:opacity-70"
+                            className="shrink-0 self-stretch sm:self-auto gap-2 bg-primary hover:bg-primary/90 text-white shadow-sm hover:shadow-md transition-all disabled:opacity-70"
                         >
                             {downloading ? (
                                 <>
