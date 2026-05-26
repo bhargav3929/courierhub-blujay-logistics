@@ -41,6 +41,7 @@ import { Client } from "@/types/types";
 import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
 import { delhiveryService } from "@/services/delhiveryService";
+import { trackUnified, isTrackerCourierData, parseTrackerCourierScans, getTrackerCourierStatus } from "@/services/trackingService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES } from "@/config/bluedartConfig";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
 import { DELHIVERY_PREDEFINED, sanitizeDelhiveryField } from "@/config/delhiveryConfig";
@@ -832,9 +833,22 @@ const ClientShipments = () => {
         try {
             const courier = shipment.courier || 'Blue Dart';
 
-            // Extract raw status — handle multiple response shapes
+            // Extract raw status — handle TrackerCourier.io or direct carrier response shapes
             let rawStatus = '';
-            if (courier === 'DTDC') {
+            let lastLocation = '';
+            let lastActivity = '';
+            let lastTime = '';
+
+            if (isTrackerCourierData(trackingData)) {
+                rawStatus = getTrackerCourierStatus(trackingData);
+                const cps = trackingData.checkpoints;
+                if (cps.length > 0) {
+                    const latest = cps[cps.length - 1];
+                    lastLocation = latest.location;
+                    lastActivity = latest.activity;
+                    lastTime = `${latest.date} ${latest.time}`.trim();
+                }
+            } else if (courier === 'DTDC') {
                 rawStatus = trackingData?.trackHeader?.strStatus || trackingData?.statusCode || '';
             } else if (courier === 'Delhivery') {
                 const ship = trackingData?.ShipmentData?.[0]?.Shipment || trackingData?.shipmentData?.[0]?.shipment || trackingData?.Shipment;
@@ -849,47 +863,43 @@ const ClientShipments = () => {
 
             const normalizedStatus = normalizeTrackingStatus(rawStatus, courier);
 
-            // Get last scan info
-            let lastLocation = '';
-            let lastActivity = '';
-            let lastTime = '';
+            // Get last scan info (only for direct carrier responses — TC already extracted above)
+            if (!isTrackerCourierData(trackingData)) {
+                if (courier === 'DTDC') {
+                    const scans = trackingData?.trackDetails || trackingData?.TrackDetails || [];
+                    if (Array.isArray(scans) && scans.length > 0) {
+                        const latest = scans[scans.length - 1];
+                        lastLocation = latest?.strOrigin || latest?.origin || '';
+                        lastActivity = latest?.strAction || latest?.activity || latest?.status || '';
+                        lastTime = `${latest?.strActionDate || ''} ${latest?.strActionTime || ''}`.trim();
+                    }
+                } else if (courier === 'Delhivery') {
+                    const ship = trackingData?.ShipmentData?.[0]?.Shipment || trackingData?.shipmentData?.[0]?.shipment || trackingData?.Shipment;
+                    const scans = ship?.Scans || ship?.scans || [];
+                    if (Array.isArray(scans) && scans.length > 0) {
+                        const latest = scans[scans.length - 1];
+                        const detail = latest?.ScanDetail || latest?.scanDetail || latest;
+                        lastLocation = detail?.ScannedLocation || detail?.scannedLocation || '';
+                        lastActivity = detail?.Instructions || detail?.instructions || detail?.Scan || '';
+                        lastTime = detail?.ScanDateTime || detail?.scanDateTime || '';
+                    }
+                } else {
+                    const sd = trackingData?.ShipmentData?.[0] || trackingData?.shipmentData?.[0];
+                    const si = sd?.Shipment || sd?.shipment || trackingData?.Shipment || trackingData;
+                    let scans = si?.Scans || si?.scans || [];
 
-            if (courier === 'DTDC') {
-                const scans = trackingData?.trackDetails || trackingData?.TrackDetails || [];
-                if (Array.isArray(scans) && scans.length > 0) {
-                    const latest = scans[scans.length - 1];
-                    lastLocation = latest?.strOrigin || latest?.origin || '';
-                    lastActivity = latest?.strAction || latest?.activity || latest?.status || '';
-                    lastTime = `${latest?.strActionDate || ''} ${latest?.strActionTime || ''}`.trim();
-                }
-            } else if (courier === 'Delhivery') {
-                const ship = trackingData?.ShipmentData?.[0]?.Shipment || trackingData?.shipmentData?.[0]?.shipment || trackingData?.Shipment;
-                const scans = ship?.Scans || ship?.scans || [];
-                if (Array.isArray(scans) && scans.length > 0) {
-                    const latest = scans[scans.length - 1];
-                    const detail = latest?.ScanDetail || latest?.scanDetail || latest;
-                    lastLocation = detail?.ScannedLocation || detail?.scannedLocation || '';
-                    lastActivity = detail?.Instructions || detail?.instructions || detail?.Scan || '';
-                    lastTime = detail?.ScanDateTime || detail?.scanDateTime || '';
-                }
-            } else {
-                // Blue Dart — handle multiple nesting shapes (JSON vs XML-parsed)
-                const sd = trackingData?.ShipmentData?.[0] || trackingData?.shipmentData?.[0];
-                const si = sd?.Shipment || sd?.shipment || trackingData?.Shipment || trackingData;
-                let scans = si?.Scans || si?.scans || [];
+                    if (!Array.isArray(scans) && typeof scans === 'object') {
+                        const inner = scans?.ScanDetail || scans?.scanDetail;
+                        scans = Array.isArray(inner) ? inner.map((s: any) => ({ ScanDetail: s })) : inner ? [{ ScanDetail: inner }] : [];
+                    }
 
-                // JSON may nest as { Scans: { ScanDetail: [...] } }
-                if (!Array.isArray(scans) && typeof scans === 'object') {
-                    const inner = scans?.ScanDetail || scans?.scanDetail;
-                    scans = Array.isArray(inner) ? inner.map((s: any) => ({ ScanDetail: s })) : inner ? [{ ScanDetail: inner }] : [];
-                }
-
-                if (Array.isArray(scans) && scans.length > 0) {
-                    const latest = scans[scans.length - 1];
-                    const detail = latest?.ScanDetail || latest?.scanDetail || latest;
-                    lastLocation = detail?.ScannedLocation || detail?.scannedLocation || detail?.Location || '';
-                    lastActivity = detail?.Instructions || detail?.instructions || detail?.Scan || detail?.scan || detail?.Activity || '';
-                    lastTime = detail?.ScanDateTime || detail?.scanDateTime || detail?.DateTime || '';
+                    if (Array.isArray(scans) && scans.length > 0) {
+                        const latest = scans[scans.length - 1];
+                        const detail = latest?.ScanDetail || latest?.scanDetail || latest;
+                        lastLocation = detail?.ScannedLocation || detail?.scannedLocation || detail?.Location || '';
+                        lastActivity = detail?.Instructions || detail?.instructions || detail?.Scan || detail?.scan || detail?.Activity || '';
+                        lastTime = detail?.ScanDateTime || detail?.scanDateTime || detail?.DateTime || '';
+                    }
                 }
             }
 
@@ -940,28 +950,21 @@ const ClientShipments = () => {
 
         try {
             let data;
-            if (shipment.courier === 'DTDC') {
-                data = await dtdcService.trackShipment(shipment.courierTrackingId);
-            } else if (shipment.courier === 'Delhivery') {
-                data = await delhiveryService.trackShipment(shipment.courierTrackingId);
-            } else if (shipment.courier === 'Self Shipment') {
-                // No carrier. Surface the local status as the tracking source of truth.
-                data = {
-                    selfShipment: true,
-                    currentStatus: shipment.trackingStatus || shipment.status,
-                    note: 'This is a self-shipment. Status updates are manual.',
-                    trackingId: shipment.courierTrackingId,
-                };
-            } else {
-                data = await blueDartService.trackShipment(shipment.courierTrackingId);
+            try {
+                data = await trackUnified(shipment.courierTrackingId, shipment.courier);
+            } catch {
+                // Fallback to direct carrier APIs if /api/track fails
+                if (shipment.courier === 'DTDC') {
+                    data = await dtdcService.trackShipment(shipment.courierTrackingId);
+                } else if (shipment.courier === 'Delhivery') {
+                    data = await delhiveryService.trackShipment(shipment.courierTrackingId);
+                } else {
+                    data = await blueDartService.trackShipment(shipment.courierTrackingId);
+                }
             }
             setTrackingData(data);
 
-            // Auto-sync tracking status to Firestore (skip for self-shipment — no
-            // carrier signal to merge from).
-            if (shipment.courier !== 'Self Shipment') {
-                syncTrackingStatus(shipment, data);
-            }
+            syncTrackingStatus(shipment, data);
         } catch (error: any) {
             console.error('Tracking error:', error);
             const msg = error.response?.data?.error || error.response?.data?.details || error.message || 'Failed to fetch tracking information';
@@ -996,12 +999,16 @@ const ClientShipments = () => {
         for (const shp of activeShipments) {
             try {
                 let data;
-                if (shp.courier === 'DTDC') {
-                    data = await dtdcService.trackShipment(shp.courierTrackingId!);
-                } else if (shp.courier === 'Delhivery') {
-                    data = await delhiveryService.trackShipment(shp.courierTrackingId!);
-                } else {
-                    data = await blueDartService.trackShipment(shp.courierTrackingId!);
+                try {
+                    data = await trackUnified(shp.courierTrackingId!, shp.courier);
+                } catch {
+                    if (shp.courier === 'DTDC') {
+                        data = await dtdcService.trackShipment(shp.courierTrackingId!);
+                    } else if (shp.courier === 'Delhivery') {
+                        data = await delhiveryService.trackShipment(shp.courierTrackingId!);
+                    } else {
+                        data = await blueDartService.trackShipment(shp.courierTrackingId!);
+                    }
                 }
                 await syncTrackingStatus(shp, data);
                 successCount++;
@@ -1109,6 +1116,7 @@ const ClientShipments = () => {
 
     const getTrackingCurrentStatus = (data: any, courier: string): string => {
         if (!data) return 'Unknown';
+        if (isTrackerCourierData(data)) return getTrackerCourierStatus(data);
         if (courier === 'DTDC') {
             return data?.trackHeader?.strStatus || data?.statusCode || 'Unknown';
         }
@@ -2510,11 +2518,13 @@ const ClientShipments = () => {
 
                                 {/* Timeline */}
                                 {(() => {
-                                    const scans = trackingShipment?.courier === 'DTDC'
-                                        ? parseDtdcScans(trackingData)
-                                        : trackingShipment?.courier === 'Delhivery'
-                                            ? parseDelhiveryScans(trackingData)
-                                            : parseBlueDartScans(trackingData);
+                                    const scans = isTrackerCourierData(trackingData)
+                                        ? parseTrackerCourierScans(trackingData)
+                                        : trackingShipment?.courier === 'DTDC'
+                                            ? parseDtdcScans(trackingData)
+                                            : trackingShipment?.courier === 'Delhivery'
+                                                ? parseDelhiveryScans(trackingData)
+                                                : parseBlueDartScans(trackingData);
 
                                     if (scans.length > 0) {
                                         return (

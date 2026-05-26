@@ -5,10 +5,18 @@
 // existing /api/<carrier>/track-shipment route handles its own auth
 // and credential resolution.
 //
+// When TRACKERCOURIER_API_KEY is set, TrackerCourier.io is tried first as
+// the primary source (no per-client carrier credentials needed, supports
+// auto-detection). Direct carrier APIs remain as fallback.
+//
 // Cached for 10 minutes per (carrier, awb) to keep cost down — repeat
 // queries for the same AWB during a chat session don't hammer the carrier APIs.
 
 import axios from 'axios';
+import {
+    trackAutoDetect,
+    type NormalizedTracking,
+} from './trackerCourierService';
 
 export type TrackingCarrier = 'bluedart' | 'delhivery' | 'dtdc';
 
@@ -136,6 +144,46 @@ async function tryDTDC(awb: string): Promise<TrackingResult | null> {
     }
 }
 
+// Map TC slug back to our internal TrackingCarrier type
+const TC_SLUG_TO_CARRIER: Record<string, TrackingCarrier> = {
+    bluedart: 'bluedart',
+    dtdc: 'dtdc',
+    delhivery: 'delhivery',
+};
+
+const TC_SLUG_TO_LABEL: Record<string, string> = {
+    bluedart: 'Blue Dart',
+    dtdc: 'DTDC',
+    delhivery: 'Delhivery',
+};
+
+function tcToTrackingResult(tc: NormalizedTracking): TrackingResult | null {
+    const carrier = TC_SLUG_TO_CARRIER[tc.courier_slug];
+    if (!carrier) return null;
+    const lastCp = tc.checkpoints.length ? tc.checkpoints[tc.checkpoints.length - 1] : null;
+    return {
+        found: true,
+        carrier,
+        carrierLabel: TC_SLUG_TO_LABEL[tc.courier_slug] || tc.courier_name,
+        awb: tc.tracking_number,
+        status: tc.status_message || tc.status,
+        lastLocation: lastCp?.location,
+        lastActivity: lastCp?.activity,
+        lastUpdated: lastCp ? `${lastCp.date} ${lastCp.time}`.trim() : undefined,
+    };
+}
+
+async function tryTrackerCourier(awb: string): Promise<TrackingResult | null> {
+    if (!process.env.TRACKERCOURIER_API_KEY) return null;
+    try {
+        const tc = await trackAutoDetect(awb);
+        if (!tc || tc.result !== 'success') return null;
+        return tcToTrackingResult(tc);
+    } catch {
+        return null;
+    }
+}
+
 /** Try all carriers in parallel and return the first hit. */
 export async function lookupAwb(
     awb: string
@@ -148,6 +196,18 @@ export async function lookupAwb(
         if (hit && hit.expiresAt > Date.now()) return hit.value;
     }
 
+    // Try TrackerCourier.io first (no per-client creds needed), then fall
+    // back to direct carrier APIs.
+    const tcResult = await tryTrackerCourier(awb);
+    if (tcResult) {
+        cache.set(cacheKey(tcResult.carrier, awb), {
+            value: tcResult,
+            expiresAt: Date.now() + CACHE_TTL_MS,
+        });
+        return tcResult;
+    }
+
+    // Fallback: direct carrier APIs in parallel
     const results = await Promise.allSettled([
         tryBlueDart(awb),
         tryDelhivery(awb),

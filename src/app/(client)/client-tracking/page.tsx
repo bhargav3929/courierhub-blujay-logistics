@@ -37,6 +37,7 @@ import { getSubAccountIds } from '@/services/subAccountService';
 import { blueDartService } from '@/services/blueDartService';
 import { dtdcService } from '@/services/dtdcService';
 import { delhiveryService } from '@/services/delhiveryService';
+import { trackUnified, isTrackerCourierData, parseTrackerCourierScans, getTrackerCourierStatus } from '@/services/trackingService';
 import type { Shipment } from '@/types/types';
 import {
     getTrackingDisplay,
@@ -191,12 +192,17 @@ export default function ClientTrackingPage() {
 
         try {
             let data: any;
-            if (resolvedCarrier === 'DTDC') {
-                data = await dtdcService.trackShipment(awbToTrack);
-            } else if (resolvedCarrier === 'Delhivery') {
-                data = await delhiveryService.trackShipment(awbToTrack);
-            } else {
-                data = await blueDartService.trackShipment(awbToTrack);
+            try {
+                data = await trackUnified(awbToTrack, resolvedCarrier || undefined);
+            } catch {
+                // Fallback to direct carrier APIs
+                if (resolvedCarrier === 'DTDC') {
+                    data = await dtdcService.trackShipment(awbToTrack);
+                } else if (resolvedCarrier === 'Delhivery') {
+                    data = await delhiveryService.trackShipment(awbToTrack);
+                } else {
+                    data = await blueDartService.trackShipment(awbToTrack);
+                }
             }
             const rawStatus = getCurrentStatus(data, resolvedCarrier);
             const normalizedStatus = normalizeTrackingStatus(rawStatus, resolvedCarrier);
@@ -585,6 +591,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function getCurrentStatus(data: any, courier: string): string {
     if (!data) return 'Unknown';
+    if (isTrackerCourierData(data)) return getTrackerCourierStatus(data);
     if (courier === 'DTDC') {
         return data?.trackHeader?.strStatus || data?.statusCode || 'Unknown';
     }
@@ -599,6 +606,7 @@ function getCurrentStatus(data: any, courier: string): string {
 
 function parseScans(data: any, courier: string): Scan[] {
     if (!data) return [];
+    if (isTrackerCourierData(data)) return parseTrackerCourierScans(data);
     if (courier === 'DTDC') return parseDtdcScans(data);
     if (courier === 'Delhivery') return parseDelhiveryScans(data);
     return parseBlueDartScans(data);
