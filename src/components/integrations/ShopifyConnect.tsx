@@ -31,7 +31,7 @@ export function ShopifyConnect() {
         if (dedicatedApp === 'gayatri') {
             return '/api/integrations/shopify-gayatri/install';
         }
-        return '/api/integrations/shopify/install';
+        return '/api/integrations/shopify-public/install';
     };
 
     const handleConnect = () => {

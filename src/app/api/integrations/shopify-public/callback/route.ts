@@ -155,8 +155,14 @@ export async function GET(request: Request) {
             } catch (e) {
                 console.error('[Shopify-Public Callback] Failed to store pending install:', e);
             }
+            // Redirect to the login page with a `redirect` param that carries
+            // the pending-install query string through the authentication flow.
+            // After the merchant logs in (or signs up), the login page will
+            // forward them to /client-integrations with the pending params so
+            // the auto-claim logic can kick in.
+            const integrationsPath = `/client-integrations?shopifyPending=true&pendingShop=${encodeURIComponent(shop)}`;
             return NextResponse.redirect(
-                `${APP_URL}/client-integrations?shopifyPending=true&pendingShop=${encodeURIComponent(shop)}`
+                `${APP_URL}/client-login?redirect=${encodeURIComponent(integrationsPath)}`
             );
         }
 

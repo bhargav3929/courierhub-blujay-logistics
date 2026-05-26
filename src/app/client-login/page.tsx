@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Package, Users, ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -18,6 +18,7 @@ const ClientLogin = () => {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { login } = useAuth();
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -38,7 +39,15 @@ const ClientLogin = () => {
 
             await login(email, password);
             toast.success("Welcome back to your dashboard!");
-            router.push("/client-dashboard");
+
+            // Honour the ?redirect= param (used by Shopify install flow etc.)
+            // Only allow relative paths to prevent open-redirect attacks.
+            const redirectTo = searchParams.get("redirect");
+            if (redirectTo && redirectTo.startsWith("/")) {
+                router.push(redirectTo);
+            } else {
+                router.push("/client-dashboard");
+            }
         } catch (error: any) {
             console.error("Login error:", error);
             if (error.code === 'auth/invalid-credential' || error.message.includes('invalid-credential')) {
@@ -154,4 +163,11 @@ const ClientLogin = () => {
     );
 };
 
-export default ClientLogin;
+// Wrap in Suspense because useSearchParams() requires it in App Router.
+export default function ClientLoginPage() {
+    return (
+        <Suspense>
+            <ClientLogin />
+        </Suspense>
+    );
+}

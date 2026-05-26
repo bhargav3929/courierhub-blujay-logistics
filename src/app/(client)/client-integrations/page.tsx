@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -229,7 +229,7 @@ function SectionHeader({
 }
 
 const ClientIntegrations = () => {
-    const { currentUser, retryAuth, refreshClient } = useAuth();
+    const { currentUser, firebaseUser, retryAuth, refreshClient } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
     const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
 
@@ -294,11 +294,18 @@ const ClientIntegrations = () => {
         }
     };
 
-    // Shopify OAuth callback param handling — preserved verbatim from the
-    // previous design.
+    // Guard ref so the pending-install claim only fires once.
+    const claimAttempted = useRef(false);
+
+    // Shopify OAuth callback param handling.
+    // - shopifySuccess: direct OAuth completed (user was logged in during install)
+    // - shopifyPending: App Store install completed without a Blujay session — we
+    //   need to claim the pending install now that the user is authenticated.
+    // - shopifyError: something went wrong during OAuth.
     useEffect(() => {
         if (typeof window === "undefined") return;
         const params = new URLSearchParams(window.location.search);
+
         if (params.get("shopifySuccess") === "true") {
             toast.success("Shopify Connected Successfully!", {
                 description: "Your store orders will now sync automatically.",
@@ -306,17 +313,67 @@ const ClientIntegrations = () => {
             retryAuth();
             window.history.replaceState({}, "", "/client-integrations");
         }
-        if (params.get("shopifyPending") === "true") {
+
+        // ── Auto-claim pending public-app install ──
+        if (
+            params.get("shopifyPending") === "true" &&
+            !claimAttempted.current &&
+            firebaseUser
+        ) {
+            claimAttempted.current = true;
             const pendingShop = params.get("pendingShop") || "";
-            toast.info("Shopify Store Authorized!", {
-                description: `Your store ${
-                    pendingShop ? `(${pendingShop}) ` : ""
-                }was authorized. Click "Connect" on Shopify below and enter your store URL to complete the setup.`,
-                duration: 10000,
-            });
-            setIsShopifyModalOpen(true);
             window.history.replaceState({}, "", "/client-integrations");
+
+            if (!pendingShop) {
+                toast.error("Shopify claim failed", {
+                    description: "Missing shop information. Please try installing again.",
+                });
+                return;
+            }
+
+            // Fire-and-forget async claim
+            (async () => {
+                try {
+                    toast.info("Connecting your Shopify store...", {
+                        description: `Claiming install for ${pendingShop}`,
+                        duration: 5000,
+                    });
+
+                    const idToken = await firebaseUser.getIdToken();
+                    const res = await fetch("/api/integrations/shopify-public/claim", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${idToken}`,
+                        },
+                        body: JSON.stringify({ shop: pendingShop }),
+                    });
+
+                    if (res.ok) {
+                        toast.success("Shopify Connected Successfully!", {
+                            description: "Your store orders will now sync automatically.",
+                        });
+                        await retryAuth();
+                    } else {
+                        const data = await res.json().catch(() => ({}));
+                        toast.error("Shopify claim failed", {
+                            description:
+                                data.error ||
+                                "Could not complete the connection. Please try again.",
+                        });
+                        // Fall back to manual connect
+                        setIsShopifyModalOpen(true);
+                    }
+                } catch (err) {
+                    console.error("[Shopify Auto-Claim] Error:", err);
+                    toast.error("Shopify claim failed", {
+                        description: "Network error. Please try again.",
+                    });
+                    setIsShopifyModalOpen(true);
+                }
+            })();
         }
+
         const shopifyError = params.get("shopifyError");
         if (shopifyError) {
             const errorMessages: Record<string, string> = {
@@ -333,7 +390,7 @@ const ClientIntegrations = () => {
             });
             window.history.replaceState({}, "", "/client-integrations");
         }
-    }, [retryAuth]);
+    }, [retryAuth, firebaseUser]);
 
     const isShopifyConnected = !!currentUser?.shopifyConfig?.isConnected;
 
