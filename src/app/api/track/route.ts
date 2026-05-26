@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
                     error: 'Tracking information not found',
                     tracking_number: awb,
                     courier_tried: slug || 'bluedart, dtdc, delhivery (auto-detect)',
+                    _debug_key_configured: !!process.env.TRACKERCOURIER_API_KEY,
                 },
                 { status: 404 }
             );
