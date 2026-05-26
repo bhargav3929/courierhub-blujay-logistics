@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,8 +65,28 @@ export async function POST(request: Request) {
                 return NextResponse.json({ received: true });
             }
 
-            // Create shipment from order
-            const order = payload;
+            // Fetch full order from Shopify API (webhook payloads for public
+            // apps redact protected customer data even with PCD approval —
+            // the follow-up GET returns the complete order with PII fields).
+            let order = payload;
+            try {
+                const encryptedToken = userData.shopifyConfig?.accessToken;
+                const secret = (process.env.SHOPIFY_PUBLIC_API_SECRET || '').trim();
+                if (encryptedToken && secret) {
+                    const accessToken = decryptTokenWithSecret(encryptedToken, secret);
+                    const orderRes = await fetch(
+                        `https://${shopDomain}/admin/api/2026-07/orders/${payload.id}.json`,
+                        { headers: { 'X-Shopify-Access-Token': accessToken } }
+                    );
+                    if (orderRes.ok) {
+                        const fullOrder = await orderRes.json();
+                        order = fullOrder.order || payload;
+                        console.log('[Shopify-Public Webhook] Fetched full order with customer data');
+                    }
+                }
+            } catch (fetchErr) {
+                console.error('[Shopify-Public Webhook] Order fetch failed, using webhook payload:', fetchErr);
+            }
             const shippingAddress = order.shipping_address || {};
 
             const shipmentData = {
