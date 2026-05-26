@@ -216,7 +216,13 @@ export async function POST(request: Request) {
 
         // 4. Decrypt access token (app2/app3 use their own secrets for encryption)
         let accessToken: string;
-        if (shopifyConfig.appId === 'app2') {
+        if (shopifyConfig.appId === 'public') {
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY_PUBLIC_API_SECRET || '').trim());
+        } else if (shopifyConfig.appId === 'looms') {
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY_LOOMS_API_SECRET || '').trim());
+        } else if (shopifyConfig.appId === 'gayatri') {
+            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY_GAYATRI_API_SECRET || '').trim());
+        } else if (shopifyConfig.appId === 'app2') {
             accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY2_API_SECRET || '').trim());
         } else if (shopifyConfig.appId === 'app3') {
             accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY3_API_SECRET || '').trim());
