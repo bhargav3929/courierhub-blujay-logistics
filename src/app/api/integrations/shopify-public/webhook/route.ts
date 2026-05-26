@@ -75,13 +75,17 @@ export async function POST(request: Request) {
                 if (encryptedToken && secret) {
                     const accessToken = decryptTokenWithSecret(encryptedToken, secret);
                     const orderRes = await fetch(
-                        `https://${shopDomain}/admin/api/2026-07/orders/${payload.id}.json`,
+                        `https://${shopDomain}/admin/api/2026-04/orders/${payload.id}.json`,
                         { headers: { 'X-Shopify-Access-Token': accessToken } }
                     );
                     if (orderRes.ok) {
                         const fullOrder = await orderRes.json();
                         order = fullOrder.order || payload;
-                        console.log('[Shopify-Public Webhook] Fetched full order with customer data');
+                        const sa = order.shipping_address || {};
+                        console.log('[Shopify-Public Webhook] Fetched full order — name:', sa.name, 'phone:', sa.phone, 'zip:', sa.zip);
+                    } else {
+                        const errBody = await orderRes.text();
+                        console.error('[Shopify-Public Webhook] Order fetch failed — HTTP', orderRes.status, ':', errBody.slice(0, 300));
                     }
                 }
             } catch (fetchErr) {
