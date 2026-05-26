@@ -90,10 +90,10 @@ export const TRACKING_STATUS_DISPLAY: Record<TrackingStatus, TrackingStatusDispl
     },
     cancelled: {
         label: 'Cancelled',
-        bg: 'bg-gray-100',
-        text: 'text-gray-600',
-        border: 'border-gray-200',
-        dotColor: 'bg-gray-400',
+        bg: 'bg-red-50',
+        text: 'text-red-700',
+        border: 'border-red-200',
+        dotColor: 'bg-red-500',
     },
     on_hold: {
         label: 'On Hold',

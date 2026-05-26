@@ -443,7 +443,7 @@ const Shipments = () => {
                                         <TableHead>Registered On</TableHead>
                                         <TableHead>Origin / Dest</TableHead>
                                         <TableHead>Courier</TableHead>
-                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -490,9 +490,8 @@ const Shipments = () => {
                                                     const ts: TrackingStatus = (shipment.trackingStatus as TrackingStatus) || legacyStatusToTracking(shipment.status);
                                                     const display = getCollapsedTrackingDisplay(ts);
                                                     return (
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide w-fit ${display.bg} ${display.text}`}>
-                                                                <span className={`h-1.5 w-1.5 rounded-full ${display.dotColor}`} />
+                                                        <div className="flex flex-col gap-1 items-center">
+                                                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap min-w-[90px] ${display.bg} ${display.text}`}>
                                                                 {display.label}
                                                             </span>
                                                             {shipment.lastTrackingLocation && (

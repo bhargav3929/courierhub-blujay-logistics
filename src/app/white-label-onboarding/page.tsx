@@ -221,7 +221,7 @@ export default function WhiteLabelOnboardingPage() {
             {/* Top bar */}
             <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-5">
                 <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 grid place-items-center shadow-lg shadow-blue-900/40">
+                    <div className="h-9 w-9 rounded-xl bg-primary grid place-items-center shadow-lg shadow-blue-900/40">
                         <Building2 className="h-5 w-5 text-white" />
                     </div>
                     <div className="leading-tight">
@@ -258,7 +258,7 @@ export default function WhiteLabelOnboardingPage() {
                     <div className="mt-6 flex items-center gap-4">
                         <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
                             <div
-                                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-[width] duration-300"
+                                className="h-full bg-primary transition-[width] duration-300"
                                 style={{ width: `${progress}%` }}
                             />
                         </div>
@@ -526,7 +526,7 @@ export default function WhiteLabelOnboardingPage() {
                             <Button
                                 type="submit"
                                 disabled={submitting}
-                                className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold px-6 h-11 shadow-lg shadow-blue-900/30"
+                                className="bg-primary hover:bg-primary/90 text-white font-semibold px-6 h-11 shadow-lg shadow-blue-900/30"
                             >
                                 {submitting ? (
                                     <>

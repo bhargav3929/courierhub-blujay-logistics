@@ -207,7 +207,7 @@ export function ApiKeyManager({
     const revoked = keys.filter((k) => k.revokedAt);
 
     const accent = isB2B
-        ? { icon: 'text-violet-600', dialogTitleSuffix: 'B2B Partner key' }
+        ? { icon: 'text-blue-600', dialogTitleSuffix: 'B2B Partner key' }
         : { icon: 'text-blue-600', dialogTitleSuffix: unified ? 'API key' : 'Merchant key' };
 
     return (
@@ -363,7 +363,7 @@ Content-Type: application/json
                                         disabled={creating}
                                         className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${
                                             newKeyType === 'b2b_partner'
-                                                ? 'border-violet-500 bg-violet-50 text-violet-700'
+                                                ? 'border-blue-500 bg-blue-50 text-blue-700'
                                                 : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                                         }`}
                                     >
@@ -413,7 +413,7 @@ Content-Type: application/json
                                                 disabled={creating}
                                                 className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${
                                                     newEnvironment === env
-                                                        ? 'border-violet-500 bg-violet-50 text-violet-700'
+                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
                                                         : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                                                 }`}
                                             >
@@ -502,7 +502,7 @@ Content-Type: application/json
                             <div>
                                 <Label className="text-xs text-slate-500">Webhook Secret (HMAC-SHA256)</Label>
                                 <div className="mt-1 flex items-center gap-2">
-                                    <code className="flex-1 px-3 py-2 rounded-md bg-slate-900 text-violet-300 text-xs font-mono break-all">
+                                    <code className="flex-1 px-3 py-2 rounded-md bg-slate-900 text-blue-300 text-xs font-mono break-all">
                                         {mintedKey.webhookSecret}
                                     </code>
                                     <Button
@@ -587,7 +587,7 @@ function KeyRow({ k, onRevoke }: { k: ApiKeySummary; onRevoke?: () => void }) {
                     {isB2B && (
                         <Badge
                             variant="outline"
-                            className="text-[10px] bg-violet-50 text-violet-700 border-violet-200"
+                            className="text-[10px] bg-blue-50 text-blue-700 border-blue-200"
                         >
                             B2B · {k.environment ?? '—'}
                         </Badge>

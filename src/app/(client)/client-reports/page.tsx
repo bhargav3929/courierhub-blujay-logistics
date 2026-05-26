@@ -180,7 +180,7 @@ export default function ClientReportsPage() {
                         <Button
                             onClick={handleGenerate}
                             disabled={loading || !date?.from || !date?.to}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md min-w-[160px]"
+                            className="bg-primary text-white hover:bg-primary/90 shadow-md min-w-[160px]"
                         >
                             {loading ? (
                                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -225,7 +225,7 @@ export default function ClientReportsPage() {
                         className="space-y-8"
                     >
                         {/* Report Period Header */}
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900">
                             <div>
                                 <h3 className="font-semibold text-blue-900 dark:text-blue-100">Report Summary</h3>
                                 <p className="text-blue-700/80 dark:text-blue-300/80 text-sm">

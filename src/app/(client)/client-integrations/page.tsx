@@ -371,7 +371,7 @@ const ClientIntegrations = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-2">
                     <div className="flex items-center gap-2.5">
-                        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-sm shadow-blue-500/30">
+                        <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/30">
                             <Cable className="h-5 w-5 text-white" />
                         </div>
                         <h1 className="text-3xl font-extrabold tracking-tight">Integrations</h1>
