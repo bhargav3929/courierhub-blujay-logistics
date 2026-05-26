@@ -209,15 +209,25 @@ export async function trackShipment(
     } catch (err: any) {
         const status = err.response?.status;
         const code = err.response?.data?.error?.code;
-        const detail = `HTTP ${status || '?'} code=${code || 'none'} msg=${err.message} data=${JSON.stringify(err.response?.data || null)}`;
 
         if (status === 404 && code === 'TRACKING_NOT_FOUND') {
             console.log(`[TrackerCourier] ${courierSlug}:${trackingNumber} — not found`);
             return null;
         }
+        if (status === 402) {
+            console.error('[TrackerCourier] Quota exceeded — upgrade plan or wait for next month');
+            return null;
+        }
+        if (status === 401) {
+            console.error('[TrackerCourier] Invalid API key');
+            return null;
+        }
 
-        console.error(`[TrackerCourier] Error tracking ${courierSlug}:${trackingNumber}: ${detail}`);
-        throw new Error(`TrackerCourier failed: ${detail}`);
+        console.error(
+            `[TrackerCourier] Error tracking ${courierSlug}:${trackingNumber}:`,
+            err.response?.data || err.message
+        );
+        return null;
     }
 }
 
