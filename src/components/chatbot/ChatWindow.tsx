@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { QuickActions } from './QuickActions';
+import { LabelCapture } from './LabelCapture';
 import type { ChatMessage as ChatMessageType, ChatCard } from '@/types/chatbot';
 
 const MAX_HISTORY = 8;
@@ -20,6 +21,7 @@ function newId(): string {
 export function ChatWindow({ onClose }: { onClose: () => void }) {
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [sending, setSending] = useState(false);
+    const [labelCaptureOpen, setLabelCaptureOpen] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
 
@@ -186,10 +188,13 @@ export function ChatWindow({ onClose }: { onClose: () => void }) {
 
             <ChatInput
                 onSend={send}
+                onScanLabel={() => setLabelCaptureOpen(true)}
                 disabled={sending}
                 autoFocus
                 hasMessages={messages.length > 0}
             />
+
+            {labelCaptureOpen && <LabelCapture onClose={() => setLabelCaptureOpen(false)} />}
         </motion.div>
     );
 }
