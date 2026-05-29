@@ -508,7 +508,7 @@ function CameraStage({
     onCancel,
     onFlip,
 }: {
-    videoRef: React.RefObject<HTMLVideoElement | null>;
+    videoRef: React.RefObject<HTMLVideoElement>;
     onSnap: () => void;
     onCancel: () => void;
     onFlip: () => void;
