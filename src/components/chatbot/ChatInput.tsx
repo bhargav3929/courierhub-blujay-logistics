@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, Mic, MicOff, X, Sparkles } from 'lucide-react';
+import { Send, Paperclip, Smile, Mic, MicOff, X, Sparkles, ScanLine } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MAX_LENGTH = 500;
 const EMOJIS = ['👍', '👋', '❤️', '🎉', '🙏', '✅', '📦', '🚚', '⚡', '🔥', '😊', '🤔'];
@@ -12,15 +13,28 @@ const ICON_BTN =
 
 export function ChatInput({
     onSend,
+    onScanLabel,
     disabled = false,
     autoFocus = false,
     hasMessages = false,
 }: {
     onSend: (text: string) => void;
+    /** Tap-to-scan handler — opens the label-capture overlay. When omitted the button is hidden. */
+    onScanLabel?: () => void;
     disabled?: boolean;
     autoFocus?: boolean;
     hasMessages?: boolean;
 }) {
+    // Label-scan is gated to authenticated non-admin users — the booking
+    // flow it lands on only exists in the client portal.
+    const { isAuthenticated, currentUser } = useAuth();
+    const canScanLabel =
+        !!onScanLabel &&
+        isAuthenticated &&
+        !!currentUser &&
+        currentUser.role !== 'admin' &&
+        currentUser.role !== 'super_admin';
+
     const [text, setText] = useState('');
     const [attachments, setAttachments] = useState<string[]>([]);
     const [emojiOpen, setEmojiOpen] = useState(false);
@@ -203,6 +217,19 @@ export function ChatInput({
                             onChange={handleFiles}
                             className="hidden"
                         />
+
+                        {canScanLabel && (
+                            <button
+                                type="button"
+                                onClick={onScanLabel}
+                                disabled={disabled}
+                                aria-label="Scan shipping label"
+                                title="Scan a shipping label"
+                                className={`${ICON_BTN} text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30`}
+                            >
+                                <ScanLine className="h-[18px] w-[18px]" />
+                            </button>
+                        )}
 
                         <textarea
                             ref={taRef}

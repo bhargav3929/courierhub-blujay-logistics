@@ -38,6 +38,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createShipment, getShipmentById, updateShipment, lookupReceiverByPhone, getUniqueSKUs } from "@/services/shipmentService";
 import { ShipmentProduct } from "@/types/types";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
+import { consumePrefill } from "@/lib/chatbot/shipmentPrefillStash";
 import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
 import { dtdcService } from "@/services/dtdcService";
@@ -202,9 +203,26 @@ const AddShipment = () => {
 
     const shopifyShipmentId = searchParams.get('shopifyShipmentId');
     const returnShipmentId = searchParams.get('returnShipmentId');
+    const prefillKey = searchParams.get('prefillKey');
     const [shopifySourceId, setShopifySourceId] = useState<string | null>(null);
     const [isReturn, setIsReturn] = useState(false);
     const [parentShipmentId, setParentShipmentId] = useState<string | null>(null);
+
+    // Hydrate delivery + orderID from a chatbot label-capture handoff.
+    // Runs exactly once per prefillKey (consumePrefill removes the entry).
+    // Skipped when arriving from Shopify / return flows — those paths own
+    // delivery state themselves.
+    useEffect(() => {
+        if (!prefillKey || shopifyShipmentId || returnShipmentId) return;
+        const prefill = consumePrefill(prefillKey);
+        if (!prefill) return;
+        setDelivery(prefill.delivery);
+        if (prefill.orderId) setOrderID(prefill.orderId);
+        toast.success('Label data loaded', {
+            description: 'Review the details, then complete the booking.',
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [prefillKey]);
 
     // Fire-and-forget call to sync fulfillment to Shopify after AWB is assigned
     const triggerShopifyFulfillment = async (shipmentId: string) => {
