@@ -70,13 +70,26 @@ export function parseTrackerCourierScans(
     data: UnifiedTrackingResult
 ): Array<{ date: string; time: string; location: string; activity: string; statusCode?: string }> {
     if (!data?.checkpoints?.length) return [];
-    return data.checkpoints.map(cp => ({
-        date: cp.date,
-        time: cp.time,
-        location: cp.location,
-        activity: cp.activity,
-        statusCode: cp.state,
-    })).reverse(); // Most recent first (matching existing parser behavior)
+    return data.checkpoints
+        // Drop carrier "no information present for consignment …" placeholders —
+        // these come back when the AWB isn't recognized and would otherwise
+        // render as a raw HTML <a> blob in the timeline. Filtering them lets the
+        // UI fall through to its clean "No movement scans yet" empty state.
+        .filter(cp => !/no information present/i.test(cp.activity || ''))
+        .map(cp => ({
+            date: cp.date,
+            time: cp.time,
+            location: cp.location,
+            activity: stripHtml(cp.activity),
+            statusCode: cp.state,
+        }))
+        .reverse(); // Most recent first (matching existing parser behavior)
+}
+
+/** Strip HTML tags from a checkpoint activity string (carriers sometimes embed <a> links). */
+function stripHtml(s: string): string {
+    if (!s) return '';
+    return s.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 }
 
 /**
