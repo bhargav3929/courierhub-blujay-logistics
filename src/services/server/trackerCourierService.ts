@@ -248,36 +248,43 @@ export async function trackByInternalCourier(
 }
 
 /**
- * Try all supported Indian carriers in parallel for a given tracking number.
- * Returns the first successful result (where Result === 'success').
+ * Try the supported Indian carriers for a given tracking number and return the
+ * one that actually has the shipment (Result === 'success').
+ *
+ * This runs SEQUENTIALLY, not in parallel, and short-circuits on the first
+ * real hit. Firing all carriers concurrently caused two problems: (1) TC's
+ * rate limit would drop one of the bursted calls, so a genuine success (e.g.
+ * a delivered Blue Dart AWB with 9 scans) could be lost and a "no information"
+ * stub from the wrong carrier returned instead; (2) every lookup burned 3x
+ * quota even when the first carrier already matched. Sequential + early-return
+ * is deterministic and quota-friendly (a real hit costs a single call).
  */
 export async function trackAutoDetect(
     trackingNumber: string
 ): Promise<NormalizedTracking | null> {
     const primarySlugs = ['bluedart', 'dtdc', 'delhivery'];
 
+    // Fast path — a cached success for any carrier wins outright.
     for (const slug of primarySlugs) {
         const cached = getCached(slug, trackingNumber);
         if (cached && cached.result === 'success') return cached;
     }
 
-    const results = await Promise.allSettled(
-        primarySlugs.map(slug => trackShipment(slug, trackingNumber))
-    );
-
-    // Prefer results where the carrier actually found the shipment
-    for (const r of results) {
-        if (r.status === 'fulfilled' && r.value && r.value.result === 'success') {
-            return r.value;
+    // Try each carrier in turn. Return immediately on a real success; otherwise
+    // remember the first non-null "failure"/pending result as a last resort so
+    // the caller still gets *something* when no carrier recognizes the AWB.
+    let firstNonSuccess: NormalizedTracking | null = null;
+    for (const slug of primarySlugs) {
+        const result = await trackShipment(slug, trackingNumber);
+        if (result && result.result === 'success') {
+            return result;
+        }
+        if (result && !firstNonSuccess) {
+            firstNonSuccess = result;
         }
     }
 
-    // If no success, return the first non-null result (may be "failure"/pending)
-    for (const r of results) {
-        if (r.status === 'fulfilled' && r.value) return r.value;
-    }
-
-    return null;
+    return firstNonSuccess;
 }
 
 /**

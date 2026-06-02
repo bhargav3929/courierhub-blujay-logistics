@@ -159,16 +159,6 @@ export default function ClientTrackingPage() {
         }
     };
 
-    // Find the carrier when "auto" is selected — match AWB against the user's own shipments
-    const detectCarrier = (awbToCheck: string): { carrier: string; shipment: Shipment | null } => {
-        const match = ownShipments.find((s) => s.courierTrackingId === awbToCheck.trim());
-        if (match) return { carrier: match.courier, shipment: match };
-        // Heuristics by AWB shape — Blue Dart AWBs start with letters+digits, DTDC are mostly numeric, Delhivery are 12-14 digit numerics.
-        const digits = /^\d{8,16}$/.test(awbToCheck.trim());
-        if (digits) return { carrier: 'Delhivery', shipment: null };
-        return { carrier: 'Blue Dart', shipment: null };
-    };
-
     const handleTrack = async (overrideAwb?: string, overrideCarrier?: Carrier) => {
         const awbToTrack = (overrideAwb ?? awb).trim();
         if (!awbToTrack) {
@@ -180,30 +170,50 @@ export default function ClientTrackingPage() {
         setError(null);
         setResult(null);
 
-        let resolvedCarrier = carrierChoice === 'auto' ? '' : carrierChoice;
-        let matchedShipment: Shipment | null = null;
-        if (carrierChoice === 'auto') {
-            const det = detectCarrier(awbToTrack);
-            resolvedCarrier = det.carrier;
-            matchedShipment = det.shipment;
+        // Resolve a carrier ONLY when we genuinely know it: an explicit dropdown
+        // choice, or an exact match in the user's own shipments. For "auto" with
+        // an unknown AWB we deliberately send NO courier so the backend tries
+        // every carrier and returns the one that actually has scans. (The old
+        // digit-shape heuristic forced "Delhivery"/"Blue Dart" — never DTDC —
+        // which mis-routed numeric Blue Dart AWBs and silently returned no data.)
+        const matchedShipment =
+            ownShipments.find((s) => s.courierTrackingId === awbToTrack) || null;
+        let carrierToQuery: string | undefined;
+        if (carrierChoice !== 'auto') {
+            carrierToQuery = carrierChoice;
+        } else if (matchedShipment) {
+            carrierToQuery = matchedShipment.courier;
         } else {
-            matchedShipment = ownShipments.find((s) => s.courierTrackingId === awbToTrack) || null;
+            carrierToQuery = undefined; // let the backend auto-detect across carriers
         }
 
         try {
             let data: any;
+            let usedFallback = false;
             try {
-                data = await trackUnified(awbToTrack, resolvedCarrier || undefined);
+                data = await trackUnified(awbToTrack, carrierToQuery);
             } catch {
-                // Fallback to direct carrier APIs
-                if (resolvedCarrier === 'DTDC') {
+                // Fallback to direct carrier APIs (these need a concrete carrier)
+                usedFallback = true;
+                const fb = carrierToQuery || 'Blue Dart';
+                if (fb === 'DTDC') {
                     data = await dtdcService.trackShipment(awbToTrack);
-                } else if (resolvedCarrier === 'Delhivery') {
+                } else if (fb === 'Delhivery') {
                     data = await delhiveryService.trackShipment(awbToTrack);
                 } else {
                     data = await blueDartService.trackShipment(awbToTrack);
                 }
             }
+
+            // Display/normalize against the carrier the backend actually matched
+            // (the unified response carries its slug), falling back to whatever
+            // we resolved up front.
+            const resolvedCarrier =
+                (!usedFallback ? slugToDisplayCarrier(data?.courier_slug) : undefined) ||
+                carrierToQuery ||
+                matchedShipment?.courier ||
+                'Blue Dart';
+
             const rawStatus = getCurrentStatus(data, resolvedCarrier);
             const normalizedStatus = normalizeTrackingStatus(rawStatus, resolvedCarrier);
             const scans = parseScans(data, resolvedCarrier);
@@ -588,6 +598,23 @@ function Stat({ label, value }: { label: string; value: string }) {
 // ============================================================================
 // Helpers (mirror the parsers in /client-shipments)
 // ============================================================================
+
+// Map a TrackerCourier slug (from the unified response) back to our internal
+// display carrier name, so the result card shows the carrier that actually
+// matched — not the one the user guessed.
+function slugToDisplayCarrier(slug?: string): string | undefined {
+    if (!slug) return undefined;
+    const map: Record<string, string> = {
+        bluedart: 'Blue Dart',
+        dtdc: 'DTDC',
+        delhivery: 'Delhivery',
+        ecomexpress: 'Ecom Express',
+        xpressbees: 'Xpressbees',
+        indiapost: 'India Post',
+        ekart: 'Ekart',
+    };
+    return map[slug.toLowerCase()];
+}
 
 function getCurrentStatus(data: any, courier: string): string {
     if (!data) return 'Unknown';
