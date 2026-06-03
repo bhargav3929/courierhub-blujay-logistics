@@ -1,7 +1,7 @@
 // Firebase configuration and initialization
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { Analytics, getAnalytics } from 'firebase/analytics';
 
@@ -88,8 +88,18 @@ if (configError) {
 
         auth = getAuth(app);
 
-        // Initialize Firestore with simplified settings (removed persistence to fix SST errors)
-        db = getFirestore(app);
+        // Initialize Firestore with ignoreUndefinedProperties so writes that
+        // contain optional/undefined fields (e.g. courierCharge or
+        // collectableAmount on a Shopify-proceed booking) silently drop those
+        // keys instead of throwing "Unsupported field value: undefined".
+        try {
+            db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+        } catch {
+            // initializeFirestore throws if Firestore was already initialized
+            // (e.g. Fast Refresh re-running this module) — fall back to the
+            // existing instance.
+            db = getFirestore(app);
+        }
 
         storage = getStorage(app);
 

@@ -350,9 +350,9 @@ export const updateShipment = async (
             ...updates,
             updatedAt: Timestamp.now()
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error updating shipment:', error);
-        throw new Error('Failed to update shipment');
+        throw new Error(error?.message || 'Failed to update shipment');
     }
 };
 
