@@ -164,6 +164,10 @@ src/
 └─ middleware.ts                     Route protection
 ```
 
+## Carrier integration deep-dives
+
+- **Blue Dart**: see [`docs/bluedart-integration.md`](docs/bluedart-integration.md) — the complete reference (auth, customer-code model, payload shape, booking→save flow, known errors, and the prod runbook). **Read it before touching anything Blue Dart-related.**
+
 ## Patterns to repeat (not re-invent)
 
 - **Adding a new carrier**: mirror `blueDartService.ts` + `/api/bluedart/*` + `bluedartConfig.ts`. Register it in `courierRegistry.ts`. The Integrations page picks it up automatically.
