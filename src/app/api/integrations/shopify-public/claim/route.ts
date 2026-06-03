@@ -80,11 +80,15 @@ export async function POST(request: NextRequest) {
         );
 
         // ── Write shopifyConfig to user doc (keep token encrypted) ──
+        // Carry the expiring-token lifecycle fields from the pending install.
         const userRef = db.collection('users').doc(userId);
         await userRef.update({
             shopifyConfig: {
                 shopUrl: shop,
                 accessToken: pendingData.accessToken, // stored encrypted
+                ...(pendingData.refreshToken ? { refreshToken: pendingData.refreshToken } : {}),
+                ...(pendingData.accessTokenExpiresAt ? { accessTokenExpiresAt: pendingData.accessTokenExpiresAt } : {}),
+                ...(pendingData.refreshTokenExpiresAt ? { refreshTokenExpiresAt: pendingData.refreshTokenExpiresAt } : {}),
                 isConnected: true,
                 updatedAt: new Date().toISOString(),
                 scopes: pendingData.scopes,

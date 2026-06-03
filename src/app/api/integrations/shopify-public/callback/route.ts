@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
 import { doc, updateDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { encryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
+import { exchangeCodeForToken, encryptForApp } from '@/lib/shopifyToken';
 import { registerShopifyWebhook } from '@/lib/shopifyWebhook';
 
 export const dynamic = 'force-dynamic';
@@ -105,39 +105,29 @@ export async function GET(request: Request) {
             userId = await findUserByPendingShop(shop);
         }
 
-        // 3. Exchange authorization code for access token FIRST
+        // 3. Exchange authorization code for an EXPIRING offline token FIRST.
+        // (Shopify deprecated permanent tokens — `expiring: 1` yields a token
+        // that expires ~1h with a ~90d refresh token; see lib/shopifyToken.ts.)
         let accessToken: string;
         let tokenScopes: string;
+        let refreshToken: string | undefined;
+        let accessTokenExpiresAt: number | undefined;
+        let refreshTokenExpiresAt: number | undefined;
 
         try {
-            const accessTokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    client_id: SHOPIFY_PUBLIC_API_KEY,
-                    client_secret: SHOPIFY_PUBLIC_API_SECRET,
-                    code,
-                }),
-            });
+            const bundle = await exchangeCodeForToken(shop, code, 'public');
 
-            if (!accessTokenResponse.ok) {
-                const errorText = await accessTokenResponse.text();
-                console.error('[Shopify-Public Callback] Token exchange failed:', accessTokenResponse.status, errorText);
-                return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=token_exchange_failed`);
-            }
-
-            const tokenData = await accessTokenResponse.json();
-
-            if (!tokenData.access_token) {
+            if (!bundle.accessToken) {
                 return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=no_token`);
             }
 
-            accessToken = tokenData.access_token;
-            tokenScopes = tokenData.scope || 'read_orders,write_fulfillments';
+            accessToken = bundle.accessToken;
+            tokenScopes = bundle.scope || 'read_orders,write_fulfillments';
+            refreshToken = bundle.refreshToken;
+            accessTokenExpiresAt = bundle.accessTokenExpiresAt;
+            refreshTokenExpiresAt = bundle.refreshTokenExpiresAt;
         } catch (error: any) {
-            console.error('[Shopify-Public Callback] Token exchange error:', error);
+            console.error('[Shopify-Public Callback] Token exchange error:', error?.message || error);
             return NextResponse.redirect(`${APP_URL}/client-integrations?shopifyError=token_exchange_failed`);
         }
 
@@ -146,7 +136,10 @@ export async function GET(request: Request) {
             console.log('[Shopify-Public Callback] No userId found — storing as pending install for shop:', shop);
             try {
                 await setDoc(doc(db, 'pendingShopifyInstalls', shop), {
-                    accessToken: encryptTokenWithSecret(accessToken, SHOPIFY_PUBLIC_API_SECRET),
+                    accessToken: encryptForApp(accessToken, 'public'),
+                    ...(refreshToken ? { refreshToken: encryptForApp(refreshToken, 'public') } : {}),
+                    ...(accessTokenExpiresAt ? { accessTokenExpiresAt } : {}),
+                    ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : {}),
                     scopes: tokenScopes,
                     installedAt: new Date().toISOString(),
                     claimed: false,
@@ -171,7 +164,10 @@ export async function GET(request: Request) {
             await updateDoc(doc(db, 'users', userId), {
                 shopifyConfig: {
                     shopUrl: shop,
-                    accessToken: encryptTokenWithSecret(accessToken, SHOPIFY_PUBLIC_API_SECRET),
+                    accessToken: encryptForApp(accessToken, 'public'),
+                    ...(refreshToken ? { refreshToken: encryptForApp(refreshToken, 'public') } : {}),
+                    ...(accessTokenExpiresAt ? { accessTokenExpiresAt } : {}),
+                    ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : {}),
                     isConnected: true,
                     updatedAt: new Date().toISOString(),
                     scopes: tokenScopes,

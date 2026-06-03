@@ -66,11 +66,14 @@ export async function GET(request: Request) {
             const pendingData = pendingDoc.data();
             const accessToken = decryptTokenWithSecret(pendingData.accessToken, SHOPIFY_PUBLIC_API_SECRET);
 
-            // Save to user's shopifyConfig
+            // Save to user's shopifyConfig (carry expiring-token lifecycle fields)
             await updateDoc(doc(db, 'users', userId), {
                 shopifyConfig: {
                     shopUrl: shopUrl,
                     accessToken: pendingData.accessToken,
+                    ...(pendingData.refreshToken ? { refreshToken: pendingData.refreshToken } : {}),
+                    ...(pendingData.accessTokenExpiresAt ? { accessTokenExpiresAt: pendingData.accessTokenExpiresAt } : {}),
+                    ...(pendingData.refreshTokenExpiresAt ? { refreshTokenExpiresAt: pendingData.refreshTokenExpiresAt } : {}),
                     isConnected: true,
                     updatedAt: new Date().toISOString(),
                     scopes: pendingData.scopes,

@@ -48,6 +48,11 @@ export interface User {
         scopes?: string;
         webhookStatus?: 'active' | 'failed';
         webhookError?: string;
+        appId?: string;
+        // Expiring offline token lifecycle (Shopify deprecated permanent tokens).
+        refreshToken?: string;            // encrypted
+        accessTokenExpiresAt?: number;    // epoch ms — access token ~1h
+        refreshTokenExpiresAt?: number;   // epoch ms — refresh token ~90d
     };
     // Dedicated Shopify app assignment (set by admin for clients with custom apps)
     dedicatedShopifyApp?: 'looms' | 'gayatri';
@@ -61,6 +66,8 @@ export interface User {
 export interface WhiteLabelConfig {
     brandName: string;
     logoUrl: string;
+    logoSquareUrl?: string;    // Optional square variant for favicon / avatar contexts
+    primaryColor?: string;     // Hex (e.g. "#2563eb") — accents buttons + links in tenant portal
     // Return / pickup address used when generating courier labels for this tenant
     returnAddress: {
         line1: string;
@@ -123,6 +130,11 @@ export interface Client {
     shopifyAccessToken?: string;
     // Optional White Label-specific fields
     whiteLabelConfig?: WhiteLabelConfig;
+    // Tenant subdomain (white-label only). Unique across all tenants.
+    // Once set, it's the public host: `{subdomain}.blujaylogistic.com`.
+    // Reverse-indexed in the `subdomainIndex` collection for O(1) middleware lookup.
+    subdomain?: string;
+    subdomainLockedAt?: Timestamp;     // when the subdomain was first persisted — block reuse
     // Courier integrations — map keyed by CourierId. Credentials blob is encrypted.
     courierIntegrations?: Partial<Record<CourierId, CourierIntegration>>;
     // Sub-account hierarchy

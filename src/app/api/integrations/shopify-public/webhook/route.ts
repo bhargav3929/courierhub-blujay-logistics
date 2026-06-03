@@ -2,8 +2,8 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
+import { collection, addDoc, query, where, getDocs, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { getValidAccessToken } from '@/lib/shopifyToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,10 +70,20 @@ export async function POST(request: Request) {
             // the follow-up GET returns the complete order with PII fields).
             let order = payload;
             try {
-                const encryptedToken = userData.shopifyConfig?.accessToken;
-                const secret = (process.env.SHOPIFY_PUBLIC_API_SECRET || '').trim();
-                if (encryptedToken && secret) {
-                    const accessToken = decryptTokenWithSecret(encryptedToken, secret);
+                const cfg = userData.shopifyConfig;
+                if (cfg?.accessToken && cfg?.shopUrl) {
+                    // Resolve a valid (refreshed/migrated if needed) access token.
+                    const accessToken = await getValidAccessToken(
+                        {
+                            shopUrl: cfg.shopUrl,
+                            appId: cfg.appId || 'public',
+                            accessToken: cfg.accessToken,
+                            refreshToken: cfg.refreshToken,
+                            accessTokenExpiresAt: cfg.accessTokenExpiresAt,
+                            refreshTokenExpiresAt: cfg.refreshTokenExpiresAt,
+                        },
+                        (update) => updateDoc(doc(db, 'users', userDoc.id), update),
+                    );
                     const orderRes = await fetch(
                         `https://${shopDomain}/admin/api/2026-04/orders/${payload.id}.json`,
                         { headers: { 'X-Shopify-Access-Token': accessToken } }

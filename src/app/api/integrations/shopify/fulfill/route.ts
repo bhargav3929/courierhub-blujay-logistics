@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { decryptToken, decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
+import { getValidAccessToken } from '@/lib/shopifyToken';
 import { adminAuth } from '@/lib/firebaseAdmin';
 
 export const dynamic = 'force-dynamic';
@@ -160,21 +160,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Shopify not connected' }, { status: 400 });
         }
 
-        // 4. Decrypt access token (app2/app3 use their own secrets for encryption)
-        let accessToken: string;
-        if (shopifyConfig.appId === 'public') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY_PUBLIC_API_SECRET || '').trim());
-        } else if (shopifyConfig.appId === 'looms') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY_LOOMS_API_SECRET || '').trim());
-        } else if (shopifyConfig.appId === 'gayatri') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY_GAYATRI_API_SECRET || '').trim());
-        } else if (shopifyConfig.appId === 'app2') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY2_API_SECRET || '').trim());
-        } else if (shopifyConfig.appId === 'app3') {
-            accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, (process.env.SHOPIFY3_API_SECRET || '').trim());
-        } else {
-            accessToken = decryptToken(shopifyConfig.accessToken);
-        }
+        // 4. Resolve a valid Admin-API access token. Decrypts, and refreshes
+        // or migrates the expiring offline token if needed (Shopify deprecated
+        // permanent tokens), persisting any new token back to the user doc.
+        const accessToken = await getValidAccessToken(
+            {
+                shopUrl: shopifyConfig.shopUrl,
+                appId: shopifyConfig.appId,
+                accessToken: shopifyConfig.accessToken,
+                refreshToken: shopifyConfig.refreshToken,
+                accessTokenExpiresAt: shopifyConfig.accessTokenExpiresAt,
+                refreshTokenExpiresAt: shopifyConfig.refreshTokenExpiresAt,
+            },
+            (update) => updateDoc(doc(db, 'users', shipment.clientId), update),
+        );
         const shop = shopifyConfig.shopUrl;
 
         // 5. Map courier to Shopify tracking info
