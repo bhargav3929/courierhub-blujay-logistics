@@ -749,6 +749,15 @@ const AddShipment = () => {
             const responseData = apiResponse?.GenerateWayBillResult || apiResponse;
             const statusBlock = responseData?.Status?.[0] || {};
 
+            const statusInfo: string = statusBlock.StatusInformation || "";
+            // Blue Dart keys idempotency on the CreditReferenceNo. If this
+            // order was already booked (e.g. a prior attempt generated the AWB
+            // but failed to save it), it returns IsError:true with
+            // "Waybill already genereated ... Waybill No : <awb>". That AWB is
+            // valid — recover it instead of failing and re-prompting the user
+            // (which would otherwise look like a dead-end duplicate error).
+            const alreadyGeneratedAwb = statusInfo.match(/Waybill\s+No\s*:\s*(\d+)/i)?.[1];
+
             if (responseData?.IsError === false) {
                 awbNo = responseData.AWBNo;
                 destinationArea = responseData.DestinationArea || "";
@@ -756,8 +765,14 @@ const AddShipment = () => {
                 tokenNumber = responseData.TokenNumber || "";
                 blueDartStatus = "Generated";
                 toast.success(`Waybill Generated: ${awbNo}`);
+            } else if (alreadyGeneratedAwb) {
+                awbNo = alreadyGeneratedAwb;
+                const destAreaMatch = statusInfo.match(/Dest\s+Area\s*:\s*(\w+)/i)?.[1];
+                destinationArea = destAreaMatch || "";
+                blueDartStatus = "Generated";
+                toast.success(`Already booked — recovered Waybill: ${awbNo}`);
             } else {
-                const errorMessage = statusBlock.StatusInformation || "Unknown Blue Dart Error";
+                const errorMessage = statusInfo || "Unknown Blue Dart Error";
                 throw new Error(`Blue Dart Error: ${errorMessage}`);
             }
         } catch (apiError: any) {
