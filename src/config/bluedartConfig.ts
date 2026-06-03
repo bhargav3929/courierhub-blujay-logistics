@@ -41,15 +41,18 @@ export type BlueDartServiceType = keyof typeof BLUEDART_SERVICE_TYPES;
 
 export const BLUEDART_PREDEFINED = {
     // Billing & Pickup Location - From Environment Variables
-    billingArea: process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD",
-    billingCustomerCode: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "302282",
-    billingCustomerCodeB2B: process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE_B2B || "101183",
+    // Codes are .trim()'d — a stray newline/space in an env var produces an
+    // invalid code and Blue Dart rejects it with "UnauthorizedUser".
+    billingArea: (process.env.NEXT_PUBLIC_BLUEDART_AREA || "HYD").trim(),
+    billingCustomerCode: (process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE || "302282").trim(),
+    billingCustomerCodeB2B: (process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE_B2B || "101183").trim(),
     // Shopify clients ship under a separate Blue Dart contract — same account,
     // dedicated customer code. Falls back to the generic B2C code if unset.
-    billingCustomerCodeShopify:
+    billingCustomerCodeShopify: (
         process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE_SHOPIFY ||
         process.env.NEXT_PUBLIC_BLUEDART_CUSTOMER_CODE ||
-        "302352",
+        "302282"
+    ).trim(),
 
     // Shipper Details - Hardcoded default can be overridden or updated to env
     shipperName: "ROAST AND KRUNCH CAFE", // Updated to match Customer Name
