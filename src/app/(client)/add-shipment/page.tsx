@@ -39,6 +39,7 @@ import { createShipment, getShipmentById, updateShipment, lookupReceiverByPhone,
 import { ShipmentProduct } from "@/types/types";
 import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/clientService";
 import { consumePrefill } from "@/lib/chatbot/shipmentPrefillStash";
+import { humanizeCourierError } from "@/lib/courierErrors";
 import { blueDartService } from "@/services/blueDartService";
 import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
 import { dtdcService } from "@/services/dtdcService";
@@ -666,7 +667,10 @@ const AddShipment = () => {
 
         } catch (error: any) {
             console.error('Shipment creation error:', error);
-            toast.error("Booking Failed", { description: error.message || "Could not create shipment" });
+            // Translate the carrier's cryptic error into a plain-language,
+            // actionable message (see src/lib/courierErrors.ts).
+            const friendly = humanizeCourierError(selectedCourier, error?.message || '');
+            toast.error(friendly.title, { description: friendly.description });
         } finally {
             setLoading(false);
         }
