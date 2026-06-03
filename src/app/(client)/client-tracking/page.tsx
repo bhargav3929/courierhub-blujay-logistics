@@ -163,10 +163,19 @@ export default function ClientTrackingPage() {
     const detectCarrier = (awbToCheck: string): { carrier: string; shipment: Shipment | null } => {
         const match = ownShipments.find((s) => s.courierTrackingId === awbToCheck.trim());
         if (match) return { carrier: match.courier, shipment: match };
-        // Heuristics by AWB shape — Blue Dart AWBs start with letters+digits, DTDC are mostly numeric, Delhivery are 12-14 digit numerics.
-        const digits = /^\d{8,16}$/.test(awbToCheck.trim());
-        if (digits) return { carrier: 'Delhivery', shipment: null };
-        return { carrier: 'Blue Dart', shipment: null };
+        // Blue Dart, DTDC and Delhivery AWBs are ALL purely numeric and can't be
+        // told apart by shape — guessing one (the old code forced Delhivery for
+        // any numeric AWB) makes the lookup query the wrong carrier and return
+        // "no information". Return '' instead so the server-side auto-detect
+        // (trackAutoDetect) tries all carriers and returns whichever has data.
+        return { carrier: '', shipment: null };
+    };
+
+    // Map a TrackerCourier slug back to our internal carrier name (for display).
+    const SLUG_TO_INTERNAL: Record<string, string> = {
+        bluedart: 'Blue Dart',
+        dtdc: 'DTDC',
+        delhivery: 'Delhivery',
     };
 
     const handleTrack = async (overrideAwb?: string, overrideCarrier?: Carrier) => {
@@ -204,6 +213,12 @@ export default function ClientTrackingPage() {
                     data = await blueDartService.trackShipment(awbToTrack);
                 }
             }
+            // When we let the server auto-detect (no carrier passed), adopt the
+            // carrier it actually resolved so the UI shows the right logo/label.
+            if (!resolvedCarrier && isTrackerCourierData(data)) {
+                resolvedCarrier = SLUG_TO_INTERNAL[data.courier_slug] || data.courier_name || '';
+            }
+
             const rawStatus = getCurrentStatus(data, resolvedCarrier);
             const normalizedStatus = normalizeTrackingStatus(rawStatus, resolvedCarrier);
             const scans = parseScans(data, resolvedCarrier);
