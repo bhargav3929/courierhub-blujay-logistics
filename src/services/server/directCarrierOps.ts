@@ -134,6 +134,7 @@ function buildReferenceNo(order: Order): string {
 
 export interface BlueDartBookOptions {
     serviceType?: BlueDartServiceType; // default APEX (B2C)
+    packType?: string; // Blue Dart pack type code (N / T / C)
 }
 
 interface BlueDartResponse {
@@ -192,7 +193,7 @@ export async function bookViaBlueDart(
                 ProductType: 1,
                 ...(cod ? { SubProductCode: 'C' } : { SubProductCode: 'P' }),
                 PieceCount: '1',
-                PackType: service.packType || '',
+                PackType: opts.packType || service.packType || '',
                 ActualWeight: totalWeightKg(order).toString(),
                 Dimensions: [
                     { Length: '10', Breadth: '10', Height: '5', Count: '1' },
@@ -449,6 +450,7 @@ export async function bookViaDTDC(
 export interface BookOrderDirectInput {
     carrier: DirectCarrier;
     blueDartServiceType?: BlueDartServiceType;
+    blueDartPackType?: string;
     delhiveryServiceType?: DelhiveryServiceType;
     dtdcServiceTypeId?: string;
 }
@@ -491,6 +493,7 @@ export async function bookOrderDirect(
         case 'bluedart':
             result = await bookViaBlueDart(order, {
                 serviceType: input.blueDartServiceType,
+                packType: input.blueDartPackType,
             });
             break;
         case 'delhivery':

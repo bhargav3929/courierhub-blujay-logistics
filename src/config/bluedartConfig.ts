@@ -39,6 +39,17 @@ export const BLUEDART_SERVICE_TYPES = {
 
 export type BlueDartServiceType = keyof typeof BLUEDART_SERVICE_TYPES;
 
+// Pack Type selection (mandatory when booking with Blue Dart).
+// The `value` is sent to Blue Dart in the Services.PackType field; the
+// `label` is what the user sees in the dropdown.
+export const BLUEDART_PACK_TYPES = [
+    { value: 'N', label: 'N-12:30' },
+    { value: 'T', label: 'T-10:30' },
+    { value: 'C', label: 'C-critical' },
+] as const;
+
+export type BlueDartPackType = typeof BLUEDART_PACK_TYPES[number]['value'];
+
 export const BLUEDART_PREDEFINED = {
     // Billing & Pickup Location - From Environment Variables
     // Codes are .trim()'d — a stray newline/space in an env var produces an

@@ -8,6 +8,7 @@
  * Body: {
  *   carrier: 'bluedart' | 'delhivery' | 'dtdc',
  *   blueDartServiceType?: 'PRIORITY' | 'APEX' | 'BHARAT_DART' | 'SURFACE',
+ *   blueDartPackType?: 'N' | 'T' | 'C',
  *   delhiveryServiceType?: 'Express' | 'Surface',
  *   dtdcServiceTypeId?: string,
  * }
@@ -37,6 +38,7 @@ const Body = z.object({
     blueDartServiceType: z
         .enum(['PRIORITY', 'APEX', 'BHARAT_DART', 'SURFACE'])
         .optional(),
+    blueDartPackType: z.enum(['N', 'T', 'C']).optional(),
     delhiveryServiceType: z.enum(['Express', 'Surface']).optional(),
     dtdcServiceTypeId: z.string().optional(),
 });

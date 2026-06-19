@@ -41,7 +41,8 @@ import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/cl
 import { consumePrefill } from "@/lib/chatbot/shipmentPrefillStash";
 import { humanizeCourierError } from "@/lib/courierErrors";
 import { blueDartService } from "@/services/blueDartService";
-import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
+import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType, BLUEDART_PACK_TYPES, BlueDartPackType } from "@/config/bluedartConfig";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { dtdcService } from "@/services/dtdcService";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
 import { delhiveryService } from "@/services/delhiveryService";
@@ -177,6 +178,8 @@ const AddShipment = () => {
 
     // Blue Dart service options
     const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
+    // Blue Dart pack type — mandatory, starts blank
+    const [blueDartPackType, setBlueDartPackType] = useState<BlueDartPackType | ''>('');
     // Delhivery service options
     const [delhiveryServiceType, setDelhiveryServiceType] = useState<DelhiveryServiceType>('Express');
     const [enableCOD, setEnableCOD] = useState(false);
@@ -628,6 +631,12 @@ const AddShipment = () => {
 
     // STEP 3: Book directly
     const handleBook = async () => {
+        // Pack type is mandatory for Blue Dart
+        if (selectedCourier === 'Blue Dart' && !blueDartPackType) {
+            toast.error("Please select a pack type");
+            return;
+        }
+
         // Validate COD for Blue Dart / Delhivery
         if ((selectedCourier === 'Blue Dart' || selectedCourier === 'Delhivery') && enableCOD) {
             if (!codAmount || parseFloat(codAmount) <= 0) {
@@ -719,7 +728,7 @@ const AddShipment = () => {
                         ? { SubProductCode: enableCOD ? "C" : "P" }
                         : enableCOD ? { SubProductCode: "C" } : {}),
                     PieceCount: "1",
-                    PackType: selectedService.packType || "",
+                    PackType: blueDartPackType || selectedService.packType || "",
                     ActualWeight: weights.actual.toString(),
                     Dimensions: [
                         {
@@ -833,6 +842,7 @@ const AddShipment = () => {
             blueDartServiceType: selectedService.name,
             blueDartServiceCode: selectedService.code,
             packType: selectedService.packType || '',
+            blueDartPackType: blueDartPackType || undefined,
             codEnabled: enableCOD,
             collectableAmount: codAmountValue,
             ...(isReturn && parentShipmentId ? { shipmentType: 'return' as const, parentShipmentId } : {}),
@@ -1688,6 +1698,26 @@ const AddShipment = () => {
                                                 </div>
                                             </>
                                         )}
+
+                                        {/* Pack Type — mandatory for Blue Dart */}
+                                        <div className="space-y-2 max-w-lg">
+                                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                                <Package className="h-3 w-3" /> Pack type
+                                            </Label>
+                                            <Select value={blueDartPackType} onValueChange={(v) => setBlueDartPackType(v as BlueDartPackType)}>
+                                                <SelectTrigger className="bg-white">
+                                                    <SelectValue placeholder="Select pack type" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {BLUEDART_PACK_TYPES.map((pt) => (
+                                                        <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {!blueDartPackType && (
+                                                <p className="text-[10px] text-muted-foreground">Required · select a pack type to continue</p>
+                                            )}
+                                        </div>
 
                                         {/* COD Option - Only for B2C (Domestic Priority doesn't support COD) */}
                                         {isB2C && (

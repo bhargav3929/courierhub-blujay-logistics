@@ -266,6 +266,7 @@ export interface Shipment {
     productCode?: string;           // "D" for Domestic
     productType?: string;           // "NDOX" (Non-Document Express)
     packType?: string;              // Package type
+    blueDartPackType?: string;      // Blue Dart pack type code (N / T / C) chosen at booking
     pieceCount?: number;            // Number of pieces
     actualWeight?: number;          // Actual weight in kg
     declaredValue?: number;         // Declared value in INR
