@@ -23,9 +23,13 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
 const phoneRegex = /^\d{10}$/;
 const pincodeRegex = /^\d{6}$/;
 
+// #RRGGBB — short forms (#RGB) are rejected so consumers can rely on a 7-char string.
+const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
+
 const onboardingSchema = z.object({
     brandName: z.string().trim().min(2, 'Brand name must be at least 2 characters').max(60, 'Brand name is too long'),
     logoUrl: z.string().trim().url('Enter a valid logo URL (https://...)'),
+    primaryColor: z.string().trim().regex(hexColorRegex, 'Enter a hex color like #2563eb'),
     addressLine1: z.string().trim().min(5, 'Address must be at least 5 characters').max(200, 'Address is too long'),
     city: z.string().trim().min(2, 'City is required').max(60),
     state: z.string().trim().min(2, 'State is required').max(60),
@@ -40,6 +44,7 @@ type FormState = z.infer<typeof onboardingSchema>;
 const blankForm: FormState = {
     brandName: '',
     logoUrl: '',
+    primaryColor: '#2563eb',   // Default to Blujay blue — tenant can change
     addressLine1: '',
     city: '',
     state: '',
@@ -174,6 +179,7 @@ export default function WhiteLabelOnboardingPage() {
             const config: WhiteLabelConfig = {
                 brandName: parsed.data.brandName,
                 logoUrl: parsed.data.logoUrl,
+                primaryColor: parsed.data.primaryColor,
                 returnAddress: {
                     line1: parsed.data.addressLine1,
                     city: parsed.data.city,
@@ -408,6 +414,44 @@ export default function WhiteLabelOnboardingPage() {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Primary brand color */}
+                            <Field label="Primary brand color" required error={errors.primaryColor} htmlFor="primaryColor" hint="Used for buttons, links, and accents across your portal.">
+                                <div className="flex items-center gap-3">
+                                    {/* Native color picker — light wrapper hides Chrome's default chrome */}
+                                    <label
+                                        htmlFor="primaryColor"
+                                        className="relative h-10 w-10 rounded-lg border border-white/10 shadow-inner shrink-0 cursor-pointer overflow-hidden"
+                                        style={{ backgroundColor: hexColorRegex.test(form.primaryColor) ? form.primaryColor : '#2563eb' }}
+                                        aria-label="Open color picker"
+                                    >
+                                        <input
+                                            id="primaryColor"
+                                            type="color"
+                                            value={hexColorRegex.test(form.primaryColor) ? form.primaryColor : '#2563eb'}
+                                            onChange={(e) => setField('primaryColor', e.target.value.toLowerCase())}
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                        />
+                                    </label>
+                                    <Input
+                                        value={form.primaryColor}
+                                        onChange={(e) => setField('primaryColor', e.target.value.trim().toLowerCase())}
+                                        placeholder="#2563eb"
+                                        className={inputCls(errors.primaryColor)}
+                                        inputMode="text"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        maxLength={7}
+                                    />
+                                    {/* Live preview button to show what the color actually looks like applied */}
+                                    <div
+                                        className="hidden sm:flex items-center px-4 h-10 rounded-lg text-sm font-semibold text-white shadow-sm shrink-0"
+                                        style={{ backgroundColor: hexColorRegex.test(form.primaryColor) ? form.primaryColor : '#2563eb' }}
+                                    >
+                                        Preview
+                                    </div>
+                                </div>
+                            </Field>
                         </div>
                     </FieldGroup>
 

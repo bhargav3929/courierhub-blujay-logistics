@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Eye, Edit, Ban, Trash2 } from "lucide-react";
+import { Plus, Eye, Edit, Ban, Trash2, Check, X, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { getAuth } from "firebase/auth";
+import {
+    deriveSubdomain,
+    normalizeSubdomainInput,
+    validateSubdomain,
+} from "@/lib/subdomainSlug";
 import {
     Dialog,
     DialogContent,
@@ -60,12 +66,113 @@ const Clients = () => {
         type: "franchise" as ClientType,
         marginType: "flat" as "flat" | "percentage",
         marginValue: "",
-        allowedCouriers: [] as string[]
+        allowedCouriers: [] as string[],
+        // White-label only — empty for other types.
+        subdomain: "",
     });
+
+    // Whether the admin has manually edited the subdomain. While false, the
+    // field auto-tracks the business name; the moment they type into the
+    // subdomain field we stop overwriting it.
+    const subdomainTouchedRef = useRef(false);
+
+    // Live availability state for the subdomain field. Mirrors the API contract
+    // in /api/admin/subdomain-check.
+    type AvailabilityState =
+        | { kind: 'idle' }
+        | { kind: 'checking' }
+        | { kind: 'available' }
+        | { kind: 'invalid'; message: string }
+        | { kind: 'taken' }
+        | { kind: 'reserved' }
+        | { kind: 'error'; message: string };
+    const [subdomainStatus, setSubdomainStatus] = useState<AvailabilityState>({ kind: 'idle' });
+
+    // Debounced availability check. Re-runs whenever subdomain text changes,
+    // but only fires the network call after 350ms of quiet to avoid spamming
+    // Firestore as the admin types.
+    useEffect(() => {
+        if (formData.type !== 'white_label') {
+            setSubdomainStatus({ kind: 'idle' });
+            return;
+        }
+        const value = formData.subdomain.trim();
+        if (!value) {
+            setSubdomainStatus({ kind: 'idle' });
+            return;
+        }
+        const syntax = validateSubdomain(value);
+        if (!syntax.valid) {
+            if (syntax.code === 'reserved') {
+                setSubdomainStatus({ kind: 'reserved' });
+            } else {
+                setSubdomainStatus({ kind: 'invalid', message: syntax.message });
+            }
+            return;
+        }
+
+        setSubdomainStatus({ kind: 'checking' });
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            try {
+                const user = getAuth().currentUser;
+                if (!user) {
+                    if (!cancelled) {
+                        setSubdomainStatus({ kind: 'error', message: 'Sign in again to continue.' });
+                    }
+                    return;
+                }
+                const token = await user.getIdToken();
+                const res = await fetch('/api/admin/subdomain-check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ value }),
+                });
+                const data = await res.json();
+                if (cancelled) return;
+                if (!res.ok) {
+                    setSubdomainStatus({ kind: 'error', message: data.error || 'Check failed' });
+                    return;
+                }
+                if (data.available) {
+                    setSubdomainStatus({ kind: 'available' });
+                } else if (data.reason === 'taken') {
+                    setSubdomainStatus({ kind: 'taken' });
+                } else if (data.reason === 'reserved') {
+                    setSubdomainStatus({ kind: 'reserved' });
+                } else if (data.reason === 'invalid') {
+                    setSubdomainStatus({ kind: 'invalid', message: data.message || 'Invalid' });
+                }
+            } catch (err: any) {
+                if (!cancelled) {
+                    setSubdomainStatus({ kind: 'error', message: err?.message || 'Check failed' });
+                }
+            }
+        }, 350);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [formData.subdomain, formData.type]);
 
     useEffect(() => {
         fetchClients();
     }, []);
+
+    // Auto-derive subdomain from business name for white-label until the admin
+    // edits the subdomain field manually. Stops the moment they take ownership
+    // of the value — we never overwrite user input.
+    useEffect(() => {
+        if (formData.type !== 'white_label') return;
+        if (subdomainTouchedRef.current) return;
+        const suggested = deriveSubdomain(formData.name);
+        setFormData((prev) =>
+            prev.subdomain === suggested ? prev : { ...prev, subdomain: suggested }
+        );
+    }, [formData.name, formData.type]);
 
     const fetchClients = async () => {
         try {
@@ -86,6 +193,22 @@ const Clients = () => {
         }
     };
 
+    const resetForm = () => {
+        setFormData({
+            name: "",
+            email: "",
+            password: "",
+            phone: "",
+            type: "franchise",
+            marginType: "flat",
+            marginValue: "",
+            allowedCouriers: [],
+            subdomain: "",
+        });
+        subdomainTouchedRef.current = false;
+        setSubdomainStatus({ kind: 'idle' });
+    };
+
     const handleAddClient = async () => {
         try {
             if (!formData.name || !formData.email || !formData.password || !formData.phone || !formData.marginValue) {
@@ -101,7 +224,25 @@ const Clients = () => {
                 return;
             }
 
-            await addClient({
+            // White-label requires a confirmed-available subdomain before we
+            // touch any Firestore state. Block submit until the live check
+            // resolves to `available`.
+            if (formData.type === 'white_label') {
+                if (!formData.subdomain) {
+                    toast.error("Subdomain is required for white-label partners");
+                    return;
+                }
+                if (subdomainStatus.kind === 'checking') {
+                    toast.error("Subdomain availability is still being checked — try again in a moment");
+                    return;
+                }
+                if (subdomainStatus.kind !== 'available') {
+                    toast.error("Choose an available subdomain before saving");
+                    return;
+                }
+            }
+
+            const createdClient = await addClient({
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
@@ -113,23 +254,57 @@ const Clients = () => {
                 walletBalance: 0
             }, formData.password);
 
+            // For white-label, atomically reserve the subdomain server-side.
+            // If this fails, roll back by deleting the client we just created.
+            // Without rollback we'd leave an orphan client with no subdomain,
+            // which the admin would have to clean up by hand.
+            if (formData.type === 'white_label') {
+                try {
+                    const user = getAuth().currentUser;
+                    if (!user) {
+                        throw new Error('Session expired — sign in again.');
+                    }
+                    const token = await user.getIdToken();
+                    const res = await fetch('/api/admin/subdomain-reserve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            tenantId: createdClient.id,
+                            subdomain: formData.subdomain.trim().toLowerCase(),
+                        }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.error || 'Failed to reserve subdomain');
+                    }
+                } catch (reserveErr: any) {
+                    // Roll back the orphan client — the subdomain is the
+                    // load-bearing piece of a white-label tenant; without it
+                    // the rest is unusable.
+                    try {
+                        await deleteClient(createdClient.id);
+                    } catch (rollbackErr) {
+                        console.error('[clients] rollback after subdomain reserve failed:', rollbackErr);
+                    }
+                    toast.error(reserveErr?.message || 'Failed to reserve subdomain. Try a different one.');
+                    return;
+                }
+            }
+
             const typeLabel =
                 formData.type === "franchise" ? "Franchise Partner" :
                 formData.type === "shopify" ? "Shopify Merchant" :
                 "White Label Partner";
-            toast.success(`${typeLabel} added successfully!`);
+            const successDetail =
+                formData.type === 'white_label'
+                    ? ` — portal at ${formData.subdomain}.blujaylogistic.com`
+                    : '';
+            toast.success(`${typeLabel} added successfully!${successDetail}`);
             setIsDialogOpen(false);
-            // Reset form
-            setFormData({
-                name: "",
-                email: "",
-                password: "",
-                phone: "",
-                type: "franchise",
-                marginType: "flat",
-                marginValue: "",
-                allowedCouriers: []
-            });
+            resetForm();
             // Refresh clients list
             fetchClients();
         } catch (error: any) {
@@ -350,14 +525,46 @@ const Clients = () => {
                             </div>
 
                             {formData.type === "white_label" && (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
-                                    <p className="font-semibold mb-1">White Label Partner</p>
-                                    <p className="text-amber-800/90 leading-relaxed">
-                                        This partner will see their own brand throughout the portal. On first login, they
-                                        must complete a mandatory onboarding form (logo, brand name, return address,
-                                        sender mobile, support email & phone) before they can use the dashboard.
-                                    </p>
-                                </div>
+                                <>
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+                                        <p className="font-semibold mb-1">White Label Partner</p>
+                                        <p className="text-amber-800/90 leading-relaxed">
+                                            This partner gets their own subdomain and a branded portal. On first
+                                            login they complete a mandatory onboarding form (logo, brand color,
+                                            return address, support contacts) before they can use the dashboard.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="subdomain">Portal Subdomain *</Label>
+                                        <div className="flex items-stretch gap-0 rounded-md border border-input focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 overflow-hidden">
+                                            <Input
+                                                id="subdomain"
+                                                value={formData.subdomain}
+                                                onChange={(e) => {
+                                                    subdomainTouchedRef.current = true;
+                                                    setFormData({
+                                                        ...formData,
+                                                        subdomain: normalizeSubdomainInput(e.target.value),
+                                                    });
+                                                }}
+                                                placeholder="svkoreas"
+                                                className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 flex-1"
+                                                autoComplete="off"
+                                                spellCheck={false}
+                                                maxLength={32}
+                                            />
+                                            <span className="flex items-center px-3 text-sm text-muted-foreground bg-muted/50 border-l">
+                                                .blujaylogistic.com
+                                            </span>
+                                        </div>
+                                        <SubdomainStatusLine status={subdomainStatus} />
+                                        <p className="text-xs text-muted-foreground">
+                                            Auto-suggested from the client name. Edit to override. Lowercase letters,
+                                            numbers, and hyphens only.
+                                        </p>
+                                    </div>
+                                </>
                             )}
 
                             <div className="space-y-2">
@@ -486,5 +693,70 @@ const Clients = () => {
         </div>
     );
 };
+
+// Inline status pill for the subdomain field. Kept in this file because the
+// AvailabilityState type lives in the parent component's closure.
+function SubdomainStatusLine({
+    status,
+}: {
+    status:
+        | { kind: 'idle' }
+        | { kind: 'checking' }
+        | { kind: 'available' }
+        | { kind: 'invalid'; message: string }
+        | { kind: 'taken' }
+        | { kind: 'reserved' }
+        | { kind: 'error'; message: string };
+}) {
+    if (status.kind === 'idle') return null;
+
+    const config: { icon: React.ReactNode; text: string; className: string } = (() => {
+        switch (status.kind) {
+            case 'checking':
+                return {
+                    icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
+                    text: 'Checking availability…',
+                    className: 'text-muted-foreground',
+                };
+            case 'available':
+                return {
+                    icon: <Check className="h-3.5 w-3.5" />,
+                    text: 'Available',
+                    className: 'text-emerald-600',
+                };
+            case 'taken':
+                return {
+                    icon: <X className="h-3.5 w-3.5" />,
+                    text: 'Already taken — try another',
+                    className: 'text-red-600',
+                };
+            case 'reserved':
+                return {
+                    icon: <X className="h-3.5 w-3.5" />,
+                    text: 'Reserved — choose a different name',
+                    className: 'text-red-600',
+                };
+            case 'invalid':
+                return {
+                    icon: <X className="h-3.5 w-3.5" />,
+                    text: status.message,
+                    className: 'text-red-600',
+                };
+            case 'error':
+                return {
+                    icon: <X className="h-3.5 w-3.5" />,
+                    text: status.message,
+                    className: 'text-amber-600',
+                };
+        }
+    })();
+
+    return (
+        <p className={`text-xs font-medium inline-flex items-center gap-1.5 ${config.className}`}>
+            {config.icon}
+            {config.text}
+        </p>
+    );
+}
 
 export default Clients;

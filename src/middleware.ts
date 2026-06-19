@@ -2,42 +2,82 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Allowed hostnames — only these can access the application.
- * Everything else gets blocked at the edge.
+ * Host policy:
+ *
+ *   - blujaylogistic.com, www.blujaylogistic.com  → platform (marketing + admin)
+ *   - {sub}.blujaylogistic.com                    → white-label tenant portal
+ *   - localhost, {sub}.localhost                  → local development
+ *   - *.vercel.app (this project only)            → preview / production builds
+ *
+ * Everything else gets a 403 with the unauthorized template below. This is the
+ * outermost gate — actual tenant resolution (subdomain → tenantId, 404 on
+ * missing/inactive tenant) happens in the server-side layout of the (client)
+ * route group, because middleware runs in Edge runtime which cannot use
+ * firebase-admin.
+ *
+ * Middleware annotates the request with parsed host metadata via two headers
+ * so downstream handlers don't have to re-parse:
+ *
+ *   x-blujay-host          → raw hostname (no port)
+ *   x-blujay-subdomain     → extracted subdomain when host is *.blujaylogistic.com,
+ *                            or empty string for apex / www / preview / localhost root
  */
-const ALLOWED_HOSTS = new Set([
-  'blujaylogistic.com',
-  'www.blujaylogistic.com',
-]);
 
-const ALLOWED_LOCAL = new Set([
-  'localhost',
-  '127.0.0.1',
-]);
+const APEX = 'blujaylogistic.com';
 
-function isAllowedHost(host: string): boolean {
-  // Strip port for comparison
-  const hostname = host.split(':')[0];
+const ALLOWED_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
-  // Exact match on production domains
-  if (ALLOWED_HOSTS.has(hostname)) return true;
+interface HostDecision {
+    allowed: boolean;
+    hostname: string;
+    subdomain: string;        // '' when this is the apex, www, preview, or localhost root
+}
 
-  // Local development (only works if license key is also valid)
-  if (ALLOWED_LOCAL.has(hostname)) return true;
+function evaluateHost(rawHost: string): HostDecision {
+    const hostname = (rawHost.split(':')[0] || '').toLowerCase();
 
-  // Vercel preview/production deployments (only the owner's project)
-  if (hostname.endsWith('.vercel.app')) {
-    // Only allow deployments from the owner's Vercel team
-    if (
-      hostname.includes('courierhub-blujay-logistics') ||
-      hostname.includes('bhargavs-projects')
-    ) {
-      return true;
+    // Apex / www
+    if (hostname === APEX || hostname === `www.${APEX}`) {
+        return { allowed: true, hostname, subdomain: '' };
     }
-    return false;
-  }
 
-  return false;
+    // Subdomain on the apex: foo.blujaylogistic.com → 'foo'
+    if (hostname.endsWith(`.${APEX}`)) {
+        const subdomain = hostname.slice(0, -(APEX.length + 1));
+        // Guard against multi-segment subdomains (foo.bar.blujaylogistic.com).
+        // We only support single-label tenant subdomains.
+        if (subdomain.includes('.')) {
+            return { allowed: false, hostname, subdomain: '' };
+        }
+        return { allowed: true, hostname, subdomain };
+    }
+
+    // Localhost / IP (dev). Accepts {sub}.localhost too.
+    if (ALLOWED_LOCAL_HOSTS.has(hostname)) {
+        return { allowed: true, hostname, subdomain: '' };
+    }
+    if (hostname.endsWith('.localhost')) {
+        const subdomain = hostname.slice(0, -'.localhost'.length);
+        if (subdomain.includes('.')) {
+            return { allowed: false, hostname, subdomain: '' };
+        }
+        return { allowed: true, hostname, subdomain };
+    }
+
+    // Vercel preview / production builds — restricted to this project's
+    // deployments. Subdomain extraction is N/A for previews; they use the
+    // apex routing.
+    if (hostname.endsWith('.vercel.app')) {
+        if (
+            hostname.includes('courierhub-blujay-logistics') ||
+            hostname.includes('bhargavs-projects')
+        ) {
+            return { allowed: true, hostname, subdomain: '' };
+        }
+        return { allowed: false, hostname, subdomain: '' };
+    }
+
+    return { allowed: false, hostname, subdomain: '' };
 }
 
 const BLOCKED_HTML = `<!DOCTYPE html>
@@ -100,22 +140,39 @@ const BLOCKED_HTML = `<!DOCTYPE html>
 </html>`;
 
 export function middleware(request: NextRequest) {
-  const host = request.headers.get('host') || '';
+    const rawHost = request.headers.get('host') || '';
+    const decision = evaluateHost(rawHost);
 
-  if (!isAllowedHost(host)) {
-    return new NextResponse(BLOCKED_HTML, {
-      status: 403,
-      headers: {
-        'Content-Type': 'text/html',
-        'X-Robots-Tag': 'noindex',
-      },
+    if (!decision.allowed) {
+        return new NextResponse(BLOCKED_HTML, {
+            status: 403,
+            headers: {
+                'Content-Type': 'text/html',
+                'X-Robots-Tag': 'noindex',
+            },
+        });
+    }
+
+    // Tenant subdomains MUST never be indexed by search engines — robots will
+    // dilute the brand and leak tenant identities. Apex stays indexable.
+    const isTenantSubdomain = decision.subdomain.length > 0;
+
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-blujay-host', decision.hostname);
+    requestHeaders.set('x-blujay-subdomain', decision.subdomain);
+
+    const response = NextResponse.next({
+        request: { headers: requestHeaders },
     });
-  }
 
-  return NextResponse.next();
+    if (isTenantSubdomain) {
+        response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    return response;
 }
 
 // Run middleware on ALL routes
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+    matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
