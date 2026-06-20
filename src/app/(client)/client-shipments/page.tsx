@@ -42,8 +42,7 @@ import { blueDartService } from "@/services/blueDartService";
 import { dtdcService } from "@/services/dtdcService";
 import { delhiveryService } from "@/services/delhiveryService";
 import { trackUnified, isTrackerCourierData, parseTrackerCourierScans, getTrackerCourierStatus } from "@/services/trackingService";
-import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BLUEDART_PACK_TYPES, BlueDartPackType } from "@/config/bluedartConfig";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES } from "@/config/bluedartConfig";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
 import { DELHIVERY_PREDEFINED, sanitizeDelhiveryField } from "@/config/delhiveryConfig";
 import { normalizeTrackingStatus, getTrackingDisplay, getCollapsedTrackingDisplay, legacyStatusToTracking, type TrackingStatus } from "@/config/trackingStatusConfig";
@@ -153,7 +152,6 @@ const ClientShipments = () => {
     const [selectedNewOrderIds, setSelectedNewOrderIds] = useState<Set<string>>(new Set());
     const [bulkShipCourier, setBulkShipCourier] = useState<'Blue Dart' | 'DTDC' | 'Delhivery'>('Blue Dart');
     const [bulkShipBlueDartService, setBulkShipBlueDartService] = useState<'APEX' | 'BHARAT_DART'>('APEX');
-    const [bulkShipBlueDartPackType, setBulkShipBlueDartPackType] = useState<BlueDartPackType | ''>('');
     const [showBulkShipDialog, setShowBulkShipDialog] = useState(false);
     const [bulkShipValidation, setBulkShipValidation] = useState<OrderValidation[] | null>(null);
     const [isBulkShipping, setIsBulkShipping] = useState(false);
@@ -422,7 +420,6 @@ const ClientShipments = () => {
     const handleInitBulkShip = async () => {
         const selectedOrders = newOrders.filter(s => selectedNewOrderIds.has(s.id));
         if (selectedOrders.length === 0) { toast.error("No orders selected"); return; }
-        if (bulkShipCourier === 'Blue Dart' && !bulkShipBlueDartPackType) { toast.error("Please select a pack type"); return; }
 
         // Fetch pickup address for validation
         const pickupAddress = currentUser?.id ? await getDefaultPickupAddress(currentUser.id) : null;
@@ -525,7 +522,7 @@ const ClientShipments = () => {
                             ProductType: 1,
                             SubProductCode: order.toPayCustomer ? "C" : "P",
                             PieceCount: "1",
-                            PackType: bulkShipBlueDartPackType || BLUEDART_SERVICE_TYPES[bulkShipBlueDartService].packType,
+                            PackType: BLUEDART_SERVICE_TYPES[bulkShipBlueDartService].packType,
                             ActualWeight: weight.toString(),
                             Dimensions: [{ Length: "10", Breadth: "10", Height: "10", Count: "1" }],
                             ...(order.toPayCustomer ? { CollectableAmount: declaredValue } : {}),
@@ -558,7 +555,6 @@ const ClientShipments = () => {
                         senderMobile: cleanPickupPhone || BLUEDART_PREDEFINED.senderMobile,
                         productCode: BLUEDART_SERVICE_TYPES[bulkShipBlueDartService].code,
                         packType: BLUEDART_SERVICE_TYPES[bulkShipBlueDartService].packType,
-                        blueDartPackType: bulkShipBlueDartPackType || undefined,
                         productType: BLUEDART_PREDEFINED.productType,
                         awbNo,
                         blueDartStatus: 'Generated',
@@ -1544,18 +1540,6 @@ const ClientShipments = () => {
                                             🚛 Surface
                                         </button>
                                     </div>
-                                )}
-                                {bulkShipCourier === 'Blue Dart' && (
-                                    <Select value={bulkShipBlueDartPackType} onValueChange={(v) => setBulkShipBlueDartPackType(v as BlueDartPackType)}>
-                                        <SelectTrigger className="h-9 w-[150px] bg-white text-xs">
-                                            <SelectValue placeholder="Pack type *" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {BLUEDART_PACK_TYPES.map((pt) => (
-                                                <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
                                 )}
                                 {bulkShipCourier === 'DTDC' && (
                                     <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">

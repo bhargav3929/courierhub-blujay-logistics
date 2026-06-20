@@ -631,12 +631,6 @@ const AddShipment = () => {
 
     // STEP 3: Book directly
     const handleBook = async () => {
-        // Pack type is mandatory for Blue Dart
-        if (selectedCourier === 'Blue Dart' && !blueDartPackType) {
-            toast.error("Please select a pack type");
-            return;
-        }
-
         // Validate COD for Blue Dart / Delhivery
         if ((selectedCourier === 'Blue Dart' || selectedCourier === 'Delhivery') && enableCOD) {
             if (!codAmount || parseFloat(codAmount) <= 0) {
@@ -1699,25 +1693,24 @@ const AddShipment = () => {
                                             </>
                                         )}
 
-                                        {/* Pack Type — mandatory for Blue Dart */}
-                                        <div className="space-y-2 max-w-lg">
-                                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                                <Package className="h-3 w-3" /> Pack type
-                                            </Label>
-                                            <Select value={blueDartPackType} onValueChange={(v) => setBlueDartPackType(v as BlueDartPackType)}>
-                                                <SelectTrigger className="bg-white">
-                                                    <SelectValue placeholder="Select pack type" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {BLUEDART_PACK_TYPES.map((pt) => (
-                                                        <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            {!blueDartPackType && (
-                                                <p className="text-[10px] text-muted-foreground">Required · select a pack type to continue</p>
-                                            )}
-                                        </div>
+                                        {/* Pack Type — B2B only (non-Shopify), optional */}
+                                        {!isB2C && (
+                                            <div className="space-y-2 max-w-lg">
+                                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                                    <Package className="h-3 w-3" /> Pack type <span className="font-medium normal-case tracking-normal text-muted-foreground/70">(optional)</span>
+                                                </Label>
+                                                <Select value={blueDartPackType} onValueChange={(v) => setBlueDartPackType(v as BlueDartPackType)}>
+                                                    <SelectTrigger className="bg-white">
+                                                        <SelectValue placeholder="Select pack type" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {BLUEDART_PACK_TYPES.map((pt) => (
+                                                            <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
 
                                         {/* COD Option - Only for B2C (Domestic Priority doesn't support COD) */}
                                         {isB2C && (

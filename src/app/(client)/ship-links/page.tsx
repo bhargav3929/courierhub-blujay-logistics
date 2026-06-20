@@ -527,10 +527,6 @@ function ShipmentDialog({
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const handleSubmit = async () => {
-        if (carrier === 'bluedart' && !bluedartPackType) {
-            toast.error('Please select a pack type');
-            return;
-        }
         setSubmitting(true);
         setErrorMsg(null);
         try {
@@ -540,7 +536,7 @@ function ShipmentDialog({
             const body: Record<string, unknown> = { carrier };
             if (carrier === 'bluedart') {
                 body.blueDartServiceType = bluedartService;
-                body.blueDartPackType = bluedartPackType;
+                if (bluedartPackType) body.blueDartPackType = bluedartPackType;
             } else if (carrier === 'delhivery') {
                 body.delhiveryServiceType = delhiveryService;
             }
@@ -739,7 +735,7 @@ function ShipmentDialog({
                                     </SelectContent>
                                 </Select>
                                 <p className="text-xs text-slate-500 mb-1.5 mt-3">
-                                    Pack type
+                                    Pack type <span className="text-slate-400">(optional)</span>
                                 </p>
                                 <Select
                                     value={bluedartPackType}
