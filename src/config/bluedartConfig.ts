@@ -39,13 +39,14 @@ export const BLUEDART_SERVICE_TYPES = {
 
 export type BlueDartServiceType = keyof typeof BLUEDART_SERVICE_TYPES;
 
-// Pack Type selection (mandatory when booking with Blue Dart).
+// Pack Type selection for B2B BlueDart bookings.
 // The `value` is sent to Blue Dart in the Services.PackType field; the
 // `label` is what the user sees in the dropdown.
+// Valid values: N (by 12:30 PM), T (by 10:30 AM).
+// NOTE: Do NOT add 'C' here — C is the SubProductCode for COD, not a PackType.
 export const BLUEDART_PACK_TYPES = [
     { value: 'N', label: 'N-12:30' },
     { value: 'T', label: 'T-10:30' },
-    { value: 'C', label: 'C-critical' },
 ] as const;
 
 export type BlueDartPackType = typeof BLUEDART_PACK_TYPES[number]['value'];

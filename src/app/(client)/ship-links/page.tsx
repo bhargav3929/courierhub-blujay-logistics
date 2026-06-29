@@ -487,7 +487,7 @@ const BLUEDART_SERVICE_OPTIONS: Array<{
     { value: 'SURFACE', label: 'Dart Surfaceline (B2B)' },
 ];
 
-type BlueDartPackType = 'N' | 'T' | 'C';
+type BlueDartPackType = 'N' | 'T';
 
 const BLUEDART_PACK_TYPE_OPTIONS: Array<{
     value: BlueDartPackType;
@@ -495,7 +495,6 @@ const BLUEDART_PACK_TYPE_OPTIONS: Array<{
 }> = [
     { value: 'N', label: 'N-12:30' },
     { value: 'T', label: 'T-10:30' },
-    { value: 'C', label: 'C-critical' },
 ];
 
 const DELHIVERY_SERVICE_OPTIONS: Array<{
