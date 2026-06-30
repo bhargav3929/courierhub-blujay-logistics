@@ -41,7 +41,7 @@ import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/cl
 import { consumePrefill } from "@/lib/chatbot/shipmentPrefillStash";
 import { humanizeCourierError } from "@/lib/courierErrors";
 import { blueDartService } from "@/services/blueDartService";
-import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
+import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType, BLUEDART_PACK_TYPES, BlueDartPackType } from "@/config/bluedartConfig";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { dtdcService } from "@/services/dtdcService";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
@@ -178,6 +178,11 @@ const AddShipment = () => {
 
     // Blue Dart service options
     const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
+    // Blue Dart pack type — B2B only; starts blank (no time-definite delivery by default)
+    const [blueDartPackType, setBlueDartPackType] = useState<BlueDartPackType | ''>('');
+    // Pack types available for the current origin pincode (from GetServicesforPincode)
+    const [availablePackTypes, setAvailablePackTypes] = useState<BlueDartPackType[]>([]);
+    const [packTypeCheckDone, setPackTypeCheckDone] = useState(false);
     // Delhivery service options
     const [delhiveryServiceType, setDelhiveryServiceType] = useState<DelhiveryServiceType>('Express');
     const [enableCOD, setEnableCOD] = useState(false);
@@ -506,6 +511,37 @@ const AddShipment = () => {
         };
     }, []);
 
+    // Check which TDD pack types (N, T) are serviceable for the origin pincode.
+    // Calls GetServicesforPincode; reads DPTDD12Outbound (N-12:30) and DPTDD10Outbound (T-10:30).
+    // Only runs for B2B bookings on Blue Dart when we arrive at the courier step with a valid pincode.
+    useEffect(() => {
+        if (isB2C || step !== 4 || selectedCourier !== 'Blue Dart' || !pickup.pincode) return;
+        if (!/^\d{6}$/.test(pickup.pincode)) return;
+
+        let cancelled = false;
+        setPackTypeCheckDone(false);
+        setAvailablePackTypes([]);
+        setBlueDartPackType(''); // reset selection when pincode changes
+
+        (async () => {
+            try {
+                const data = await blueDartService.validatePincode(pickup.pincode);
+                if (cancelled) return;
+                const available: BlueDartPackType[] = [];
+                // DPTDD12Outbound = "Y" → N-12:30 available; DPTDD10Outbound = "Y" → T-10:30 available
+                if (data?.DPTDD12Outbound === 'Y') available.push('N');
+                if (data?.DPTDD10Outbound === 'Y') available.push('T');
+                setAvailablePackTypes(available);
+            } catch {
+                if (!cancelled) setAvailablePackTypes([]); // hide dropdown on error
+            } finally {
+                if (!cancelled) setPackTypeCheckDone(true);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [isB2C, step, selectedCourier, pickup.pincode]);
+
     // Save pickup address as default
     const handleSetAsDefault = async () => {
         if (!currentUser?.id) {
@@ -720,7 +756,7 @@ const AddShipment = () => {
                         ? { SubProductCode: enableCOD ? "C" : "P" }
                         : enableCOD ? { SubProductCode: "C" } : {}),
                     PieceCount: "1",
-                    PackType: selectedService.packType || "",
+                    PackType: blueDartPackType || selectedService.packType || "",
                     ActualWeight: weights.actual.toString(),
                     Dimensions: [
                         {
@@ -834,6 +870,7 @@ const AddShipment = () => {
             blueDartServiceType: selectedService.name,
             blueDartServiceCode: selectedService.code,
             packType: selectedService.packType || '',
+            blueDartPackType: blueDartPackType || undefined,
             codEnabled: enableCOD,
             collectableAmount: codAmountValue,
             ...(isReturn && parentShipmentId ? { shipmentType: 'return' as const, parentShipmentId } : {}),
@@ -1688,6 +1725,25 @@ const AddShipment = () => {
                                                         ))}
                                                 </div>
                                             </>
+                                        )}
+
+                                        {/* Pack Type — B2B only, shown only when origin pincode supports TDD */}
+                                        {!isB2C && packTypeCheckDone && availablePackTypes.length > 0 && (
+                                            <div className="space-y-2 max-w-lg">
+                                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                                    <Package className="h-3 w-3" /> Pack type <span className="font-medium normal-case tracking-normal text-muted-foreground/70">(optional — time-definite delivery)</span>
+                                                </Label>
+                                                <Select value={blueDartPackType} onValueChange={(v) => setBlueDartPackType(v as BlueDartPackType | '')}>
+                                                    <SelectTrigger className="bg-white">
+                                                        <SelectValue placeholder="Select pack type" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {BLUEDART_PACK_TYPES.filter(pt => availablePackTypes.includes(pt.value)).map((pt) => (
+                                                            <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         )}
 
                                         {/* COD Option - Only for B2C (Domestic Priority doesn't support COD) */}
