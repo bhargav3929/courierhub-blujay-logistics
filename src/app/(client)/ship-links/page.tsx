@@ -487,16 +487,6 @@ const BLUEDART_SERVICE_OPTIONS: Array<{
     { value: 'SURFACE', label: 'Dart Surfaceline (B2B)' },
 ];
 
-type BlueDartPackType = 'N' | 'T';
-
-const BLUEDART_PACK_TYPE_OPTIONS: Array<{
-    value: BlueDartPackType;
-    label: string;
-}> = [
-    { value: 'N', label: 'N-12:30' },
-    { value: 'T', label: 'T-10:30' },
-];
-
 const DELHIVERY_SERVICE_OPTIONS: Array<{
     value: DelhiveryServiceType;
     label: string;
@@ -517,8 +507,6 @@ function ShipmentDialog({
     const [carrier, setCarrier] = useState<DirectCarrier>('bluedart');
     const [bluedartService, setBluedartService] =
         useState<BlueDartServiceType>('APEX');
-    const [bluedartPackType, setBluedartPackType] =
-        useState<BlueDartPackType | ''>('');
     const [delhiveryService, setDelhiveryService] =
         useState<DelhiveryServiceType>('Surface');
     const [submitting, setSubmitting] = useState(false);
@@ -535,7 +523,6 @@ function ShipmentDialog({
             const body: Record<string, unknown> = { carrier };
             if (carrier === 'bluedart') {
                 body.blueDartServiceType = bluedartService;
-                if (bluedartPackType) body.blueDartPackType = bluedartPackType;
             } else if (carrier === 'delhivery') {
                 body.delhiveryServiceType = delhiveryService;
             }
@@ -727,26 +714,6 @@ function ShipmentDialog({
                                     </SelectTrigger>
                                     <SelectContent>
                                         {BLUEDART_SERVICE_OPTIONS.map((s) => (
-                                            <SelectItem key={s.value} value={s.value}>
-                                                {s.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-slate-500 mb-1.5 mt-3">
-                                    Pack type <span className="text-slate-400">(optional)</span>
-                                </p>
-                                <Select
-                                    value={bluedartPackType}
-                                    onValueChange={(v) =>
-                                        setBluedartPackType(v as BlueDartPackType)
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select pack type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {BLUEDART_PACK_TYPE_OPTIONS.map((s) => (
                                             <SelectItem key={s.value} value={s.value}>
                                                 {s.label}
                                             </SelectItem>

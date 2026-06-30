@@ -41,7 +41,7 @@ import { saveDefaultPickupAddress, getDefaultPickupAddress } from "@/services/cl
 import { consumePrefill } from "@/lib/chatbot/shipmentPrefillStash";
 import { humanizeCourierError } from "@/lib/courierErrors";
 import { blueDartService } from "@/services/blueDartService";
-import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType, BLUEDART_PACK_TYPES, BlueDartPackType } from "@/config/bluedartConfig";
+import { BLUEDART_PREDEFINED, BLUEDART_SERVICE_TYPES, BlueDartServiceType } from "@/config/bluedartConfig";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { dtdcService } from "@/services/dtdcService";
 import { DTDC_PREDEFINED } from "@/config/dtdcConfig";
@@ -178,8 +178,6 @@ const AddShipment = () => {
 
     // Blue Dart service options
     const [blueDartServiceType, setBlueDartServiceType] = useState<BlueDartServiceType>(isB2C ? 'APEX' : 'PRIORITY');
-    // Blue Dart pack type — mandatory, starts blank
-    const [blueDartPackType, setBlueDartPackType] = useState<BlueDartPackType | ''>('');
     // Delhivery service options
     const [delhiveryServiceType, setDelhiveryServiceType] = useState<DelhiveryServiceType>('Express');
     const [enableCOD, setEnableCOD] = useState(false);
@@ -722,7 +720,7 @@ const AddShipment = () => {
                         ? { SubProductCode: enableCOD ? "C" : "P" }
                         : enableCOD ? { SubProductCode: "C" } : {}),
                     PieceCount: "1",
-                    PackType: blueDartPackType || selectedService.packType || "",
+                    PackType: selectedService.packType || "",
                     ActualWeight: weights.actual.toString(),
                     Dimensions: [
                         {
@@ -836,7 +834,6 @@ const AddShipment = () => {
             blueDartServiceType: selectedService.name,
             blueDartServiceCode: selectedService.code,
             packType: selectedService.packType || '',
-            blueDartPackType: blueDartPackType || undefined,
             codEnabled: enableCOD,
             collectableAmount: codAmountValue,
             ...(isReturn && parentShipmentId ? { shipmentType: 'return' as const, parentShipmentId } : {}),
@@ -1691,25 +1688,6 @@ const AddShipment = () => {
                                                         ))}
                                                 </div>
                                             </>
-                                        )}
-
-                                        {/* Pack Type — B2B only (non-Shopify), optional */}
-                                        {!isB2C && (
-                                            <div className="space-y-2 max-w-lg">
-                                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                                    <Package className="h-3 w-3" /> Pack type <span className="font-medium normal-case tracking-normal text-muted-foreground/70">(optional)</span>
-                                                </Label>
-                                                <Select value={blueDartPackType} onValueChange={(v) => setBlueDartPackType(v as BlueDartPackType)}>
-                                                    <SelectTrigger className="bg-white">
-                                                        <SelectValue placeholder="Select pack type" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {BLUEDART_PACK_TYPES.map((pt) => (
-                                                            <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
                                         )}
 
                                         {/* COD Option - Only for B2C (Domestic Priority doesn't support COD) */}
