@@ -531,9 +531,14 @@ const AddShipment = () => {
                 // DPTDD12Outbound = "Y" → N-12:30 available; DPTDD10Outbound = "Y" → T-10:30 available
                 if (data?.DPTDD12Outbound === 'Y') available.push('N');
                 if (data?.DPTDD10Outbound === 'Y') available.push('T');
+                // If the finder API returned valid data but no TDD fields, fall back to showing all
+                if (available.length === 0 && data && !data['error-response']) {
+                    available.push('N', 'T');
+                }
                 setAvailablePackTypes(available);
             } catch {
-                if (!cancelled) setAvailablePackTypes([]); // hide dropdown on error
+                // Finder API not subscribed or unavailable — fail open, show all pack types
+                if (!cancelled) setAvailablePackTypes(['N', 'T']);
             } finally {
                 if (!cancelled) setPackTypeCheckDone(true);
             }
