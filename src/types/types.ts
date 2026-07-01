@@ -184,6 +184,7 @@ export interface Shipment {
         variant_title?: string;
     }>;
     shopifyOrderDate?: string; // ISO date from order.created_at
+    shopifySourceName?: string; // Shopify source_name: 'web' | 'pos' | etc.
     products?: ShipmentProduct[]; // Multiple products per order
 
     // Ad Commission / COD Margin (order-level)

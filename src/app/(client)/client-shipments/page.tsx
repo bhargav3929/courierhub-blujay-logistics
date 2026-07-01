@@ -171,6 +171,7 @@ const ClientShipments = () => {
     const [courierFilter, setCourierFilter] = useState<string[]>([]);
     const [paymentFilter, setPaymentFilter] = useState<string[]>([]);
     const [typeFilter, setTypeFilter] = useState<string[]>([]);
+    const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'pos'>('online');
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
@@ -347,9 +348,12 @@ const ClientShipments = () => {
         );
     };
 
-    const filteredNewOrders = newOrders.filter((shp) =>
-        matchesSearch(shp, false) && applyShipmentFilters(shp)
-    );
+    const filteredNewOrders = newOrders.filter((shp) => {
+        if (!matchesSearch(shp, false) || !applyShipmentFilters(shp)) return false;
+        if (channelFilter === 'online') return shp.shopifySourceName !== 'pos';
+        if (channelFilter === 'pos') return shp.shopifySourceName === 'pos';
+        return true;
+    });
 
     const filteredBookedShipments = bookedShipments.filter((shp) =>
         matchesSearch(shp, true) && applyShipmentFilters(shp)
@@ -1387,6 +1391,28 @@ const ClientShipments = () => {
                                                             }`}
                                                         >
                                                             {val}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Channel — only for Shopify merchants, applies to New Orders tab */}
+                                        {!isFranchise && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Channel</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(['all', 'online', 'pos'] as const).map(val => (
+                                                        <button
+                                                            key={val}
+                                                            onClick={() => setChannelFilter(val)}
+                                                            className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                                                                channelFilter === val
+                                                                    ? 'bg-primary text-white'
+                                                                    : 'bg-muted/50 text-foreground hover:bg-muted'
+                                                            }`}
+                                                        >
+                                                            {val === 'all' ? 'All' : val === 'online' ? 'Online Only' : 'POS Only'}
                                                         </button>
                                                     ))}
                                                 </div>

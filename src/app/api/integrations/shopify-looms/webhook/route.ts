@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/firebaseConfig';
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +43,21 @@ export async function POST(request: Request) {
 
         console.log(`[Shopify-Looms Webhook] Received ${topic} from ${shopDomain}`);
 
+        // Handle app/uninstalled — mark shop as disconnected
+        if (topic === 'app/uninstalled') {
+            const usersRef = collection(db, 'users');
+            const uq = query(usersRef, where('shopifyConfig.shopUrl', '==', shopDomain));
+            const uSnap = await getDocs(uq);
+            for (const userDocument of uSnap.docs) {
+                await updateDoc(doc(db, 'users', userDocument.id), {
+                    'shopifyConfig.isConnected': false,
+                    'shopifyConfig.uninstalledAt': new Date().toISOString(),
+                });
+                console.log(`[Shopify-Looms Webhook] Marked ${shopDomain} disconnected for user ${userDocument.id}`);
+            }
+            return NextResponse.json({ received: true });
+        }
+
         // Handle orders/create webhook
         if (topic === 'orders/create') {
             // Find user by shop domain
@@ -64,8 +79,27 @@ export async function POST(request: Request) {
                 return NextResponse.json({ received: true });
             }
 
-            // Create shipment from order
             const order = payload;
+
+            // Skip POS orders — only process online orders
+            if (order.source_name === 'pos') {
+                console.log('[Shopify-Looms Webhook] Skipping POS order:', order.id);
+                return NextResponse.json({ received: true });
+            }
+
+            // Idempotency: skip if we already have a shipment for this order
+            const existingQ = await getDocs(
+                query(collection(db, 'shipments'),
+                    where('shopifyOrderId', '==', order.id.toString()),
+                    where('clientId', '==', userDoc.id)
+                )
+            );
+            if (!existingQ.empty) {
+                console.log('[Shopify-Looms Webhook] Duplicate webhook, skipping order:', order.id);
+                return NextResponse.json({ received: true });
+            }
+
+            // Create shipment from order
             const shippingAddress = order.shipping_address || {};
 
             const shipmentData = {
@@ -104,6 +138,8 @@ export async function POST(request: Request) {
                     sku: item.sku || '',
                     price: parseFloat(item.price) || 0,
                 })),
+
+                shopifySourceName: order.source_name || 'web',
 
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),
