@@ -101,6 +101,24 @@ export async function POST(request: Request) {
             } catch (fetchErr) {
                 console.error('[Shopify-Public Webhook] Order fetch failed, using webhook payload:', fetchErr);
             }
+            // Skip POS orders — merchants don't want physical-store orders in their shipment queue
+            if (order.source_name === 'pos') {
+                console.log('[Shopify-Public Webhook] Skipping POS order:', order.id);
+                return NextResponse.json({ received: true });
+            }
+
+            // Idempotency: skip if this Shopify order was already ingested (Shopify retries can cause duplicates)
+            const existingQ = await getDocs(
+                query(collection(db, 'shipments'),
+                    where('shopifyOrderId', '==', order.id.toString()),
+                    where('clientId', '==', userDoc.id)
+                )
+            );
+            if (!existingQ.empty) {
+                console.log('[Shopify-Public Webhook] Duplicate webhook, skipping order:', order.id);
+                return NextResponse.json({ received: true });
+            }
+
             const shippingAddress = order.shipping_address || {};
 
             const shipmentData = {
@@ -139,6 +157,8 @@ export async function POST(request: Request) {
                     sku: item.sku || '',
                     price: parseFloat(item.price) || 0,
                 })),
+
+                shopifySourceName: order.source_name || 'web',
 
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),
