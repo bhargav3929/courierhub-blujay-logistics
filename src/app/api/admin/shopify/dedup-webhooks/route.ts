@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { adminApp } from '@/lib/firebaseAdmin';
 import { getFirestore } from 'firebase-admin/firestore';
 import { authenticateRequest } from '@/lib/serverAuth';
-import { decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
+import { decryptToken, decryptTokenWithSecret } from '@/lib/shopifyTokenCrypto';
 import { deduplicateShopifyWebhooks } from '@/lib/shopifyWebhook';
 
 export const dynamic = 'force-dynamic';
@@ -52,12 +52,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No Shopify connection found for this user' }, { status: 400 });
     }
 
-    // Decrypt the access token
+    // Decrypt the access token — try app-specific secret first, fall back to SHOPIFY_API_SECRET
+    // (legacy callback used encryptToken which keys off SHOPIFY_API_SECRET, not the app secret)
     let accessToken: string;
     try {
         accessToken = decryptTokenWithSecret(shopifyConfig.accessToken, appSecret);
-    } catch (e: any) {
-        return NextResponse.json({ error: `Failed to decrypt token: ${e.message}` }, { status: 500 });
+    } catch {
+        try {
+            accessToken = decryptToken(shopifyConfig.accessToken);
+        } catch (e: any) {
+            return NextResponse.json({ error: `Failed to decrypt token with any known key: ${e.message}` }, { status: 500 });
+        }
     }
 
     // Determine the webhook path for this app
